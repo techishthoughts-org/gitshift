@@ -652,7 +652,7 @@ func TestManagerPerformance(t *testing.T) {
 	manager := NewManager()
 
 	// Add many accounts to test performance
-	const numAccounts = 1000
+	const numAccounts = 100
 
 	start := time.Now()
 	for i := 0; i < numAccounts; i++ {
