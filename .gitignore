@@ -1,0 +1,242 @@
+# GitPersona - Comprehensive .gitignore for Security & Privacy
+# =============================================================
+
+# 🔒 SENSITIVE CONFIGURATION FILES
+# Never commit actual user configurations or credentials
+.gh-switcher.yaml
+.gh-switcher.yml
+config.yaml
+config.yml
+accounts.yaml
+accounts.yml
+
+# Personal configuration directories
+.config/
+config/
+
+# 🔑 SSH KEYS & CRYPTO MATERIAL  
+# Critical: Never expose private keys or crypto material
+*.key
+*.pem
+id_rsa*
+id_ed25519*
+id_ecdsa*
+*.ppk
+*.p12
+*.pfx
+known_hosts*
+authorized_keys*
+
+# SSH configuration with potential sensitive data
+ssh_config
+.ssh/
+
+# 🔐 SECRETS & TOKENS
+# Never commit any authentication tokens or secrets
+.env
+.env.local
+.env.production
+.env.staging
+*.token
+*.secret
+github_token
+gh_token
+access_token
+api_key
+
+# GitHub CLI authentication
+.config/gh/
+
+# 🏗️ BUILD ARTIFACTS
+# Don't commit compiled binaries or build outputs
+gh-switcher*
+gitpersona*
+!gh-switcher.go
+!gitpersona.go
+dist/
+build/
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# 📊 LOGS & DEBUGGING
+# Keep logs and debug info out of version control
+*.log
+logs/
+debug.log
+error.log
+access.log
+audit.log
+trace.log
+
+# Performance and profiling data
+*.prof
+*.mem
+*.cpu
+pprof/
+profile.out
+
+# 📝 TEMPORARY FILES
+# OS and editor temporary files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.Trash-*
+
+# Editor temporary files
+*~
+*.swp
+*.swo
+*.tmp
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.iml
+
+# 🧪 TESTING ARTIFACTS  
+# Test outputs and coverage reports
+coverage.out
+coverage.html
+*.test
+*.out
+test-results/
+coverage/
+
+# Testdata with potential sensitive info
+testdata/real-*
+testdata/production-*
+testdata/secrets-*
+
+# 🐳 DEVELOPMENT ENVIRONMENT
+# Container and development files with secrets
+docker-compose.override.yml
+docker-compose.local.yml
+.dockerignore.local
+
+# Local development scripts
+dev.sh
+test.sh
+deploy.sh
+setup.sh
+
+# 📦 DEPENDENCY ARTIFACTS
+# Go module cache and vendor
+vendor/
+.vendor/
+go.work
+go.work.sum
+
+# Node.js (if using for any tooling)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python (if using for any tooling)  
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+env/
+.env
+
+# 💾 BACKUP FILES
+# Automated backups that might contain sensitive data
+*.backup
+*.bak
+*.orig
+*.save
+backup/
+backups/
+
+# 📊 ANALYTICS & MONITORING
+# Monitoring and analytics data
+analytics/
+metrics/
+telemetry/
+usage-stats.json
+
+# 🔬 SECURITY SCANNING
+# Security scan results that might expose vulnerabilities
+security-report.json
+vulnerability-report.json
+audit-results.json
+*.sarif
+
+# 🎯 LOCAL CONFIGURATION OVERRIDES
+# Local development overrides
+local.yaml
+local.yml
+development.yaml
+development.yml
+.local
+.development
+
+# 📱 PLATFORM SPECIFIC
+# Platform-specific files that shouldn't be committed
+
+# macOS
+.AppleDouble
+.LSOverride
+Icon?
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# Windows  
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
+
+# 🚀 DEPLOYMENT ARTIFACTS
+# Deployment keys and production configurations
+deploy-keys/
+production.yaml
+staging.yaml
+k8s-secrets.yaml
+
+# 📋 NOTES & DOCUMENTATION DRAFTS
+# Personal notes that shouldn't be public
+NOTES.md
+TODO.md
+SCRATCH.md
+ideas.md
+personal-notes.md
+
+# 🎪 DEMO & EXAMPLE DATA
+# Example configurations with real data
+examples/real-*
+demo-configs/
+sample-configs/
+
+# ⚡ PERFORMANCE DATA
+# Performance benchmarks and profiling
+benchmarks/
+performance/
+*.bench
+
+# 🔔 NOTIFICATION CONFIGS
+# Notification settings that might contain personal info
+notifications.yaml
+alerts.yaml
+webhooks.yaml
+
+# 🌐 NETWORK CONFIGURATION
+# Network configs that might expose internal info
+.netrc
+.netrc.gpg

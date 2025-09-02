@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  # Main application service
+  gh-switcher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gh-switcher
+    volumes:
+      # Mount host config and SSH directories
+      - ~/.config/gh-switcher:/home/appuser/.config/gh-switcher
+      - ~/.ssh:/home/appuser/.ssh:ro
+      # Mount current directory for development
+      - .:/workspace
+    working_dir: /workspace
+    environment:
+      - HOME=/home/appuser
+    stdin_open: true
+    tty: true
+    command: ["/bin/bash"]
+
+  # Development environment with Go tools
+  dev:
+    image: golang:1.25-alpine
+    container_name: gh-switcher-dev
+    volumes:
+      - .:/workspace
+      - ~/.config/gh-switcher:/root/.config/gh-switcher
+      - ~/.ssh:/root/.ssh:ro
+      - go-mod-cache:/go/pkg/mod
+    working_dir: /workspace
+    environment:
+      - CGO_ENABLED=0
+      - GOOS=linux
+    stdin_open: true
+    tty: true
+    command: ["/bin/sh"]
+    depends_on:
+      - gh-switcher
+
+  # Testing environment
+  test:
+    image: golang:1.25-alpine
+    container_name: gh-switcher-test
+    volumes:
+      - .:/workspace
+      - go-mod-cache:/go/pkg/mod
+    working_dir: /workspace
+    environment:
+      - CGO_ENABLED=0
+    command: |
+      sh -c "
+        apk add --no-cache git &&
+        go mod download &&
+        go test -v -cover ./...
+      "
+    depends_on:
+      - gh-switcher
+
+  # Git server for testing (optional)
+  git-server:
+    image: gitea/gitea:1.21-alpine
+    container_name: gh-switcher-git
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__database__DB_TYPE=sqlite3
+    restart: unless-stopped
+    volumes:
+      - gitea-data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "3000:3000"
+      - "2222:22"
+    profiles:
+      - git-testing
+
+volumes:
+  go-mod-cache:
+    driver: local
+  gitea-data:
+    driver: local
+
+networks:
+  default:
+    name: gh-switcher-network
