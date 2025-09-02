@@ -30,9 +30,9 @@ This command will AUTOMATICALLY:
 ZERO manual steps required - just provide the GitHub username!
 
 Examples:
-  gitpersona add-github username --email "user@example.com"
-  gitpersona add-github octocat --alias work
-  gitpersona add-github workuser --email "work@company.com" --alias work
+  gitpersona add-github username --email "user@example.com" --name "User Name"
+  gitpersona add-github octocat --alias work --name "Work User" --email "work@company.com"
+  gitpersona add-github workuser --email "work@company.com" --name "Work Account"
   gitpersona add-github someuser --no-auth  # skip authentication
 
 Features:
@@ -56,6 +56,7 @@ Features:
 		// Get command flags
 		alias, _ := cmd.Flags().GetString("alias")
 		email, _ := cmd.Flags().GetString("email")
+		name, _ := cmd.Flags().GetString("name")
 		skipAuth, _ := cmd.Flags().GetBool("no-auth")
 		skipSSH, _ := cmd.Flags().GetBool("skip-ssh")
 
@@ -113,6 +114,20 @@ Features:
 				}
 			}
 
+			// Handle name with priority: provided > GitHub API
+			finalName := name // from flag
+			if finalName == "" {
+				finalName = userInfo.Name
+				if finalName == "" {
+					finalName = userInfo.Login // fallback to username if no name
+					fmt.Printf("💡 Using GitHub username as display name: %s\n", finalName)
+				} else {
+					fmt.Printf("✅ Using GitHub display name: %s\n", finalName)
+				}
+			} else {
+				fmt.Printf("✅ Using provided name: %s\n", finalName)
+			}
+
 			// Handle email with priority: provided > GitHub API > no-reply
 			finalEmail := email // from flag
 			if finalEmail != "" {
@@ -122,16 +137,18 @@ Features:
 				if finalEmail == "" {
 					finalEmail = fmt.Sprintf("%s@users.noreply.github.com", githubUsername)
 					fmt.Printf("💡 Using GitHub no-reply email: %s\n", finalEmail)
+				} else {
+					fmt.Printf("✅ Using GitHub email: %s\n", finalEmail)
 				}
 			}
 
-			account = models.NewAccount(alias, userInfo.Name, finalEmail, "")
+			account = models.NewAccount(alias, finalName, finalEmail, "")
 			account.GitHubUsername = userInfo.Login
 			account.Description = fmt.Sprintf("GitHub @%s (no SSH)", userInfo.Login)
 
 		} else {
 			// Full automatic setup with SSH key generation
-			account, err = githubClient.SetupAccountFromUsername(githubUsername, alias, email)
+			account, err = githubClient.SetupAccountFromUsername(githubUsername, alias, email, name)
 			if err != nil {
 				return fmt.Errorf("failed to setup account: %w", err)
 			}
@@ -225,6 +242,7 @@ func init() {
 
 	addGithubCmd.Flags().StringP("alias", "a", "", "Custom alias for the account (auto-generated if not provided)")
 	addGithubCmd.Flags().StringP("email", "e", "", "Email address for the account (fetched from GitHub if not provided)")
+	addGithubCmd.Flags().StringP("name", "n", "", "Display name for the account (fetched from GitHub if not provided)")
 	addGithubCmd.Flags().Bool("no-auth", false, "Skip GitHub authentication (limited functionality)")
 	addGithubCmd.Flags().Bool("skip-ssh", false, "Skip SSH key generation (manual setup required)")
 	addGithubCmd.Flags().Bool("overwrite", false, "Overwrite existing account with same alias")

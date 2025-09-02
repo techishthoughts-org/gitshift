@@ -115,7 +115,7 @@ func (c *Client) isAuthenticated() bool {
 }
 
 // SetupAccountFromUsername creates a complete account setup from just a GitHub username
-func (c *Client) SetupAccountFromUsername(username string, alias string, providedEmail string) (*models.Account, error) {
+func (c *Client) SetupAccountFromUsername(username string, alias string, providedEmail string, providedName string) (*models.Account, error) {
 	fmt.Printf("🔍 Fetching GitHub user information for @%s...\n", username)
 
 	// Fetch user info from GitHub API
@@ -129,7 +129,21 @@ func (c *Client) SetupAccountFromUsername(username string, alias string, provide
 		alias = c.generateAlias(userInfo)
 	}
 
-	fmt.Printf("✅ Found GitHub user: %s (%s)\n", userInfo.Name, userInfo.Login)
+	// Handle name with priority: provided name > GitHub API name > username fallback
+	finalName := providedName
+	if finalName == "" {
+		finalName = userInfo.Name
+		if finalName == "" {
+			finalName = userInfo.Login // fallback to username if no name
+			fmt.Printf("💡 Using GitHub username as display name: %s\n", finalName)
+		} else {
+			fmt.Printf("✅ Using GitHub display name: %s\n", finalName)
+		}
+	} else {
+		fmt.Printf("✅ Using provided name: %s\n", finalName)
+	}
+
+	fmt.Printf("✅ Found GitHub user: %s (%s)\n", finalName, userInfo.Login)
 
 	// Handle email with priority: provided email > GitHub API email > no-reply email
 	email := providedEmail
@@ -173,7 +187,7 @@ func (c *Client) SetupAccountFromUsername(username string, alias string, provide
 	}
 
 	// Create account
-	account := models.NewAccount(alias, userInfo.Name, email, sshKeyPath)
+	account := models.NewAccount(alias, finalName, email, sshKeyPath)
 	account.GitHubUsername = userInfo.Login
 	account.Description = fmt.Sprintf("Auto-setup from GitHub @%s", userInfo.Login)
 

@@ -36,8 +36,8 @@ Managing multiple GitHub accounts (personal, work, client projects) is a **daily
 go install github.com/techishthoughts/GitPersona@latest
 
 # 2. Add your GitHub accounts automatically (ZERO manual steps!)
-gitpersona add-github username --email "user@example.com"
-gitpersona add-github workuser --alias work --email "work@company.com"
+gitpersona add-github username --email "user@example.com" --name "User Name"
+gitpersona add-github workuser --alias work --name "Work User" --email "work@company.com"
 
 # 3. Switch between accounts instantly
 gitpersona switch personal  # Sets global Git config
