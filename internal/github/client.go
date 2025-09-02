@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/thukabjj/GitPersona/internal/models"
+	"github.com/techishthoughts/GitPersona/internal/models"
 	"github.com/google/go-github/v57/github"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/oauth2"
@@ -155,7 +155,7 @@ func (c *Client) SetupAccountFromUsername(username string, alias string, provide
 		// If authenticated, automatically upload SSH key to GitHub
 		if c.isAuthenticated() {
 			fmt.Printf("🚀 Automatically uploading SSH key to GitHub...\n")
-			keyTitle := fmt.Sprintf("gh-switcher-%s-%s", alias, userInfo.Login)
+			keyTitle := fmt.Sprintf("gitpersona-%s-%s", alias, userInfo.Login)
 			if err := c.UploadSSHKeyToGitHub(sshKeyPath, keyTitle); err != nil {
 				fmt.Printf("⚠️  Failed to upload SSH key automatically: %v\n", err)
 				fmt.Println("💡 You can add it manually at: https://github.com/settings/keys")
@@ -223,7 +223,7 @@ func (c *Client) promptForEmail(username string) string {
 	defaultEmail := fmt.Sprintf("%s@users.noreply.github.com", username)
 
 	fmt.Printf("💡 Using GitHub no-reply email: %s\n", defaultEmail)
-	fmt.Printf("   (You can update this later with: gh-switcher add %s --email your@email.com --overwrite)\n", username)
+	fmt.Printf("   (You can update this later with: gitpersona add %s --email your@example.com --overwrite)\n", username)
 
 	return defaultEmail
 }

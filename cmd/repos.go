@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/thukabjj/GitPersona/internal/config"
-	"github.com/thukabjj/GitPersona/internal/github"
-	"github.com/thukabjj/GitPersona/internal/models"
+	"github.com/techishthoughts/GitPersona/internal/config"
+	"github.com/techishthoughts/GitPersona/internal/github"
+	"github.com/techishthoughts/GitPersona/internal/models"
 	"github.com/spf13/cobra"
 )
 
@@ -21,10 +21,10 @@ access and show available projects. If no account is specified,
 it shows repositories for all configured accounts.
 
 Examples:
-  gh-switcher repos work       # Show work account repos
-  gh-switcher repos personal   # Show personal account repos
-  gh-switcher repos           # Show all accounts' repos
-  gh-switcher repos --private  # Include private repositories`,
+  gitpersona repos work       # Show work account repos
+  gitpersona repos personal   # Show personal account repos
+  gitpersona repos           # Show all accounts' repos
+  gitpersona repos --private  # Include private repositories`,
 	Args: cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configManager := config.NewManager()
@@ -76,7 +76,7 @@ Examples:
 
 			if account.GitHubUsername == "" {
 				fmt.Printf("❌ No GitHub username configured for account '%s'\n", account.Alias)
-				fmt.Printf("   Update with: gh-switcher add %s --github-username USERNAME --overwrite\n", account.Alias)
+				fmt.Printf("   Update with: gitpersona add %s --github-username USERNAME --overwrite\n", account.Alias)
 				continue
 			}
 

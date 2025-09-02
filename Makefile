@@ -79,7 +79,7 @@ docker-build: ## Build Docker image
 
 docker-run: docker-build ## Run Docker container
 	docker run -it --rm \
-		-v ~/.config/gh-switcher:/home/appuser/.config/gh-switcher \
+		-v ~/.config/gitpersona:/home/appuser/.config/gitpersona \
 		-v ~/.ssh:/home/appuser/.ssh:ro \
 		${BINARY_NAME}:latest
 
@@ -134,8 +134,8 @@ demo-setup: build ## Set up demo accounts
 
 demo-clean: ## Clean demo configuration
 	@echo "Cleaning demo configuration..."
-	rm -rf ~/.config/gh-switcher/config.yaml
-	rm -f .gh-switcher.yaml
+	rm -rf ~/.config/gitpersona/config.yaml
+	rm -f .gitpersona.yaml
 
 # Git hooks
 setup-hooks: ## Set up git hooks

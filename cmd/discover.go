@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/thukabjj/GitPersona/internal/config"
-	"github.com/thukabjj/GitPersona/internal/discovery"
+	"github.com/techishthoughts/GitPersona/internal/config"
+	"github.com/techishthoughts/GitPersona/internal/discovery"
 	"github.com/spf13/cobra"
 )
 
@@ -20,8 +20,8 @@ var discoverCmd = &cobra.Command{
 - GitHub CLI (gh) authentication
 
 Examples:
-  gh-switcher discover
-  gh-switcher discover --auto-import`,
+  gitpersona discover
+  gitpersona discover --auto-import`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configManager := config.NewManager()
 		if err := configManager.Load(); err != nil {
@@ -54,7 +54,7 @@ Examples:
 
 		if len(discovered) == 0 {
 			fmt.Println("❌ No existing Git accounts found on your system.")
-			fmt.Println("💡 Use 'gh-switcher add-github username' for automatic setup!")
+			fmt.Println("💡 Use 'gitpersona add-github username' for automatic setup!")
 			return nil
 		}
 
@@ -97,7 +97,7 @@ Examples:
 
 		if imported > 0 {
 			fmt.Printf("🎉 Successfully imported %d account(s)!\n", imported)
-			fmt.Println("💡 Use 'gh-switcher list' to see all accounts")
+			fmt.Println("💡 Use 'gitpersona list' to see all accounts")
 		}
 
 		return nil

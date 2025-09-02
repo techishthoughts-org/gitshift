@@ -6,10 +6,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/thukabjj/GitPersona/internal/config"
-	"github.com/thukabjj/GitPersona/internal/git"
-	"github.com/thukabjj/GitPersona/internal/models"
 	"github.com/spf13/cobra"
+	"github.com/techishthoughts/GitPersona/internal/config"
+	"github.com/techishthoughts/GitPersona/internal/git"
+	"github.com/techishthoughts/GitPersona/internal/models"
 )
 
 // addCmd represents the add command
@@ -24,12 +24,12 @@ and runs in non-interactive mode. If any required field is missing, it will prom
 interactively unless --non-interactive is specified.
 
 Examples:
-  gh-switcher add work --name "Arthur Costa" --email "arthur.costa@company.com" --github-username "costaar7"
-  gh-switcher add personal --name "Arthur Alves" --email "arthur.alvesdeveloper@gmail.com" --github-username "thukabjj"
-  gh-switcher add work --name "Arthur" --email "arthur@company.com" --github-username "username" --ssh-key "~/.ssh/id_rsa_work"
-  gh-switcher add work --non-interactive  # will fail if required fields missing
+  gitpersona add work --name "Work User" --email "work@company.com" --github-username "workuser"
+  gitpersona add personal --name "Personal User" --email "user@example.com" --github-username "username"
+  gitpersona add work --name "Work" --email "work@company.com" --github-username "workuser" --ssh-key "~/.ssh/id_rsa_work"
+  gitpersona add work --non-interactive  # will fail if required fields missing
 
-💡 TIP: Use 'gh-switcher add-github username' for automatic setup from GitHub API!`,
+💡 TIP: Use 'gitpersona add-github username' for automatic setup from GitHub API!`,
 	Args: cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configManager := config.NewManager()

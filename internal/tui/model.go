@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/thukabjj/GitPersona/internal/config"
-	"github.com/thukabjj/GitPersona/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/techishthoughts/GitPersona/internal/config"
+	"github.com/techishthoughts/GitPersona/internal/models"
 )
 
 // ViewState represents the current view in the TUI
@@ -89,7 +89,7 @@ func NewModel() *Model {
 // Init initializes the model
 func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
-		tea.SetWindowTitle("GitHub Account Switcher"),
+		tea.SetWindowTitle("GitPersona"),
 		m.tickCmd(),
 	)
 }
@@ -178,7 +178,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the current view
 func (m *Model) View() string {
 	if m.quitting {
-		return RenderStatus("Thanks for using GitHub Account Switcher! 👋", "success") + "\n"
+		return RenderStatus("Thanks for using GitPersona! 👋", "success") + "\n"
 	}
 
 	// Calculate available space
@@ -230,7 +230,7 @@ func (m *Model) View() string {
 // renderHeader renders the application header
 func (m *Model) renderHeader() string {
 	// Main title with gradient
-	title := RenderTitle("GitHub Account Switcher")
+	title := RenderTitle("GitPersona")
 
 	// Current account status
 	var statusInfo string
@@ -456,8 +456,8 @@ func (m *Model) renderMainView() string {
 
 	// Tips section
 	tips := []string{
-		"💡 Use 'gh-switcher init' in your shell for automatic switching",
-		"📁 Set project accounts with 'gh-switcher project set <alias>'",
+		"💡 Use 'gitpersona init' in your shell for automatic switching",
+		"📁 Set project accounts with 'gitpersona project set <alias>'",
 		"🔑 Add SSH keys to accounts for secure authentication",
 	}
 

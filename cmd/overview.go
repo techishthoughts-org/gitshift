@@ -5,9 +5,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/thukabjj/GitPersona/internal/config"
-	"github.com/thukabjj/GitPersona/internal/github"
 	"github.com/spf13/cobra"
+	"github.com/techishthoughts/GitPersona/internal/config"
+	"github.com/techishthoughts/GitPersona/internal/github"
 )
 
 // overviewCmd provides a complete overview of all accounts and their repositories
@@ -25,8 +25,8 @@ This command provides a dashboard view showing:
 - Connectivity verification
 
 Examples:
-  gh-switcher overview
-  gh-switcher overview --detailed`,
+  gitpersona overview
+  gitpersona overview --detailed`,
 	Aliases: []string{"dashboard", "summary"},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configManager := config.NewManager()
@@ -38,15 +38,15 @@ Examples:
 		if len(accounts) == 0 {
 			fmt.Println("❌ No accounts configured.")
 			fmt.Println("💡 Add your first account:")
-			fmt.Println("   • gh-switcher add-github thukabjj --email your@email.com")
-			fmt.Println("   • gh-switcher discover --auto-import")
+			fmt.Println("   • gitpersona add-github username --email your@example.com")
+			fmt.Println("   • gitpersona discover --auto-import")
 			return nil
 		}
 
 		detailed, _ := cmd.Flags().GetBool("detailed")
 		currentAccount := configManager.GetConfig().CurrentAccount
 
-		fmt.Println("🔄 GitHub Account Switcher - Overview")
+		fmt.Println("🔄 GitPersona - Overview")
 		fmt.Println("=" + strings.Repeat("=", 50))
 		fmt.Println()
 
@@ -158,10 +158,10 @@ Examples:
 		// Quick actions
 		fmt.Println()
 		fmt.Println("💡 Quick actions:")
-		fmt.Println("   • Switch account: gh-switcher switch")
-		fmt.Println("   • Add new account: gh-switcher add-github username")
-		fmt.Println("   • List repositories: gh-switcher repos")
-		fmt.Println("   • Launch TUI: gh-switcher")
+		fmt.Println("   • Switch account: gitpersona switch")
+		fmt.Println("   • Add new account: gitpersona add-github username")
+		fmt.Println("   • List repositories: gitpersona repos")
+		fmt.Println("   • Launch TUI: gitpersona")
 
 		return nil
 	},

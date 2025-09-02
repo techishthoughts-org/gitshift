@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/thukabjj/GitPersona/internal/models"
+	"github.com/techishthoughts/GitPersona/internal/models"
 	"github.com/spf13/viper"
 )
 

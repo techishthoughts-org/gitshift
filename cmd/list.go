@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thukabjj/GitPersona/internal/config"
-	"github.com/thukabjj/GitPersona/internal/models"
+	"github.com/techishthoughts/GitPersona/internal/config"
+	"github.com/techishthoughts/GitPersona/internal/models"
 	"github.com/spf13/cobra"
 )
 
@@ -21,9 +21,9 @@ The output shows the alias, name, email, and additional information for each acc
 The current active account is marked with an asterisk (*).
 
 Examples:
-  gh-switcher list
-  gh-switcher list --format table
-  gh-switcher list --format json`,
+  gitpersona list
+  gitpersona list --format table
+  gitpersona list --format json`,
 	Aliases: []string{"ls"},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configManager := config.NewManager()
@@ -33,7 +33,7 @@ Examples:
 
 		accounts := configManager.ListAccounts()
 		if len(accounts) == 0 {
-			fmt.Println("No accounts configured. Use 'gh-switcher add' to add an account.")
+			fmt.Println("No accounts configured. Use 'gitpersona add' to add an account.")
 			return nil
 		}
 

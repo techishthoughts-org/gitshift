@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/thukabjj/GitPersona/internal/config"
-	"github.com/thukabjj/GitPersona/internal/git"
-	"github.com/thukabjj/GitPersona/internal/github"
+	"github.com/techishthoughts/GitPersona/internal/config"
+	"github.com/techishthoughts/GitPersona/internal/git"
+	"github.com/techishthoughts/GitPersona/internal/github"
 	"github.com/spf13/cobra"
 )
 
@@ -20,16 +20,16 @@ This command outputs shell commands that should be evaluated in your shell
 to enable automatic Git account switching based on project configuration.
 
 Add this to your shell configuration file (.bashrc, .zshrc, etc.):
-  eval "$(gh-switcher init)"
+  eval "$(gitpersona init)"
 
 The command will:
-1. Check for a .gh-switcher.yaml file in the current directory
+1. Check for a .gitpersona.yaml file in the current directory
 2. Automatically switch to the specified account if found
 3. Set up the appropriate Git configuration and SSH settings
 
 Examples:
-  gh-switcher init
-  eval "$(gh-switcher init)"`,
+  gitpersona init
+  eval "$(gitpersona init)"`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configManager := config.NewManager()
 		if err := configManager.Load(); err != nil {
@@ -105,8 +105,8 @@ This command displays:
 - Project-specific configuration (if in a configured project)
 
 Examples:
-  gh-switcher current
-  gh-switcher current --verbose`,
+  gitpersona current
+  gitpersona current --verbose`,
 	Aliases: []string{"status", "whoami"},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configManager := config.NewManager()
@@ -197,7 +197,7 @@ Examples:
 
 		// Show suggestions
 		if projectErr == nil && projectConfig.Account != currentAccount {
-			fmt.Printf("\n💡 Suggestion: Run 'gh-switcher switch %s' to match project configuration\n", projectConfig.Account)
+			fmt.Printf("\n💡 Suggestion: Run 'gitpersona switch %s' to match project configuration\n", projectConfig.Account)
 		}
 
 		return nil

@@ -26,7 +26,7 @@ type UpdateManager struct {
 func NewUpdateManager(currentVersion string) *UpdateManager {
 	return &UpdateManager{
 		currentVersion: currentVersion,
-		repoURL:        "https://api.github.com/repos/arthurcosta/gh-switcher",
+		repoURL:        "https://api.github.com/repos/techishthoughts/GitPersona",
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -139,7 +139,7 @@ func (um *UpdateManager) PerformSecureUpdate(release *Release) error {
 	}
 
 	fmt.Printf("✅ Successfully updated to version %s\n", release.TagName)
-	fmt.Println("🔄 Please restart gh-switcher to use the new version")
+	fmt.Println("🔄 Please restart gitpersona to use the new version")
 
 	return nil
 }
@@ -154,7 +154,7 @@ func (um *UpdateManager) secureDownload(asset *Asset) (string, error) {
 
 	// Create temporary file
 	tempDir := os.TempDir()
-	tempFile := filepath.Join(tempDir, "gh-switcher-update")
+	tempFile := filepath.Join(tempDir, "gitpersona-update")
 
 	file, err := os.Create(tempFile)
 	if err != nil {
@@ -214,7 +214,7 @@ func (um *UpdateManager) verifySLSAAttestation(filePath string, attestation Atte
 
 	cmd := exec.Command("slsa-verifier", "verify-artifact",
 		"--provenance-path", attestation.Bundle,
-		"--source-uri", "github.com/thukabjj/GitPersona",
+		"--source-uri", "github.com/techishthoughts/GitPersona",
 		filePath)
 
 	if err := cmd.Run(); err != nil {

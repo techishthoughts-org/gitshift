@@ -3,7 +3,7 @@ package tui
 import (
 	"time"
 
-	"github.com/thukabjj/GitPersona/internal/models"
+	"github.com/techishthoughts/GitPersona/internal/models"
 )
 
 // Messages for the TUI application

@@ -3,11 +3,11 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/thukabjj/GitPersona/internal/config"
-	"github.com/thukabjj/GitPersona/internal/git"
-	"github.com/thukabjj/GitPersona/internal/models"
-	"github.com/thukabjj/GitPersona/internal/tui"
 	"github.com/spf13/cobra"
+	"github.com/techishthoughts/GitPersona/internal/config"
+	"github.com/techishthoughts/GitPersona/internal/git"
+	"github.com/techishthoughts/GitPersona/internal/models"
+	"github.com/techishthoughts/GitPersona/internal/tui"
 )
 
 // switchCmd represents the switch command
@@ -21,9 +21,9 @@ The command will globally update the Git configuration (user.name and user.email
 and set up the SSH configuration for the selected account.
 
 Examples:
-  gh-switcher switch work
-  gh-switcher switch personal
-  gh-switcher switch (opens interactive TUI)`,
+  gitpersona switch work
+  gitpersona switch personal
+  gitpersona switch (opens interactive TUI)`,
 	Aliases: []string{"s", "use"},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configManager := config.NewManager()
@@ -33,7 +33,7 @@ Examples:
 
 		accounts := configManager.ListAccounts()
 		if len(accounts) == 0 {
-			return fmt.Errorf("no accounts configured. Use 'gh-switcher add' to add an account")
+			return fmt.Errorf("no accounts configured. Use 'gitpersona add' to add an account")
 		}
 
 		var selectedAlias string

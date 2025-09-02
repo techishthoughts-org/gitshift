@@ -1,0 +1,331 @@
+name: 🚀 GitPersona CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ created ]
+
+env:
+  GO_VERSION: '1.25'
+  BINARY_NAME: gitpersona
+
+jobs:
+  # 🧪 Test Suite
+  test:
+    name: 🧪 Test Suite
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        go-version: ['1.23', '1.24', '1.25']
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🐹 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+        check-latest: true
+
+    - name: 📦 Cache Dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+        key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ matrix.go-version }}-
+
+    - name: 🔄 Download Dependencies
+      run: go mod download
+
+    - name: 🔍 Verify Dependencies
+      run: go mod verify
+
+    - name: 🧹 Format Check
+      run: |
+        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+          echo "Code is not formatted properly:"
+          gofmt -s -l .
+          exit 1
+        fi
+
+    - name: 🔧 Vet Analysis
+      run: go vet ./...
+
+    - name: 🧪 Run Tests
+      run: |
+        go test -v -race -timeout 5m -coverprofile=coverage.out ./...
+        go tool cover -html=coverage.out -o coverage.html
+
+    - name: 📊 Upload Coverage
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-${{ matrix.os }}-go${{ matrix.go-version }}
+        path: |
+          coverage.out
+          coverage.html
+
+    - name: ⚡ Benchmark Tests
+      run: go test -bench=. -benchmem ./...
+
+  # 🔒 Security Scanning
+  security:
+    name: 🔒 Security Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🐹 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: 🛡️ Run Gosec Security Scanner
+      uses: securecodewarrior/github-action-gosec@master
+      with:
+        args: '-fmt sarif -out gosec.sarif ./...'
+
+    - name: 📤 Upload Gosec Results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: gosec.sarif
+
+    - name: 🔍 Vulnerability Check
+      run: |
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+        govulncheck ./...
+
+    - name: 📦 Dependency Review
+      uses: actions/dependency-review-action@v4
+      if: github.event_name == 'pull_request'
+
+  # 🏗️ Build Multi-Platform
+  build:
+    name: 🏗️ Build Multi-Platform
+    needs: [test, security]
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            artifact: gitpersona-linux-amd64
+          - goos: linux
+            goarch: arm64
+            artifact: gitpersona-linux-arm64
+          - goos: darwin
+            goarch: amd64
+            artifact: gitpersona-darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            artifact: gitpersona-darwin-arm64
+          - goos: windows
+            goarch: amd64
+            artifact: gitpersona-windows-amd64.exe
+
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🐹 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: 🏗️ Build Binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        VERSION=${GITHUB_REF_NAME:-dev}
+        COMMIT=${GITHUB_SHA::8}
+        BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
+
+        go build \
+          -ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME} -w -s" \
+          -o ${{ matrix.artifact }} \
+          .
+
+    - name: 📤 Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact }}
+        path: ${{ matrix.artifact }}
+
+  # 🐳 Docker Build
+  docker:
+    name: 🐳 Docker Build & Push
+    needs: [test, security]
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🐳 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 🔐 Login to GitHub Container Registry
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 🏷️ Extract Metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ghcr.io/${{ github.repository }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: 🏗️ Build and Push
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # 📦 Release
+  release:
+    name: 📦 Create Release
+    if: github.event_name == 'release'
+    needs: [build, docker]
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 📦 Download All Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./artifacts
+
+    - name: 📋 Prepare Release Assets
+      run: |
+        mkdir -p ./release
+        find ./artifacts -type f -name "gitpersona-*" -exec cp {} ./release/ \;
+
+        # Create checksums
+        cd ./release
+        sha256sum * > checksums.txt
+
+    - name: 🚀 Upload Release Assets
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          ./release/*
+        body: |
+          ## 🎉 GitPersona Release ${{ github.ref_name }}
+
+          ### 📦 Downloads
+          Choose the appropriate binary for your platform:
+
+          - **Linux AMD64**: `gitpersona-linux-amd64`
+          - **Linux ARM64**: `gitpersona-linux-arm64`
+          - **macOS Intel**: `gitpersona-darwin-amd64`
+          - **macOS Apple Silicon**: `gitpersona-darwin-arm64`
+          - **Windows**: `gitpersona-windows-amd64.exe`
+
+          ### 🔐 Installation
+          ```bash
+          # Download and install (replace with your platform)
+          curl -L -o gitpersona https://github.com/techishthoughts/GitPersona/releases/download/${{ github.ref_name }}/gitpersona-linux-amd64
+          chmod +x gitpersona
+          sudo mv gitpersona /usr/local/bin/
+          ```
+
+          ### 🆕 What's New
+          Check the [CHANGELOG.md](CHANGELOG.md) for detailed changes.
+
+          ### 🔍 Verification
+          Verify the integrity of downloaded files using the provided checksums.
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 🚨 Post-Release Testing
+  post-release:
+    name: 🚨 Post-Release Validation
+    if: github.event_name == 'release'
+    needs: [release]
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Download Linux Binary
+      run: |
+        curl -L -o gitpersona https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/gitpersona-linux-amd64
+        chmod +x gitpersona
+
+    - name: ✅ Smoke Test
+      run: |
+        ./gitpersona --version
+        ./gitpersona --help
+
+    - name: 🏥 Health Check
+      run: |
+        ./gitpersona health --format json
+
+  # 📊 Code Quality
+  quality:
+    name: 📊 Code Quality Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🐹 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: 🔍 Run golangci-lint
+      uses: golangci/golangci-lint-action@v4
+      with:
+        version: latest
+        args: --timeout=10m
+
+    - name: 📈 SonarCloud Scan
+      if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+      uses: SonarSource/sonarcloud-github-action@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    - name: 📊 Code Coverage Report
+      run: |
+        go test -coverprofile=coverage.out ./...
+        go tool cover -func=coverage.out
+
+        # Calculate coverage percentage
+        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+        echo "Total coverage: ${COVERAGE}%"
+
+        # Fail if coverage is below threshold
+        if (( $(echo "${COVERAGE} < 70" | bc -l) )); then
+          echo "❌ Coverage ${COVERAGE}% is below minimum threshold of 70%"
+          exit 1
+        fi

@@ -2,14 +2,14 @@ version: '3.8'
 
 services:
   # Main application service
-  gh-switcher:
+  gitpersona:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: gh-switcher
+    container_name: gitpersona
     volumes:
       # Mount host config and SSH directories
-      - ~/.config/gh-switcher:/home/appuser/.config/gh-switcher
+      - ~/.config/gitpersona:/home/appuser/.config/gitpersona
       - ~/.ssh:/home/appuser/.ssh:ro
       # Mount current directory for development
       - .:/workspace
@@ -23,10 +23,10 @@ services:
   # Development environment with Go tools
   dev:
     image: golang:1.25-alpine
-    container_name: gh-switcher-dev
+    container_name: gitpersona-dev
     volumes:
       - .:/workspace
-      - ~/.config/gh-switcher:/root/.config/gh-switcher
+      - ~/.config/gitpersona:/root/.config/gitpersona
       - ~/.ssh:/root/.ssh:ro
       - go-mod-cache:/go/pkg/mod
     working_dir: /workspace
@@ -37,12 +37,12 @@ services:
     tty: true
     command: ["/bin/sh"]
     depends_on:
-      - gh-switcher
+      - gitpersona
 
   # Testing environment
   test:
     image: golang:1.25-alpine
-    container_name: gh-switcher-test
+    container_name: gitpersona-test
     volumes:
       - .:/workspace
       - go-mod-cache:/go/pkg/mod
@@ -56,12 +56,12 @@ services:
         go test -v -cover ./...
       "
     depends_on:
-      - gh-switcher
+      - gitpersona
 
   # Git server for testing (optional)
   git-server:
     image: gitea/gitea:1.21-alpine
-    container_name: gh-switcher-git
+    container_name: gitpersona-git
     environment:
       - USER_UID=1000
       - USER_GID=1000
@@ -85,4 +85,4 @@ volumes:
 
 networks:
   default:
-    name: gh-switcher-network
+    name: gitpersona-network

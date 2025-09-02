@@ -9,17 +9,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thukabjj/GitPersona/internal/config"
-	"github.com/thukabjj/GitPersona/internal/git"
-	"github.com/thukabjj/GitPersona/internal/github"
 	"github.com/spf13/cobra"
+	"github.com/techishthoughts/GitPersona/internal/config"
+	"github.com/techishthoughts/GitPersona/internal/git"
+	"github.com/techishthoughts/GitPersona/internal/github"
 )
 
 // healthCmd provides comprehensive health checking following 2025 observability standards
 var healthCmd = &cobra.Command{
 	Use:   "health",
 	Short: "Comprehensive system health check",
-	Long: `Perform a comprehensive health check of the GitHub Account Switcher system.
+	Long: `Perform a comprehensive health check of the GitPersona system.
 
 This follows 2025 observability best practices by checking:
 - Application configuration integrity
@@ -31,9 +31,9 @@ This follows 2025 observability best practices by checking:
 - Performance benchmarks
 
 Examples:
-  gh-switcher health
-  gh-switcher health --format json
-  gh-switcher health --detailed`,
+  gitpersona health
+  gitpersona health --format json
+  gitpersona health --detailed`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		format, _ := cmd.Flags().GetString("format")
 		detailed, _ := cmd.Flags().GetBool("detailed")
@@ -169,7 +169,7 @@ func checkConfigIntegrity() HealthCheck {
 	accounts := configManager.ListAccounts()
 	details := map[string]interface{}{
 		"accounts_count": len(accounts),
-		"config_file":    "~/.config/gh-switcher/config.yaml",
+		"config_file":    "~/.config/gitpersona/config.yaml",
 	}
 
 	if len(accounts) == 0 {
@@ -342,7 +342,7 @@ func checkAccountValidation() HealthCheck {
 
 func checkFilePermissions() HealthCheck {
 	homeDir, _ := os.UserHomeDir()
-	configDir := filepath.Join(homeDir, ".config", "gh-switcher")
+	configDir := filepath.Join(homeDir, ".config", "gitpersona")
 
 	// Check config directory permissions (should be 755)
 	if info, err := os.Stat(configDir); err == nil {
@@ -552,7 +552,7 @@ func printHealthHuman(health *HealthStatus, detailed bool) error {
 		statusIcon = "❌"
 	}
 
-	fmt.Printf("%s GitHub Account Switcher Health Check\n", statusIcon)
+	fmt.Printf("%s GitPersona Health Check\n", statusIcon)
 	fmt.Printf("Status: %s (%s)\n", strings.ToUpper(health.Status), health.Timestamp.Format(time.RFC3339))
 	fmt.Println()
 

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/thukabjj/GitPersona/internal/config"
-	"github.com/thukabjj/GitPersona/internal/models"
+	"github.com/techishthoughts/GitPersona/internal/config"
+	"github.com/techishthoughts/GitPersona/internal/models"
 	"github.com/spf13/cobra"
 )
 
@@ -16,12 +16,12 @@ var projectCmd = &cobra.Command{
 	Long: `Manage project-specific GitHub account configurations.
 
 Project configurations allow you to automatically use different GitHub accounts
-for different projects by creating a .gh-switcher.yaml file in the project root.
+for different projects by creating a .gitpersona.yaml file in the project root.
 
 Examples:
-  gh-switcher project set work
-  gh-switcher project show
-  gh-switcher project remove`,
+  gitpersona project set work
+  gitpersona project show
+  gitpersona project remove`,
 }
 
 // projectSetCmd sets the account for the current project
@@ -30,12 +30,12 @@ var projectSetCmd = &cobra.Command{
 	Short: "Set the GitHub account for the current project",
 	Long: `Set the GitHub account to use for the current project.
 
-This creates a .gh-switcher.yaml file in the current directory that specifies
+This creates a .gitpersona.yaml file in the current directory that specifies
 which account should be used when working in this project.
 
 Examples:
-  gh-switcher project set work
-  gh-switcher project set personal`,
+  gitpersona project set work
+  gitpersona project set personal`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		alias := args[0]
@@ -48,7 +48,7 @@ Examples:
 		// Verify the account exists
 		account, err := configManager.GetAccount(alias)
 		if err != nil {
-			return fmt.Errorf("account '%s' not found. Use 'gh-switcher list' to see available accounts", alias)
+			return fmt.Errorf("account '%s' not found. Use 'gitpersona list' to see available accounts", alias)
 		}
 
 		// Get current directory
@@ -67,8 +67,8 @@ Examples:
 
 		fmt.Printf("✅ Project configured to use account '%s'\n", alias)
 		fmt.Printf("   Account: %s (%s - %s)\n", account.Alias, account.Name, account.Email)
-		fmt.Printf("   Configuration saved to: .gh-switcher.yaml\n")
-		fmt.Printf("\n💡 Run 'eval \"$(gh-switcher init)\"' in your shell to enable automatic switching\n")
+		fmt.Printf("   Configuration saved to: .gitpersona.yaml\n")
+		fmt.Printf("\n💡 Run 'eval \"$(gitpersona init)\"' in your shell to enable automatic switching\n")
 
 		return nil
 	},
@@ -80,11 +80,11 @@ var projectShowCmd = &cobra.Command{
 	Short: "Show the current project configuration",
 	Long: `Show the GitHub account configuration for the current project.
 
-This displays the contents of the .gh-switcher.yaml file if it exists,
+This displays the contents of the .gitpersona.yaml file if it exists,
 along with the account details.
 
 Examples:
-  gh-switcher project show`,
+  gitpersona project show`,
 	Aliases: []string{"info", "status"},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configManager := config.NewManager()
@@ -102,7 +102,7 @@ Examples:
 		projectConfig, err := configManager.LoadProjectConfig(currentDir)
 		if err != nil {
 			fmt.Printf("No project configuration found in: %s\n", currentDir)
-			fmt.Printf("Use 'gh-switcher project set <alias>' to configure this project\n")
+			fmt.Printf("Use 'gitpersona project set <alias>' to configure this project\n")
 			return nil
 		}
 
@@ -110,7 +110,7 @@ Examples:
 		account, err := configManager.GetAccount(projectConfig.Account)
 		if err != nil {
 			fmt.Printf("❌ Project configured for account '%s', but account not found\n", projectConfig.Account)
-			fmt.Printf("Use 'gh-switcher list' to see available accounts\n")
+			fmt.Printf("Use 'gitpersona list' to see available accounts\n")
 			return nil
 		}
 
@@ -140,10 +140,10 @@ var projectRemoveCmd = &cobra.Command{
 	Short: "Remove the project configuration",
 	Long: `Remove the GitHub account configuration for the current project.
 
-This deletes the .gh-switcher.yaml file from the current directory.
+This deletes the .gitpersona.yaml file from the current directory.
 
 Examples:
-  gh-switcher project remove`,
+  gitpersona project remove`,
 	Aliases: []string{"rm", "delete", "unset"},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Get current directory
@@ -152,7 +152,7 @@ Examples:
 			return fmt.Errorf("failed to get current directory: %w", err)
 		}
 
-		configFile := fmt.Sprintf("%s/.gh-switcher.yaml", currentDir)
+		configFile := fmt.Sprintf("%s/.gitpersona.yaml", currentDir)
 
 		// Check if file exists
 		if _, err := os.Stat(configFile); os.IsNotExist(err) {

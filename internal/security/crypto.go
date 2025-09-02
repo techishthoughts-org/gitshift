@@ -114,7 +114,7 @@ func (cm *ModernCryptoManager) isKeyExpired(keyPath string) bool {
 func (cm *ModernCryptoManager) setSecurityMetadata(keyPath, alias string) {
 	// In a real implementation, this would set extended attributes
 	// to track key origin, expiration, and security policies
-	metadata := fmt.Sprintf("generated_by=gh-switcher,account=%s,created=%s,expires=%s",
+	metadata := fmt.Sprintf("generated_by=gitpersona,account=%s,created=%s,expires=%s",
 		alias,
 		time.Now().Format(time.RFC3339),
 		time.Now().AddDate(0, 0, cm.keyRotationDays).Format(time.RFC3339))
@@ -131,7 +131,7 @@ func (cm *ModernCryptoManager) ValidateKeyStrength(keyPath string) error {
 		return fmt.Errorf("failed to read public key: %w", err)
 	}
 
-	publicKey, comment, _, _, err := ssh.ParseAuthorizedKey(keyData)
+	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(keyData)
 	if err != nil {
 		return fmt.Errorf("failed to parse SSH key: %w", err)
 	}

@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/thukabjj/GitPersona/internal/config"
+	"github.com/techishthoughts/GitPersona/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -18,8 +18,8 @@ being removed is currently active, the system will automatically switch
 to another account if available.
 
 Examples:
-  gh-switcher remove work
-  gh-switcher remove personal`,
+  gitpersona remove work
+  gitpersona remove personal`,
 	Aliases: []string{"rm", "delete", "del"},
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -59,13 +59,13 @@ Examples:
 		// Check if there are any accounts left
 		accounts := configManager.ListAccounts()
 		if len(accounts) == 0 {
-			fmt.Println("No accounts remaining. Use 'gh-switcher add' to add a new account.")
+			fmt.Println("No accounts remaining. Use 'gitpersona add' to add a new account.")
 		} else {
 			currentAccount := configManager.GetConfig().CurrentAccount
 			if currentAccount != "" {
 				fmt.Printf("Current active account: %s\n", currentAccount)
 			} else {
-				fmt.Println("No active account set. Use 'gh-switcher switch' to select one.")
+				fmt.Println("No active account set. Use 'gitpersona switch' to select one.")
 			}
 		}
 

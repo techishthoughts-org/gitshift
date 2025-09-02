@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/thukabjj/GitPersona/internal/config"
-	"github.com/thukabjj/GitPersona/internal/git"
-	"github.com/thukabjj/GitPersona/internal/github"
-	"github.com/thukabjj/GitPersona/internal/models"
 	"github.com/spf13/cobra"
+	"github.com/techishthoughts/GitPersona/internal/config"
+	"github.com/techishthoughts/GitPersona/internal/git"
+	"github.com/techishthoughts/GitPersona/internal/github"
+	"github.com/techishthoughts/GitPersona/internal/models"
 )
 
 // addGithubCmd represents the add-github command for automatic GitHub integration
@@ -30,10 +30,10 @@ This command will AUTOMATICALLY:
 ZERO manual steps required - just provide the GitHub username!
 
 Examples:
-  gh-switcher add-github thukabjj --email "arthur.alvesdeveloper@gmail.com"
-  gh-switcher add-github octocat --alias work
-  gh-switcher add-github costaar7 --email "arthur.costa@fanduel.com" --alias work
-  gh-switcher add-github username --no-auth  # skip authentication
+  gitpersona add-github username --email "user@example.com"
+  gitpersona add-github octocat --alias work
+  gitpersona add-github workuser --email "work@company.com" --alias work
+  gitpersona add-github someuser --no-auth  # skip authentication
 
 Features:
 - Automatic GitHub OAuth authentication with full permissions
@@ -210,11 +210,11 @@ Features:
 		}
 
 		if !switchGlobally && !setDefault {
-			fmt.Printf("   • Switch to this account: gh-switcher switch %s\n", account.Alias)
+			fmt.Printf("   • Switch to this account: gitpersona switch %s\n", account.Alias)
 		}
 
-		fmt.Println("   • List all accounts: gh-switcher list")
-		fmt.Println("   • Set up shell integration: eval \"$(gh-switcher init)\"")
+		fmt.Println("   • List all accounts: gitpersona list")
+		fmt.Println("   • Set up shell integration: eval \"$(gitpersona init)\"")
 
 		return nil
 	},

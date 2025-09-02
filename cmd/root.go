@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/thukabjj/GitPersona/internal/config"
-	"github.com/thukabjj/GitPersona/internal/tui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/techishthoughts/GitPersona/internal/config"
+	"github.com/techishthoughts/GitPersona/internal/tui"
 )
 
 var cfgFile string
@@ -65,7 +65,7 @@ func initConfig() {
 		cobra.CheckErr(err)
 
 		// Search config in home directory with name "config" (without extension).
-		viper.AddConfigPath(home + "/.config/gh-switcher")
+		viper.AddConfigPath(home + "/.config/gitpersona")
 		viper.SetConfigType("yaml")
 		viper.SetConfigName("config")
 	}
@@ -81,8 +81,8 @@ func initConfig() {
 func runTUI() {
 	// Check if this is first run (no accounts configured)
 	if isFirstRun() {
-		fmt.Println("👋 Welcome to GitHub Account Switcher!")
-		fmt.Println("🔍 It looks like this is your first time running gh-switcher.")
+		fmt.Println("👋 Welcome to GitPersona!")
+		fmt.Println("🔍 It looks like this is your first time running gitpersona.")
 		fmt.Println()
 
 		fmt.Print("Would you like to automatically discover existing Git accounts? [Y/n]: ")
@@ -113,7 +113,7 @@ func isFirstRun() bool {
 		return false
 	}
 
-	configFile := filepath.Join(homeDir, ".config", "gh-switcher", "config.yaml")
+	configFile := filepath.Join(homeDir, ".config", "gitpersona", "config.yaml")
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
 		return true
 	}

@@ -1,4 +1,4 @@
-# GitHub Account Switcher Dockerfile
+# GitPersona Dockerfile
 # Multi-stage build for optimized production image
 
 # Build stage
