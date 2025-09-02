@@ -32,7 +32,9 @@ Examples:
 		}
 
 		accounts := configManager.ListAccounts()
-		if len(accounts) == 0 {
+		pendingAccounts := configManager.ListPendingAccounts()
+
+		if len(accounts) == 0 && len(pendingAccounts) == 0 {
 			fmt.Println("No accounts configured. Use 'gitpersona add' to add an account.")
 			return nil
 		}
@@ -40,14 +42,39 @@ Examples:
 		format, _ := cmd.Flags().GetString("format")
 		currentAccount := configManager.GetConfig().CurrentAccount
 
-		switch format {
-		case "json":
-			return printAccountsJSON(accounts)
-		case "table":
-			return printAccountsTable(accounts, currentAccount)
-		default:
-			return printAccountsDefault(accounts, currentAccount)
+		// Show active accounts
+		if len(accounts) > 0 {
+			switch format {
+			case "json":
+				return printAccountsJSON(accounts)
+			case "table":
+				return printAccountsTable(accounts, currentAccount)
+			default:
+				if err := printAccountsDefault(accounts, currentAccount); err != nil {
+					return err
+				}
+			}
 		}
+
+		// Show pending accounts if any
+		if len(pendingAccounts) > 0 {
+			fmt.Println()
+			fmt.Println("📋 Pending Accounts (need completion):")
+			fmt.Println()
+
+			for _, pending := range pendingAccounts {
+				fmt.Printf("  %s\n", pending.Alias)
+				if pending.GitHubUsername != "" {
+					fmt.Printf("    GitHub: @%s\n", pending.GitHubUsername)
+				}
+				fmt.Printf("    Missing: %v\n", pending.MissingFields)
+				fmt.Printf("    Source: %s\n", pending.Source)
+				fmt.Printf("    💡 Complete with: gitpersona complete %s --name \"Your Name\" --email \"your@email.com\"\n", pending.Alias)
+				fmt.Println()
+			}
+		}
+
+		return nil
 	},
 }
 

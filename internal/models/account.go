@@ -34,12 +34,54 @@ type Account struct {
 
 	// LastUsed tracks when the account was last used
 	LastUsed *time.Time `json:"last_used,omitempty" yaml:"last_used,omitempty" mapstructure:"last_used"`
+
+	// Status indicates the account status (active, pending, disabled)
+	Status AccountStatus `json:"status" yaml:"status" mapstructure:"status"`
+
+	// MissingFields tracks which required fields are missing for pending accounts
+	MissingFields []string `json:"missing_fields,omitempty" yaml:"missing_fields,omitempty" mapstructure:"missing_fields"`
+}
+
+// AccountStatus represents the status of an account
+type AccountStatus string
+
+const (
+	AccountStatusActive   AccountStatus = "active"
+	AccountStatusPending  AccountStatus = "pending"
+	AccountStatusDisabled AccountStatus = "disabled"
+)
+
+// PendingAccount represents an account that needs manual completion
+type PendingAccount struct {
+	// Alias is a unique identifier for the account
+	Alias string `json:"alias" yaml:"alias" mapstructure:"alias"`
+
+	// GitHubUsername is the GitHub username (if available)
+	GitHubUsername string `json:"github_username,omitempty" yaml:"github_username,omitempty" mapstructure:"github_username"`
+
+	// Partial data that was discovered
+	PartialData map[string]string `json:"partial_data,omitempty" yaml:"partial_data,omitempty" mapstructure:"partial_data"`
+
+	// MissingFields lists what needs to be completed
+	MissingFields []string `json:"missing_fields" yaml:"missing_fields" mapstructure:"missing_fields"`
+
+	// Source indicates where this account was discovered
+	Source string `json:"source" yaml:"source" mapstructure:"source"`
+
+	// Confidence level from discovery
+	Confidence int `json:"confidence" yaml:"confidence" mapstructure:"confidence"`
+
+	// CreatedAt tracks when the pending account was created
+	CreatedAt time.Time `json:"created_at" yaml:"created_at" mapstructure:"created_at"`
 }
 
 // Config represents the entire application configuration
 type Config struct {
 	// Accounts is a map of alias to account configurations
 	Accounts map[string]*Account `json:"accounts" yaml:"accounts" mapstructure:"accounts"`
+
+	// PendingAccounts stores accounts that need manual completion
+	PendingAccounts map[string]*PendingAccount `json:"pending_accounts,omitempty" yaml:"pending_accounts,omitempty" mapstructure:"pending_accounts"`
 
 	// CurrentAccount is the alias of the currently active account
 	CurrentAccount string `json:"current_account,omitempty" yaml:"current_account,omitempty" mapstructure:"current_account"`
@@ -71,6 +113,7 @@ func NewAccount(alias, name, email, sshKeyPath string) *Account {
 		Email:      email,
 		SSHKeyPath: sshKeyPath,
 		IsDefault:  false,
+		Status:     AccountStatusActive,
 		CreatedAt:  time.Now(),
 	}
 }
@@ -79,6 +122,7 @@ func NewAccount(alias, name, email, sshKeyPath string) *Account {
 func NewConfig() *Config {
 	return &Config{
 		Accounts:        make(map[string]*Account),
+		PendingAccounts: make(map[string]*PendingAccount),
 		GlobalGitConfig: true, // Always use global Git config by default
 		AutoDetect:      true,
 		ConfigVersion:   "1.0.0",
@@ -98,23 +142,22 @@ func (a *Account) Validate() error {
 	if a.Alias == "" {
 		return ErrInvalidAlias
 	}
-	if a.Name == "" {
-		return ErrInvalidName
-	}
-	if a.Email == "" {
-		return ErrInvalidEmail
-	}
-	if a.GitHubUsername == "" {
-		return ErrInvalidGitHubUsername
+
+	// For discovered accounts, we need at least one of: Name+Email OR GitHubUsername
+	hasBasicInfo := a.Name != "" && a.Email != ""
+	hasGitHubInfo := a.GitHubUsername != ""
+
+	if !hasBasicInfo && !hasGitHubInfo {
+		return ErrInvalidConfig // Need at least basic info or GitHub info
 	}
 
-	// Validate email format
-	if !isValidEmail(a.Email) {
+	// If we have email, validate its format
+	if a.Email != "" && !isValidEmail(a.Email) {
 		return ErrInvalidEmailFormat
 	}
 
-	// Validate GitHub username format
-	if !isValidGitHubUsername(a.GitHubUsername) {
+	// If we have GitHub username, validate its format
+	if a.GitHubUsername != "" && !isValidGitHubUsername(a.GitHubUsername) {
 		return ErrInvalidGitHubUsernameFormat
 	}
 
@@ -165,4 +208,30 @@ func isValidGitHubUsername(username string) bool {
 	// Must contain only alphanumeric characters and hyphens
 	usernameRegex := regexp.MustCompile(`^[a-zA-Z0-9-]+$`)
 	return usernameRegex.MatchString(username)
+}
+
+// NewPendingAccount creates a new pending account
+func NewPendingAccount(alias, githubUsername, source string, confidence int, missingFields []string, partialData map[string]string) *PendingAccount {
+	return &PendingAccount{
+		Alias:          alias,
+		GitHubUsername: githubUsername,
+		Source:         source,
+		Confidence:     confidence,
+		MissingFields:  missingFields,
+		PartialData:    partialData,
+		CreatedAt:      time.Now(),
+	}
+}
+
+// IsPending returns true if the account is in pending status
+func (a *Account) IsPending() bool {
+	return a.Status == AccountStatusPending
+}
+
+// GetMissingFields returns the list of missing fields for pending accounts
+func (a *Account) GetMissingFields() []string {
+	if a.Status != AccountStatusPending {
+		return nil
+	}
+	return a.MissingFields
 }

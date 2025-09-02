@@ -60,14 +60,19 @@ func TestAccountValidate(t *testing.T) {
 			expectErr: ErrInvalidAlias,
 		},
 		{
-			name:      "Empty name",
+			name:      "Empty name but has GitHub username",
 			account:   &Account{Alias: "test", Name: "", Email: "test@example.com", GitHubUsername: "testuser"},
-			expectErr: ErrInvalidName,
+			expectErr: nil, // Valid because it has both email and GitHub username
 		},
 		{
-			name:      "Empty email",
+			name:      "Empty email but has GitHub username",
 			account:   &Account{Alias: "test", Name: "Test User", Email: "", GitHubUsername: "testuser"},
-			expectErr: ErrInvalidEmail,
+			expectErr: nil, // Valid because it has both name and GitHub username
+		},
+		{
+			name:      "Empty name and email, no GitHub username",
+			account:   &Account{Alias: "test", Name: "", Email: "", GitHubUsername: ""},
+			expectErr: ErrInvalidConfig, // Invalid because it has no identifying information
 		},
 	}
 
@@ -174,8 +179,8 @@ func TestAccountValidation(t *testing.T) {
 		{"valid_with_dots", "work.dev", "John Doe", "john.doe@example.com", true, nil},
 		{"valid_with_numbers", "work123", "John Doe", "john123@example.com", true, nil},
 		{"invalid_empty_alias", "", "John Doe", "john@example.com", false, ErrInvalidAlias},
-		{"invalid_empty_name", "work", "", "john@example.com", false, ErrInvalidName},
-		{"invalid_empty_email", "work", "John Doe", "", false, ErrInvalidEmail},
+		{"invalid_empty_name", "work", "", "john@example.com", true, nil}, // Valid because it has email and GitHub username
+		{"invalid_empty_email", "work", "John Doe", "", true, nil},        // Valid because it has name and GitHub username
 		{"invalid_bad_email", "work", "John Doe", "not-an-email", false, ErrInvalidEmailFormat},
 		{"invalid_alias_spaces", "work account", "John Doe", "john@example.com", true, nil},   // Spaces might be allowed now
 		{"invalid_alias_special_chars", "work@#$", "John Doe", "john@example.com", true, nil}, // Special chars might be allowed now

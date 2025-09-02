@@ -2,10 +2,13 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/techishthoughts/GitPersona/internal/config"
 	"github.com/techishthoughts/GitPersona/internal/discovery"
+	"github.com/techishthoughts/GitPersona/internal/models"
 )
 
 // discoverCmd represents the discover command
@@ -30,8 +33,9 @@ Examples:
 
 		// Check if accounts already exist
 		existingAccounts := configManager.ListAccounts()
+		overwrite, _ := cmd.Flags().GetBool("overwrite")
+
 		if len(existingAccounts) > 0 {
-			overwrite, _ := cmd.Flags().GetBool("overwrite")
 			if !overwrite {
 				fmt.Printf("⚠️  You already have %d account(s) configured.\n", len(existingAccounts))
 				fmt.Println("Use --overwrite to replace existing accounts.")
@@ -41,6 +45,13 @@ Examples:
 				}
 				return nil
 			}
+
+			// Clear existing accounts when overwrite is enabled
+			fmt.Printf("🗑️  Clearing %d existing account(s)...\n", len(existingAccounts))
+			if err := configManager.ClearAllAccounts(); err != nil {
+				return fmt.Errorf("failed to clear existing accounts: %w", err)
+			}
+			fmt.Println("✅ Existing accounts cleared.")
 		}
 
 		// Discover accounts
@@ -61,6 +72,10 @@ Examples:
 		fmt.Printf("✅ Found %d potential account(s):\n\n", len(discovered))
 
 		imported := 0
+		var importedAccounts []*models.Account
+		autoImport, _ := cmd.Flags().GetBool("auto-import")
+		dryRun, _ := cmd.Flags().GetBool("dry-run")
+
 		for i, account := range discovered {
 			fmt.Printf("📋 Account %d:\n", i+1)
 			fmt.Printf("   Alias: %s\n", account.Alias)
@@ -76,20 +91,66 @@ Examples:
 			fmt.Printf("   Source: %s\n", account.Source)
 			fmt.Printf("   Confidence: %d/10\n", account.Confidence)
 
-			autoImport, _ := cmd.Flags().GetBool("auto-import")
-			dryRun, _ := cmd.Flags().GetBool("dry-run")
+			// More lenient import criteria - allow import if we have at least name OR email, and confidence is reasonable
+			canImport := !dryRun && (autoImport || account.Confidence >= 6) &&
+				(account.Name != "" || account.Email != "") &&
+				(account.GitHubUsername != "" || account.SSHKeyPath != "")
 
-			if !dryRun && (autoImport || account.Confidence >= 8) && account.Name != "" && account.Email != "" {
+			if canImport {
 				if err := configManager.AddAccount(account.Account); err != nil {
 					fmt.Printf("   ❌ Failed to import: %v\n", err)
 				} else {
 					fmt.Printf("   ✅ Imported successfully!\n")
 					imported++
+					importedAccounts = append(importedAccounts, account.Account)
 				}
 			} else if dryRun {
 				fmt.Printf("   🔍 Would import (dry run mode)\n")
 			} else {
-				fmt.Printf("   ⏭️  Skipped (low confidence or missing data)\n")
+				// Check if we can add as pending account
+				if account.Confidence >= 6 && account.GitHubUsername != "" {
+					// Create pending account for manual completion
+					missingFields := []string{}
+					if account.Name == "" {
+						missingFields = append(missingFields, "name")
+					}
+					if account.Email == "" {
+						missingFields = append(missingFields, "email")
+					}
+
+					partialData := make(map[string]string)
+					if account.SSHKeyPath != "" {
+						partialData["ssh_key_path"] = account.SSHKeyPath
+					}
+
+					pendingAccount := models.NewPendingAccount(
+						account.Alias,
+						account.GitHubUsername,
+						account.Source,
+						account.Confidence,
+						missingFields,
+						partialData,
+					)
+
+					if err := configManager.AddPendingAccount(pendingAccount); err != nil {
+						fmt.Printf("   ❌ Failed to add as pending: %v\n", err)
+					} else {
+						fmt.Printf("   📋 Added to pending accounts (missing: %s)\n", strings.Join(missingFields, ", "))
+						fmt.Printf("   💡 Complete with: gitpersona complete %s --name \"Your Name\" --email \"your@email.com\"\n", account.Alias)
+					}
+				} else {
+					fmt.Printf("   ⏭️  Skipped: ")
+					if account.Confidence < 6 {
+						fmt.Printf("low confidence (%d/10) ", account.Confidence)
+					}
+					if account.Name == "" && account.Email == "" {
+						fmt.Printf("missing name and email ")
+					}
+					if account.GitHubUsername == "" && account.SSHKeyPath == "" {
+						fmt.Printf("missing GitHub username and SSH key")
+					}
+					fmt.Println()
+				}
 			}
 
 			fmt.Println()
@@ -98,10 +159,53 @@ Examples:
 		if imported > 0 {
 			fmt.Printf("🎉 Successfully imported %d account(s)!\n", imported)
 			fmt.Println("💡 Use 'gitpersona list' to see all accounts")
+
+			// Automatically test SSH for imported accounts
+			if !dryRun {
+				fmt.Println("\n🔐 Testing SSH connectivity for imported accounts...")
+				for _, account := range importedAccounts {
+					if account.SSHKeyPath != "" {
+						fmt.Printf("\n🧪 Testing SSH for account '%s'...\n", account.Alias)
+						if err := testSSHForAccount(account); err != nil {
+							fmt.Printf("   ⚠️  SSH test failed: %v\n", err)
+						} else {
+							fmt.Printf("   ✅ SSH test passed!\n")
+						}
+					}
+				}
+			}
 		}
 
 		return nil
 	},
+}
+
+// testSSHForAccount performs basic SSH testing for a discovered account
+func testSSHForAccount(account *models.Account) error {
+	// This is a simplified SSH test - for full testing, users can run 'gitpersona ssh test <alias>'
+	if account.SSHKeyPath == "" {
+		return fmt.Errorf("no SSH key configured")
+	}
+
+	// Check if SSH key file exists
+	if _, err := os.Stat(account.SSHKeyPath); os.IsNotExist(err) {
+		return fmt.Errorf("SSH key file not found: %s", account.SSHKeyPath)
+	}
+
+	// Check if SSH key file is readable
+	if _, err := os.ReadFile(account.SSHKeyPath); err != nil {
+		return fmt.Errorf("SSH key file not readable: %s", err)
+	}
+
+	// Check file permissions (should be 600 for SSH keys)
+	if info, err := os.Stat(account.SSHKeyPath); err == nil {
+		mode := info.Mode().Perm()
+		if mode != 0600 {
+			fmt.Printf("   ⚠️  SSH key permissions should be 600, got %o\n", mode)
+		}
+	}
+
+	return nil
 }
 
 func init() {

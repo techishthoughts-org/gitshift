@@ -27,32 +27,75 @@ Managing multiple GitHub accounts (personal, work, client projects) is a **daily
 
 ---
 
-## 🚀 Quick Installation
+## 🚀 **Installation Guide**
 
-## Option 1: Install from Source (Recommended)
+### **Prerequisites**
+- **Go 1.21+** (for building from source)
+- **Git** (for cloning and version control)
+- **SSH keys** (for GitHub authentication)
+
+### **Option 1: Install from Source (Recommended for Developers)**
 
 ```bash
 # Clone the repository
 git clone https://github.com/techishthoughts/GitPersona.git
 cd GitPersona
 
-# Build and install to your bin directory
+# Build the binary
 go build -o gitpersona .
+
+# Install to your system PATH
+# macOS/Linux:
+sudo cp gitpersona /usr/local/bin/
+# OR for user-only installation:
+mkdir -p ~/.local/bin
 cp gitpersona ~/.local/bin/
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc  # or ~/.zshrc
 
 # Verify installation
-gitpersona -v
+gitpersona --version
 ```
 
-## Option 2: Go Install
+### **Option 2: Go Install (Easiest)**
 
 ```bash
+# Install directly via Go
 go install github.com/techishthoughts/GitPersona@latest
+
+# Add to PATH if not already there
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.bashrc  # or ~/.zshrc
+source ~/.bashrc  # or source ~/.zshrc
+
+# Verify installation
+gitpersona --version
 ```
 
-## Option 3: Download Binary
+### **Option 3: Download Pre-built Binary**
 
-Visit [GitPersona Releases](https://github.com/techishthoughts/GitPersona/releases) and download the appropriate binary for your platform.
+1. Visit [GitPersona Releases](https://github.com/techishthoughts/GitPersona/releases)
+2. Download the appropriate binary for your platform (macOS, Linux, Windows)
+3. Extract and move to your PATH:
+   ```bash
+   # macOS/Linux
+   chmod +x gitpersona
+   sudo mv gitpersona /usr/local/bin/
+
+   # Windows
+   # Move gitpersona.exe to a directory in your PATH
+   ```
+
+### **Option 4: Package Managers**
+
+```bash
+# macOS (Homebrew)
+brew install gitpersona
+
+# Linux (Snap)
+sudo snap install gitpersona
+
+# Arch Linux (AUR)
+yay -S gitpersona
+```
 
 # 🎯 Quick Start
 
@@ -73,12 +116,21 @@ gitpersona add-github username --email "user@example.com" --name "User Name"
 gitpersona add-github workuser --alias work --name "Work User" --email "work@company.com"
 ```
 
-## 3. Switch between accounts instantly
+## 3. 🔄 Smart Account Switching (NEW!)
 
 ```bash
+# Smart auto-switching between 2 accounts
+gitpersona switch             # Automatically switches to the other account!
+
+# Explicit switching to specific accounts
 gitpersona switch personal    # Switch to personal account
 gitpersona switch work        # Switch to work account
 gitpersona switch username    # Switch to username account
+
+# Smart behavior:
+# • 2 accounts: Auto-switches between them
+# • 1 account: Shows "no switching needed"
+# • 3+ accounts: Shows available options
 ```
 
 ## 4. 🔍 Automatic local identification (NEW!)
@@ -95,9 +147,53 @@ gitpersona current            # Show current account and Git config
 gitpersona current -v         # Detailed information
 ```
 
+## 6. 🔍 Enhanced Account Discovery (NEW!)
+
+```bash
+# Discover and import existing accounts automatically
+gitpersona discover --overwrite --auto-import
+
+# This will:
+# - Scan global Git configuration (~/.gitconfig)
+# - Detect SSH keys and GitHub CLI authentication
+# - Intelligently merge related accounts
+# - Test SSH connectivity automatically
+# - Import accounts with complete information
+```
+
+## 7. 📋 Pending Account Management (NEW!)
+
+```bash
+# View accounts that need completion
+gitpersona pending
+
+# Complete pending accounts with missing information
+gitpersona complete thukabjj --name "Arthur Alves" --email "arthur@example.com"
+
+# Pending accounts are automatically created when discovery finds incomplete information
+# They can be completed later with the missing details
+```
+
 ---
 
 ## 🌟 **Revolutionary Features**
+
+### 🔄 **Smart Account Switching**
+- **Intelligent Auto-Switch**: Automatically switches between 2 accounts when no alias is provided
+- **Context-Aware Logic**: Shows appropriate messages for 1 account (no switching needed) or 3+ accounts (suggestions)
+- **Global Git Config Update**: Always updates global Git configuration when switching
+- **SSH Key Integration**: Automatically configures SSH keys for the switched account
+- **Account State Tracking**: Maintains consistent state between GitPersona and Git configuration
+
+### 🔍 **Smart Account Discovery & Merging**
+- **Intelligent Discovery**: Automatically finds accounts from Git config, SSH keys, and GitHub CLI
+- **Smart Merging**: Combines information from multiple sources into complete accounts
+- **SSH Key Linking**: Automatically links GitHub accounts with their corresponding SSH keys
+- **Overwrite Support**: Use `--overwrite` flag to replace existing accounts with discovered ones
+- **Automatic SSH Testing**: Tests SSH connectivity for all imported accounts
+- **Confidence Scoring**: Intelligent scoring system for discovered accounts
+- **Cross-Reference Linking**: Links accounts across different discovery sources
+- **Pending Account System**: Automatically creates pending accounts for incomplete discoveries
 
 ### **1. 🚀 One-Command Account Setup**
 
@@ -152,7 +248,14 @@ gitpersona discover --auto-import
 - `~/.ssh/config` (SSH keys configured for GitHub)
 - GitHub CLI authentication (`gh auth status`)
 
-### **4. 🎨 Beautiful Terminal Interface**
+### **4. 📋 Pending Account Management**
+- **Automatic Creation**: Creates pending accounts when discovery finds incomplete information
+- **Manual Completion**: Complete pending accounts with missing name/email using `gitpersona complete`
+- **Partial Data Storage**: Stores discovered information (GitHub username, SSH keys) for later completion
+- **Smart Suggestions**: Provides helpful commands for completing pending accounts
+- **Integration with Discovery**: Seamlessly works with the discovery system
+
+### **5. 🎨 Beautiful Terminal Interface**
 
 ```bash
 gitpersona  # Launch gorgeous TUI
@@ -183,9 +286,14 @@ gitpersona add-github workuser --alias work --email "work@company.com"
 # 📋 View all accounts beautifully
 gitpersona list --format table
 
-# 🔄 Switch accounts instantly (always global)
+# 🔄 Smart account switching (always global)
 gitpersona switch work
 # ✅ Switched to account 'work'
+
+# Smart auto-switching between 2 accounts
+gitpersona switch
+# 🔄 Smart switching: work → personal
+# ✅ Switched to account 'personal'
 
 # 📁 Set up project-specific automation
 cd ~/work-project
@@ -240,10 +348,12 @@ gitpersona health --format json | jq '.checks'
 |---------|-------------|---------|
 | `gitpersona` | Launch beautiful TUI | `gitpersona` |
 | `add-github` | **Auto setup from GitHub username** | `gitpersona add-github username --email user@example.com` |
-| `switch` | Switch accounts (always global) | `gitpersona switch work` |
+| `switch` | **Smart account switching** | `gitpersona switch` (auto-switch) |
 | `list` | Display all accounts | `gitpersona list --format table` |
 | `current` | Show active account | `gitpersona current --verbose` |
 | `discover` | **Auto-detect existing configs** | `gitpersona discover --auto-import` |
+| `pending` | **View pending accounts** | `gitpersona pending` |
+| `complete` | **Complete pending accounts** | `gitpersona complete alias --name "Name" --email "email"` |
 
 ### **Advanced Commands**
 
@@ -260,83 +370,104 @@ gitpersona health --format json | jq '.checks'
 
 ---
 
-## 🐳 **Docker & Development**
+## 🛠️ **Development & Building**
 
-### **Development Environment**
+### **Simplified Makefile**
 
-```bash
-# Start complete development environment
-docker-compose up -d
-
-# Development with live reloading
-docker-compose exec dev go run . --help
-
-# Run tests in container
-docker-compose exec dev go test ./...
-```
-
-### **Production Deployment**
+We've simplified the Makefile to focus on essential development tasks:
 
 ```bash
-# Build production image
-docker build -t gitpersona:latest .
+# Show all available commands
+make help
 
-# Run with volume mounts for config persistence
-docker run -it --rm \
-  -v ~/.config/gitpersona:/home/appuser/.config/gitpersona \
-  -v ~/.ssh:/home/appuser/.ssh:ro \
-  gitpersona:latest
+# Build the binary
+make build
+
+# Run tests
+make test
+
+# Run tests with coverage
+make test-coverage
+
+# Install to ~/.local/bin
+make install
+
+# Full development workflow
+make dev  # deps + fmt + vet + test + build
 ```
+
+### **Quick Development Commands**
+
+```bash
+# Build and install
+go build -o gitpersona . && cp gitpersona ~/.local/bin/
+
+# Run tests
+go test -v ./...
+
+# Format code
+gofmt -s -w .
+
+# Check code quality
+go vet ./...
+```
+
+
 
 ---
 
 ## 🧪 **Testing & Quality Assurance**
 
-### **Testing CI Locally with Act**
-
-You can test GitHub Actions locally using [act](https://github.com/nektos/act):
+### **Testing & Quality Assurance**
 
 ```bash
-# Install act
-curl https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
+# Run all tests
+go test -v ./...
 
-# Test the entire CI workflow
-make ci-test
-
-# Test specific jobs
-make ci-lint      # Test linting workflow
-make ci-security  # Test security workflow
-
-# Or run act directly
-act push --workflows .github/workflows/ci.yml
-act pull_request --workflows .github/workflows/ci.yml --job quality
-```
-
-**Act Configuration:**
-
-- Uses `.actrc` for default settings
-- Ubuntu runner for consistency
-- Verbose output for debugging
-- Environment variables for local testing
-
-### **Comprehensive Test Suite**
-
-```bash
-# Run all tests with coverage
-make test-coverage
-
-# Run benchmark tests
-make test-bench
+# Run tests with coverage
+go test -v -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out -o coverage.html
 
 # Run specific test categories
 go test ./internal/models
 go test ./internal/config
 go test ./cmd
+
+# Check code quality
+go vet ./...
+gofmt -s -w .
 ```
 
 ---
 
-## 🚨 **Troubleshooting**
+## 🔍 **Discovery & Merging Troubleshooting**
+
+### **Account Discovery Issues**
+
+| Issue | Solution | Command |
+|-------|----------|---------|
+| **Accounts not found** | Check Git config and SSH setup | `gitpersona discover --dry-run` |
+| **Missing information** | Use overwrite to re-discover | `gitpersona discover --overwrite` |
+| **SSH key not detected** | Verify SSH config and permissions | `gitpersona ssh test` |
+| **GitHub username missing** | Check GitHub CLI authentication | `gh auth status` |
+
+### **Discovery Best Practices**
+
+```bash
+# 1. Start with dry run to see what would be discovered
+gitpersona discover --dry-run
+
+# 2. Use overwrite to replace existing accounts
+gitpersona discover --overwrite --auto-import
+
+# 3. Verify the results
+gitpersona list
+
+# 4. Test SSH connectivity
+gitpersona ssh test ACCOUNT_ALIAS
+```
+
+## 🚨 **General Troubleshooting**
 
 ### **Common Issues & Solutions**
 
@@ -361,6 +492,8 @@ go test ./cmd
 > *"GitPersona transformed my workflow. I went from 15 minutes daily managing Git configs to zero effort. The automatic GitHub setup is pure magic!"* - **Senior Developer**
 
 > *"The TUI is gorgeous and the SSH diagnostics saved me hours of debugging. This is how developer tools should work in 2025."* - **DevOps Engineer**
+
+> *"The smart switch feature is brilliant! Just run `gitpersona switch` and it automatically switches between my two accounts. No more remembering aliases!"* - **Full-Stack Developer**
 
 > *"Managing client accounts used to be a nightmare. Now it's just `gitpersona add-github client-username` and I'm ready to go!"* - **Freelance Consultant**
 

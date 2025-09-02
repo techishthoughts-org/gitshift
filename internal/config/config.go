@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/viper"
 	"github.com/techishthoughts/GitPersona/internal/models"
@@ -49,22 +50,28 @@ func (m *Manager) Load() error {
 		return m.Save()
 	}
 
-	// Set up viper
-	viper.SetConfigFile(configFile)
-	viper.SetConfigType("yaml")
+	// Create a new viper instance for reading
+	v := viper.New()
+	v.SetConfigFile(configFile)
+	v.SetConfigType("yaml")
 
-	if err := viper.ReadInConfig(); err != nil {
+	if err := v.ReadInConfig(); err != nil {
 		return fmt.Errorf("failed to read config file: %w", err)
 	}
 
 	// Unmarshal into our config struct
-	if err := viper.Unmarshal(m.config); err != nil {
+	if err := v.Unmarshal(m.config); err != nil {
 		return fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
 	// Initialize accounts map if nil
 	if m.config.Accounts == nil {
 		m.config.Accounts = make(map[string]*models.Account)
+	}
+
+	// Initialize pending accounts map if nil
+	if m.config.PendingAccounts == nil {
+		m.config.PendingAccounts = make(map[string]*models.PendingAccount)
 	}
 
 	return nil
@@ -74,18 +81,20 @@ func (m *Manager) Load() error {
 func (m *Manager) Save() error {
 	configFile := filepath.Join(m.configPath, ConfigFileName+".yaml")
 
-	// Set up viper for writing
-	viper.SetConfigFile(configFile)
-	viper.SetConfigType("yaml")
+	// Create a new viper instance for writing
+	v := viper.New()
+	v.SetConfigFile(configFile)
+	v.SetConfigType("yaml")
 
 	// Set the config values
-	viper.Set("accounts", m.config.Accounts)
-	viper.Set("current_account", m.config.CurrentAccount)
-	viper.Set("global_git_config", m.config.GlobalGitConfig)
-	viper.Set("auto_detect", m.config.AutoDetect)
-	viper.Set("config_version", m.config.ConfigVersion)
+	v.Set("accounts", m.config.Accounts)
+	v.Set("pending_accounts", m.config.PendingAccounts)
+	v.Set("current_account", m.config.CurrentAccount)
+	v.Set("global_git_config", m.config.GlobalGitConfig)
+	v.Set("auto_detect", m.config.AutoDetect)
+	v.Set("config_version", m.config.ConfigVersion)
 
-	if err := viper.WriteConfig(); err != nil {
+	if err := v.WriteConfig(); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
@@ -166,6 +175,14 @@ func (m *Manager) ListAccounts() []*models.Account {
 	return accounts
 }
 
+// ClearAllAccounts removes all accounts from the configuration
+func (m *Manager) ClearAllAccounts() error {
+	m.config.Accounts = make(map[string]*models.Account)
+	m.config.PendingAccounts = make(map[string]*models.PendingAccount)
+	m.config.CurrentAccount = ""
+	return m.Save()
+}
+
 // SetCurrentAccount sets the current active account
 func (m *Manager) SetCurrentAccount(alias string) error {
 	account, exists := m.config.Accounts[alias]
@@ -226,4 +243,91 @@ func (m *Manager) SaveProjectConfig(projectPath string, config *models.ProjectCo
 	}
 
 	return nil
+}
+
+// AddPendingAccount adds a pending account that needs manual completion
+func (m *Manager) AddPendingAccount(pending *models.PendingAccount) error {
+	if pending == nil {
+		return fmt.Errorf("cannot add nil pending account")
+	}
+
+	if pending.Alias == "" {
+		return fmt.Errorf("pending account must have an alias")
+	}
+
+	m.config.PendingAccounts[pending.Alias] = pending
+	return m.Save()
+}
+
+// GetPendingAccount returns a pending account by alias
+func (m *Manager) GetPendingAccount(alias string) (*models.PendingAccount, error) {
+	pending, exists := m.config.PendingAccounts[alias]
+	if !exists {
+		return nil, models.ErrAccountNotFound
+	}
+	return pending, nil
+}
+
+// ListPendingAccounts returns all pending accounts
+func (m *Manager) ListPendingAccounts() []*models.PendingAccount {
+	pending := make([]*models.PendingAccount, 0, len(m.config.PendingAccounts))
+	for _, account := range m.config.PendingAccounts {
+		pending = append(pending, account)
+	}
+	return pending
+}
+
+// CompletePendingAccount converts a pending account to an active account
+func (m *Manager) CompletePendingAccount(alias string, name, email string) (*models.Account, error) {
+	pending, exists := m.config.PendingAccounts[alias]
+	if !exists {
+		return nil, models.ErrAccountNotFound
+	}
+
+	// Create the completed account
+	account := &models.Account{
+		Alias:          alias,
+		Name:           name,
+		Email:          email,
+		GitHubUsername: pending.GitHubUsername,
+		SSHKeyPath:     pending.PartialData["ssh_key_path"],
+		Description:    fmt.Sprintf("Completed from pending account (source: %s)", pending.Source),
+		Status:         models.AccountStatusActive,
+		IsDefault:      false,
+		CreatedAt:      time.Now(),
+	}
+
+	// Validate the completed account
+	if err := account.Validate(); err != nil {
+		return nil, fmt.Errorf("completed account validation failed: %w", err)
+	}
+
+	// Add to active accounts
+	m.config.Accounts[alias] = account
+
+	// Remove from pending accounts
+	delete(m.config.PendingAccounts, alias)
+
+	// Save configuration
+	if err := m.Save(); err != nil {
+		return nil, fmt.Errorf("failed to save completed account: %w", err)
+	}
+
+	return account, nil
+}
+
+// RemovePendingAccount removes a pending account
+func (m *Manager) RemovePendingAccount(alias string) error {
+	if _, exists := m.config.PendingAccounts[alias]; !exists {
+		return models.ErrAccountNotFound
+	}
+
+	delete(m.config.PendingAccounts, alias)
+	return m.Save()
+}
+
+// ClearAllPendingAccounts removes all pending accounts
+func (m *Manager) ClearAllPendingAccounts() error {
+	m.config.PendingAccounts = make(map[string]*models.PendingAccount)
+	return m.Save()
 }

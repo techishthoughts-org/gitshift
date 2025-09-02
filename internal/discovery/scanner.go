@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -75,17 +76,43 @@ func (d *AccountDiscovery) scanGlobalGitConfig() ([]*DiscoveredAccount, error) {
 		return nil, nil
 	}
 
-	viper := viper.New()
-	viper.SetConfigFile(gitConfigPath)
-	viper.SetConfigType("ini")
-
-	if err := viper.ReadInConfig(); err != nil {
+	// Read and parse the Git config file manually since Viper has issues with INI format
+	content, err := os.ReadFile(gitConfigPath)
+	if err != nil {
 		return nil, err
 	}
 
-	name := viper.GetString("user.name")
-	email := viper.GetString("user.email")
-	sshCommand := viper.GetString("core.sshCommand")
+	// Simple INI parser for Git config
+	var name, email, sshCommand string
+	lines := strings.Split(string(content), "\n")
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		if strings.HasPrefix(line, "[") {
+			continue // Skip section headers
+		}
+
+		if strings.Contains(line, "=") {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 {
+				key := strings.TrimSpace(parts[0])
+				value := strings.TrimSpace(parts[1])
+
+				switch key {
+				case "name":
+					name = value
+				case "email":
+					email = value
+				case "sshCommand":
+					sshCommand = value
+				}
+			}
+		}
+	}
 
 	if name == "" || email == "" {
 		return nil, nil
@@ -261,16 +288,24 @@ func (d *AccountDiscovery) scanGitHubCLI() ([]*DiscoveredAccount, error) {
 			if matches := re.FindStringSubmatch(line); len(matches) > 1 {
 				username := matches[1]
 
+				// Try to enrich account with GitHub API data
+				enrichedAccount := d.enrichAccountFromGitHubAPI(username)
+
 				currentAccount = &DiscoveredAccount{
 					Account: &models.Account{
 						Alias:          d.generateAlias("", username, "gh"),
-						Name:           "", // Will try to get from Git config
-						Email:          "", // Will try to get from Git config
+						Name:           enrichedAccount.Name,
+						Email:          enrichedAccount.Email,
 						GitHubUsername: username,
 						Description:    "Found via GitHub CLI authentication",
 					},
 					Source:     "gh auth status",
 					Confidence: 7,
+				}
+
+				// Increase confidence if we got additional info
+				if enrichedAccount.Name != "" {
+					currentAccount.Confidence = 8
 				}
 
 				discovered = append(discovered, currentAccount)
@@ -279,6 +314,37 @@ func (d *AccountDiscovery) scanGitHubCLI() ([]*DiscoveredAccount, error) {
 	}
 
 	return discovered, nil
+}
+
+// enrichAccountFromGitHubAPI tries to fetch additional user information from GitHub API
+func (d *AccountDiscovery) enrichAccountFromGitHubAPI(username string) *models.Account {
+	// Try to get user info from GitHub API using gh command
+	cmd := exec.Command("gh", "api", "user")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return &models.Account{} // Return empty account if API call fails
+	}
+
+	// Simple JSON parsing for the user data
+	var userData struct {
+		Login string `json:"login"`
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	}
+
+	if err := json.Unmarshal(output, &userData); err != nil {
+		return &models.Account{} // Return empty account if parsing fails
+	}
+
+	// Only return data if it matches the username we're looking for
+	if userData.Login == username {
+		return &models.Account{
+			Name:  userData.Name,
+			Email: userData.Email,
+		}
+	}
+
+	return &models.Account{}
 }
 
 // SSHHost represents an SSH host configuration
@@ -313,7 +379,7 @@ func (d *AccountDiscovery) parseSSHHosts(content string) []SSHHost {
 			hostName := strings.TrimPrefix(line, "Host ")
 			currentHost = &SSHHost{
 				Host:     hostName,
-				IsGitHub: strings.Contains(hostName, "github"),
+				IsGitHub: strings.Contains(hostName, "github") || hostName == "github.com",
 			}
 		} else if currentHost != nil {
 			// Parse host properties
@@ -352,16 +418,90 @@ func (d *AccountDiscovery) mergeDiscoveredAccounts(accounts []*DiscoveredAccount
 	// Group accounts by email or name
 	groups := make(map[string][]*DiscoveredAccount)
 
+	fmt.Printf("🔍 Merging %d accounts...\n", len(accounts))
+
 	for _, account := range accounts {
-		key := account.Email
-		if key == "" {
-			key = account.Name
+		// Try to find a good grouping key
+		var key string
+
+		// First, check if this account should be grouped by SSH key (highest priority for linking)
+		if account.SSHKeyPath != "" {
+			normalizedSSHPath := d.expandPath(account.SSHKeyPath)
+
+			// Check if any other account has the same SSH key
+			for _, otherAccount := range accounts {
+				if otherAccount != account && otherAccount.SSHKeyPath != "" {
+					otherNormalizedPath := d.expandPath(otherAccount.SSHKeyPath)
+					if normalizedSSHPath == otherNormalizedPath {
+						key = "ssh:" + normalizedSSHPath
+
+						break
+					}
+				}
+			}
+
+			// If no SSH key grouping, check if this SSH key contains a GitHub username
+			if key == "" {
+				for _, otherAccount := range accounts {
+					if otherAccount != account && otherAccount.GitHubUsername != "" && otherAccount.SSHKeyPath == "" {
+						// Check if the SSH key name contains the GitHub username
+						sshKeyName := filepath.Base(account.SSHKeyPath)
+						sshKeyName = strings.TrimPrefix(sshKeyName, "id_rsa_")
+						sshKeyName = strings.TrimPrefix(sshKeyName, "id_ed25519_")
+						sshKeyName = strings.TrimSuffix(sshKeyName, ".pub")
+
+						if sshKeyName == otherAccount.GitHubUsername {
+							key = "ssh+github:" + normalizedSSHPath
+
+							break
+						}
+					}
+				}
+			}
+
+			// If still no key, use SSH key path
+			if key == "" {
+				key = "ssh:" + normalizedSSHPath
+			}
 		}
+
+		// If no SSH key grouping, try other grouping methods
 		if key == "" {
-			key = account.GitHubUsername
-		}
-		if key == "" {
-			key = account.Alias
+			// Priority 1: Group by email (most reliable)
+			if account.Email != "" {
+				key = "email:" + account.Email
+			} else if account.Name != "" {
+				// Priority 2: Group by name if no email
+				key = "name:" + account.Name
+			} else if account.GitHubUsername != "" {
+				// Priority 3: Check if this GitHub username should be grouped with an SSH key
+				shouldGroupWithSSH := false
+				for _, otherAccount := range accounts {
+					if otherAccount != account && otherAccount.SSHKeyPath != "" {
+						// Check if the SSH key name contains this GitHub username
+						sshKeyName := filepath.Base(otherAccount.SSHKeyPath)
+						sshKeyName = strings.TrimPrefix(sshKeyName, "id_rsa_")
+						sshKeyName = strings.TrimPrefix(sshKeyName, "id_ed25519_")
+						sshKeyName = strings.TrimSuffix(sshKeyName, ".pub")
+
+						if sshKeyName == account.GitHubUsername {
+							normalizedSSHPath := d.expandPath(otherAccount.SSHKeyPath)
+							key = "ssh:" + normalizedSSHPath
+
+							shouldGroupWithSSH = true
+							break
+						}
+					}
+				}
+
+				// If not grouped with SSH, use GitHub username
+				if !shouldGroupWithSSH {
+					key = "github:" + account.GitHubUsername
+				}
+			} else {
+				// Fallback to alias
+				key = "alias:" + account.Alias
+			}
 		}
 
 		groups[key] = append(groups[key], account)

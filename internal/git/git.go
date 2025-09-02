@@ -170,7 +170,8 @@ func (m *Manager) setUserEmail(email string, global bool) error {
 
 // getConfigValue retrieves a Git configuration value
 func (m *Manager) getConfigValue(key string) (string, error) {
-	cmd := exec.Command("git", "config", "--get", key)
+	// Always read global configuration to ensure consistency
+	cmd := exec.Command("git", "config", "--global", "--get", key)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", err
