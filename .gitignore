@@ -1,23 +1,164 @@
-# Build artifacts
+# 🐹 Go Build Artifacts
 gitpersona
+gh-switcher
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
 *.test
+*.out
+*.prof
+*.trace
+
+# 📦 Go Package Management
+vendor/
+go.work
+go.work.sum
+
+# 🧪 Testing & Coverage
 coverage.out
 coverage.html
-dist/
-*.log
-.DS_Store
-Thumbs.db
+coverage.xml
+*.cover
+*.coverprofile
+test-results/
+test-report.xml
 
-# IDE files
+# 🏗️ Build Directories
+dist/
+build/
+bin/
+out/
+target/
+
+# 📊 Performance & Profiling
+*.pprof
+*.prof
+*.trace
+*.memprof
+*.blockprof
+*.mutexprof
+
+# 🔐 Security & Keys
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.csr
+*.srl
+id_rsa*
+id_ed25519*
+*.pub
+.env
+.env.local
+.env.*.local
+secrets.yaml
+secrets.yml
+
+# 📁 Configuration Files
+.gitpersona.yaml
+config.yaml
+config.yml
+*.config.yaml
+*.config.yml
+.envrc
+.direnv
+
+# 🖥️ OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# 🛠️ IDE & Editor Files
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
 
-# Config files
-.gitpersona.yaml
-config.yaml
-
-# Temporary files
+# 📝 Temporary Files
 *.tmp
+*.temp
 *.bak
+*.backup
+*.orig
+*.rej
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# 🐳 Docker & Container
+.dockerignore
+docker-compose.override.yml
+*.env.docker
+
+# ☁️ Cloud & Deployment
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform.lock.hcl
+.aws/
+.gcp/
+.azure/
+
+# 📱 Mobile & Web
+*.ipa
+*.apk
+*.aab
+*.dmg
+*.pkg
+*.deb
+*.rpm
+*.snap
+
+# 🔍 Debug & Development
+debug/
+debug.test
+*.debug
+*.prof
+*.trace
+*.pprof
+
+# 📊 Metrics & Monitoring
+metrics/
+monitoring/
+*.metrics
+*.monitoring
+
+# 🚀 CI/CD Artifacts
+.ci/
+.cd/
+artifacts/
+releases/
+*.tar.gz
+*.zip
+*.deb
+*.rpm
+
+# 🧹 Cleanup Scripts
+cleanup.sh
+cleanup.bat
+*.cleanup
+
+# 📋 Documentation Build
+docs/_build/
+docs/build/
+site/
+public/
+
+# 🎯 Project Specific
+# Add any project-specific patterns here
