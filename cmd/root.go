@@ -17,17 +17,20 @@ var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "gh-switcher",
-	Short: "A TUI for managing multiple GitHub accounts",
-	Long: `GitHub Account Switcher is a Terminal User Interface (TUI) application
-that helps you manage and switch between multiple GitHub accounts seamlessly.
+	Use:   "gitpersona",
+	Short: "🎭 Revolutionary TUI for seamless GitHub identity management",
+	Long: `GitPersona is a revolutionary Terminal User Interface (TUI) application
+that provides seamless GitHub identity management with enterprise automation
+and beautiful design.
 
 Features:
-- Manage multiple GitHub accounts (add, remove, list)
-- Switch between accounts manually via TUI
-- Automatic account switching based on folder configuration
-- Shell integration for seamless environment setup
-- SSH key management for secure authentication`,
+- 🚀 One-command GitHub account setup with automatic SSH key generation
+- 🎨 Beautiful TUI with modern design and animations
+- 🔄 Instant global account switching
+- 📁 Automatic project-based identity detection
+- 🔐 Enterprise-grade security with Ed25519 keys
+- 🔍 Smart discovery of existing Git configurations
+- 📊 Repository management and insights`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// If no command is specified, show the TUI
 		runTUI()
@@ -44,7 +47,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	// Here you will define your flags and configuration settings.
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.config/gh-switcher/config.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.config/gitpersona/config.yaml)")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
