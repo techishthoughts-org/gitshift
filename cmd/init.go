@@ -3,11 +3,15 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 
+	"github.com/spf13/cobra"
 	"github.com/techishthoughts/GitPersona/internal/config"
 	"github.com/techishthoughts/GitPersona/internal/git"
 	"github.com/techishthoughts/GitPersona/internal/github"
-	"github.com/spf13/cobra"
+	"github.com/techishthoughts/GitPersona/internal/models"
 )
 
 // initCmd represents the init command for shell integration
@@ -204,11 +208,184 @@ Examples:
 	},
 }
 
+// autoIdentifyCmd represents the auto-identify command for immediate account switching
+var autoIdentifyCmd = &cobra.Command{
+	Use:   "auto-identify",
+	Short: "🔍 Automatically identify and switch to the best matching account",
+	Long: `Automatically identify and switch to the best matching account based on local context.
+
+This command will:
+1. 🔍 Analyze your current Git configuration
+2. 🎯 Find the best matching account from your saved accounts
+3. ⚡ Switch to that account immediately
+4. 🚀 Set up Git config and SSH settings
+5. ✅ Show you what was configured
+
+Perfect for:
+- Quick account switching in any directory
+- Automatic setup when entering new projects
+- Immediate account identification without shell integration
+
+Examples:
+  gitpersona auto-identify
+  gitpersona auto-identify --verbose`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		verbose, _ := cmd.Flags().GetBool("verbose")
+
+		configManager := config.NewManager()
+		if err := configManager.Load(); err != nil {
+			return fmt.Errorf("no accounts configured yet. Add your first account with: gitpersona add-github <username>")
+		}
+
+		gitManager := git.NewManager()
+		currentDir, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("failed to get current directory: %w", err)
+		}
+
+		if verbose {
+			fmt.Println("🔍 Analyzing current directory and Git configuration...")
+		}
+
+		// Check for project-specific configuration first
+		projectConfig, err := configManager.LoadProjectConfig(currentDir)
+		if err == nil && projectConfig.Account != "" {
+			account, err := configManager.GetAccount(projectConfig.Account)
+			if err == nil {
+				fmt.Printf("🎯 Project-specific account detected: %s\n", account.Alias)
+				return autoSwitchToAccount(account, gitManager, verbose)
+			}
+		}
+
+		// Try automatic identification
+		if gitManager.IsGitRepo(currentDir) {
+			if verbose {
+				fmt.Println("📁 Git repository detected, analyzing configuration...")
+			}
+
+			// Get current Git configuration
+			currentName, currentEmail, err := gitManager.GetCurrentConfig()
+			if err == nil {
+				if verbose {
+					fmt.Printf("📋 Current Git config: name='%s', email='%s'\n", currentName, currentEmail)
+				}
+
+				// Try to find matching account
+				bestMatch := findBestMatchingAccount(configManager, currentName, currentEmail)
+				if bestMatch != nil {
+					fmt.Printf("🔍 Auto-detected account: %s (from Git config)\n", bestMatch.Alias)
+					fmt.Printf("   Name: %s\n", bestMatch.Name)
+					fmt.Printf("   Email: %s\n", bestMatch.Email)
+					return autoSwitchToAccount(bestMatch, gitManager, verbose)
+				}
+			}
+
+			// Check for SSH key in use
+			if verbose {
+				fmt.Println("🔑 Checking SSH agent for active keys...")
+			}
+			sshKeyPath := detectCurrentSSHKey()
+			if sshKeyPath != "" {
+				if verbose {
+					fmt.Printf("🔑 SSH key detected: %s\n", sshKeyPath)
+				}
+				// Try to find account by SSH key
+				account := findAccountBySSHKey(configManager, sshKeyPath)
+				if account != nil {
+					fmt.Printf("🔑 SSH key matched account: %s\n", account.Alias)
+					return autoSwitchToAccount(account, gitManager, verbose)
+				}
+			}
+		}
+
+		// Fallback: use current account if available
+		if currentAccount := configManager.GetConfig().CurrentAccount; currentAccount != "" {
+			account, err := configManager.GetAccount(currentAccount)
+			if err == nil {
+				fmt.Printf("📍 Using current account: %s\n", account.Alias)
+				return autoSwitchToAccount(account, gitManager, verbose)
+			}
+		}
+
+		// No automatic identification possible
+		fmt.Println("❌ Could not automatically identify an account")
+		fmt.Println("\n💡 Available accounts:")
+		accounts := configManager.ListAccounts()
+		for _, acc := range accounts {
+			fmt.Printf("   • %s (@%s) - %s\n", acc.Alias, acc.GitHubUsername, acc.Email)
+		}
+		fmt.Println("\n🚀 To switch manually:")
+		fmt.Println("   gitpersona switch <alias>")
+		fmt.Println("   gitpersona add-github <username>  # Add new account")
+
+		return nil
+	},
+}
+
+// switchToAccount switches to the specified account and shows the configuration
+func autoSwitchToAccount(account *models.Account, gitManager *git.Manager, verbose bool) error {
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	fmt.Printf("\n✅ Switching to account: %s\n", account.Alias)
+	fmt.Printf("   GitHub: @%s\n", account.GitHubUsername)
+	fmt.Printf("   Name: %s\n", account.Name)
+	fmt.Printf("   Email: %s\n", account.Email)
+
+	// Set local git config if in a git repo
+	if gitManager.IsGitRepo(currentDir) {
+		if verbose {
+			fmt.Println("📝 Setting local Git configuration...")
+		}
+
+		// Set local git config
+		if err := gitManager.SetLocalConfig(account); err != nil {
+			fmt.Printf("⚠️  Failed to set local Git config: %v\n", err)
+		} else {
+			fmt.Println("✅ Local Git configuration updated")
+		}
+	}
+
+	// Set SSH command if SSH key is specified
+	if account.SSHKeyPath != "" {
+		if verbose {
+			fmt.Println("🔑 Configuring SSH key...")
+		}
+
+		sshCommand := gitManager.GenerateSSHCommand(account.SSHKeyPath)
+		if sshCommand != "" {
+			fmt.Printf("🔑 SSH command: %s\n", sshCommand)
+			fmt.Println("💡 Add this to your shell: export GIT_SSH_COMMAND=\"" + sshCommand + "\"")
+		}
+	}
+
+	// Update the current account
+	configManager := config.NewManager()
+	configManager.Load()
+	configManager.SetCurrentAccount(account.Alias)
+
+	fmt.Printf("\n🎉 Successfully switched to account: %s\n", account.Alias)
+
+	if verbose {
+		fmt.Println("\n📋 Current Git configuration:")
+		if name, email, err := gitManager.GetCurrentConfig(); err == nil {
+			fmt.Printf("   user.name:  %s\n", name)
+			fmt.Printf("   user.email: %s\n", email)
+		}
+	}
+
+	return nil
+}
+
 func init() {
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(currentCmd)
+	rootCmd.AddCommand(autoIdentifyCmd)
 
 	currentCmd.Flags().BoolP("verbose", "v", false, "Show detailed information")
+	autoIdentifyCmd.Flags().BoolP("verbose", "v", false, "Show detailed information")
 }
 
 // getAuthenticatedGitHubClient tries to get an authenticated GitHub client
@@ -221,4 +398,108 @@ func getAuthenticatedGitHubClient() (*github.Client, error) {
 	}
 
 	return nil, fmt.Errorf("not authenticated - run 'gh auth login' first")
+}
+
+// findBestMatchingAccount finds the best matching account based on Git config
+func findBestMatchingAccount(configManager *config.Manager, gitName, gitEmail string) *models.Account {
+	accounts := configManager.ListAccounts()
+	var bestMatch *models.Account
+	var bestScore int
+
+	for _, account := range accounts {
+		score := 0
+
+		// Exact email match gets highest score
+		if account.Email == gitEmail {
+			score += 100
+		}
+
+		// Partial email match (domain)
+		if gitEmail != "" && account.Email != "" {
+			accountDomain := extractDomain(account.Email)
+			gitDomain := extractDomain(gitEmail)
+			if accountDomain == gitDomain {
+				score += 50
+			}
+		}
+
+		// Name similarity
+		if account.Name == gitName {
+			score += 75
+		} else if gitName != "" && account.Name != "" {
+			// Check if names are similar (case-insensitive)
+			if strings.EqualFold(account.Name, gitName) {
+				score += 60
+			}
+		}
+
+		// GitHub username in email
+		if account.GitHubUsername != "" && strings.Contains(gitEmail, account.GitHubUsername) {
+			score += 25
+		}
+
+		if score > bestScore {
+			bestScore = score
+			bestMatch = account
+		}
+	}
+
+	// Only return if we have a reasonable match
+	if bestScore >= 25 {
+		return bestMatch
+	}
+
+	return nil
+}
+
+// findAccountBySSHKey finds an account by SSH key path
+func findAccountBySSHKey(configManager *config.Manager, sshKeyPath string) *models.Account {
+	accounts := configManager.ListAccounts()
+	for _, account := range accounts {
+		if account.SSHKeyPath == sshKeyPath {
+			return account
+		}
+	}
+	return nil
+}
+
+// detectCurrentSSHKey tries to detect which SSH key is currently in use
+func detectCurrentSSHKey() string {
+	// Check SSH agent for loaded keys
+	cmd := exec.Command("ssh-add", "-l")
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+
+	// Parse SSH agent output to find key paths
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "~/.ssh/") || strings.Contains(line, "/.ssh/") {
+			// Extract key path from SSH agent output
+			parts := strings.Fields(line)
+			if len(parts) >= 3 {
+				keyPath := parts[2]
+				// Expand ~ to home directory
+				if strings.HasPrefix(keyPath, "~") {
+					home, err := os.UserHomeDir()
+					if err == nil {
+						keyPath = filepath.Join(home, keyPath[1:])
+					}
+				}
+				return keyPath
+			}
+		}
+	}
+
+	return ""
+}
+
+// extractDomain extracts domain from email address
+func extractDomain(email string) string {
+	parts := strings.Split(email, "@")
+	if len(parts) == 2 {
+		return parts[1]
+	}
+	return ""
 }

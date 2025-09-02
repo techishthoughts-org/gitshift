@@ -35,13 +35,21 @@ Managing multiple GitHub accounts (personal, work, client projects) is a **daily
 # 1. Install the application
 go install github.com/techishthoughts/GitPersona@latest
 
-# 2. Add your GitHub accounts automatically (ZERO manual steps!)
+"# 2. Add your GitHub accounts automatically (ZERO manual steps!)
 gitpersona add-github username --email "user@example.com" --name "User Name"
-gitpersona add-github workuser --alias work --name "Work User" --email "work@company.com"
+gitpersona add-github workuser --alias work --name "Work User" --email "work@company.com""
 
 # 3. Switch between accounts instantly
-gitpersona switch personal  # Sets global Git config
-gitpersona switch work      # Instantly switches to work
+gitpersona switch personal    # Switch to personal account
+gitpersona switch work        # Switch to work account
+
+# 4. 🔍 Automatic local identification (NEW!)
+gitpersona auto-identify      # Auto-detect and switch to best matching account
+gitpersona auto-identify -v   # Verbose mode for detailed analysis
+
+# 5. Check current status
+gitpersona current            # Show current account and Git config
+gitpersona current -v         # Detailed information
 
 # 4. Enable shell integration for automatic project detection
 echo 'eval "$(gitpersona init)"' >> ~/.zshrc && source ~/.zshrc
