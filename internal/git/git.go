@@ -120,7 +120,7 @@ func (m *Manager) ValidateSSHKey(sshKeyPath string) error {
 	if err != nil {
 		return fmt.Errorf("SSH key file is not readable: %w", err)
 	}
-	file.Close()
+	defer file.Close()
 
 	return nil
 }

@@ -260,7 +260,9 @@ func (um *UpdateManager) installUpdate(tempPath string) error {
 	if err := copyFile(tempPath, execPath); err != nil {
 		// Restore backup on failure
 		if _, err := os.Stat(backupPath); err == nil {
-			copyFile(backupPath, execPath)
+			if restoreErr := copyFile(backupPath, execPath); restoreErr != nil {
+				fmt.Printf("⚠️  Could not restore backup: %v\n", restoreErr)
+			}
 		}
 		return fmt.Errorf("failed to install update: %w", err)
 	}

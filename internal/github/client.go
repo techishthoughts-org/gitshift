@@ -173,7 +173,9 @@ func (c *Client) SetupAccountFromUsername(username string, alias string, provide
 			if err := c.UploadSSHKeyToGitHub(sshKeyPath, keyTitle); err != nil {
 				fmt.Printf("⚠️  Failed to upload SSH key automatically: %v\n", err)
 				fmt.Println("💡 You can add it manually at: https://github.com/settings/keys")
-				c.showSSHPublicKey(sshKeyPath)
+				if showErr := c.showSSHPublicKey(sshKeyPath); showErr != nil {
+					fmt.Printf("⚠️  Failed to show SSH public key: %v\n", showErr)
+				}
 			} else {
 				fmt.Printf("🎉 SSH key automatically configured in your GitHub account!\n")
 			}
@@ -437,12 +439,12 @@ type Repository struct {
 
 // FetchUserRepositories fetches repositories for a given user
 func (c *Client) FetchUserRepositories(username string) ([]*Repository, error) {
-	opt := &github.RepositoryListOptions{
+	opt := &github.RepositoryListByUserOptions{
 		Type:        "all",                            // all, owner, public, private, member
 		ListOptions: github.ListOptions{PerPage: 100}, // Get up to 100 repos
 	}
 
-	repos, _, err := c.client.Repositories.List(c.ctx, username, opt)
+	repos, _, err := c.client.Repositories.ListByUser(c.ctx, username, opt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch repositories for %s: %w", username, err)
 	}
@@ -473,12 +475,12 @@ func (c *Client) FetchAuthenticatedUserRepositories() ([]*Repository, error) {
 		return nil, fmt.Errorf("not authenticated with GitHub")
 	}
 
-	opt := &github.RepositoryListOptions{
+	opt := &github.RepositoryListByAuthenticatedUserOptions{
 		Type:        "all",
 		ListOptions: github.ListOptions{PerPage: 100},
 	}
 
-	repos, _, err := c.client.Repositories.List(c.ctx, "", opt)
+	repos, _, err := c.client.Repositories.ListByAuthenticatedUser(c.ctx, opt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch authenticated user repositories: %w", err)
 	}

@@ -86,7 +86,6 @@ func (m AccountDetailModel) View() string {
 
 // AddAccountModel handles the add account form
 type AddAccountModel struct {
-	inputs []string
 	labels []string
 	cursor int
 	values map[string]string

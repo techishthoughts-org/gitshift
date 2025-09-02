@@ -212,18 +212,24 @@ func TestManagerProjectConfig(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Change to temp directory
-	originalWd, _ := os.Getwd()
+	originalWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
 	defer func() {
-		os.Chdir(originalWd)
+		if chdirErr := os.Chdir(originalWd); chdirErr != nil {
+			t.Errorf("Failed to restore working directory: %v", chdirErr)
+		}
 	}()
-	os.Chdir(tempDir)
+	if chdirErr := os.Chdir(tempDir); chdirErr != nil {
+		t.Fatalf("Failed to change to temp directory: %v", chdirErr)
+	}
 
 	manager := NewManager()
 
 	// Test saving project config
 	projectConfig := models.NewProjectConfig("work")
-	err := manager.SaveProjectConfig(tempDir, projectConfig)
-	if err != nil {
+	if err := manager.SaveProjectConfig(tempDir, projectConfig); err != nil {
 		t.Fatalf("Failed to save project config: %v", err)
 	}
 
@@ -349,7 +355,9 @@ func BenchmarkManagerAddAccount(b *testing.B) {
 			"test@example.com",
 			"",
 		)
-		manager.AddAccount(account)
+		if err := manager.AddAccount(account); err != nil {
+			b.Fatalf("Failed to add account: %v", err)
+		}
 	}
 }
 
@@ -358,7 +366,9 @@ func BenchmarkManagerGetAccount(b *testing.B) {
 
 	// Setup: add test account
 	account := models.NewAccount("test", "Test User", "test@example.com", "")
-	manager.AddAccount(account)
+	if err := manager.AddAccount(account); err != nil {
+		b.Fatalf("Failed to add account: %v", err)
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -377,7 +387,9 @@ func BenchmarkManagerListAccounts(b *testing.B) {
 			"test@example.com",
 			"",
 		)
-		manager.AddAccount(account)
+		if err := manager.AddAccount(account); err != nil {
+			b.Fatalf("Failed to add account: %v", err)
+		}
 	}
 
 	b.ResetTimer()
@@ -506,8 +518,12 @@ func TestManagerConcurrentAccess(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			testAccount := models.NewAccount(fmt.Sprintf("concurrent%d", i), "User", "user@example.com", "")
 			testAccount.GitHubUsername = fmt.Sprintf("user%d", i)
-			manager.AddAccount(testAccount)
-			manager.RemoveAccount(fmt.Sprintf("concurrent%d", i))
+			if err := manager.AddAccount(testAccount); err != nil {
+				t.Errorf("Failed to add concurrent account: %v", err)
+			}
+			if err := manager.RemoveAccount(fmt.Sprintf("concurrent%d", i)); err != nil {
+				t.Errorf("Failed to remove concurrent account: %v", err)
+			}
 		}
 		done <- true
 	}()
@@ -611,7 +627,9 @@ func TestManagerConfigPermissions(t *testing.T) {
 	// Add account and save
 	account := models.NewAccount("test", "Test User", "test@example.com", "")
 	account.GitHubUsername = "testuser"
-	manager.AddAccount(account)
+	if err := manager.AddAccount(account); err != nil {
+		t.Fatalf("Failed to add test account: %v", err)
+	}
 
 	err = manager.Save()
 	if err != nil {
@@ -717,9 +735,15 @@ func TestManagerBackupRestore(t *testing.T) {
 	personalAccount := models.NewAccount("personal", "Personal User", "personal@example.com", "")
 	personalAccount.GitHubUsername = "personaluser"
 
-	manager.AddAccount(workAccount)
-	manager.AddAccount(personalAccount)
-	manager.SetCurrentAccount("work")
+	if err := manager.AddAccount(workAccount); err != nil {
+		t.Fatalf("Failed to add work account: %v", err)
+	}
+	if err := manager.AddAccount(personalAccount); err != nil {
+		t.Fatalf("Failed to add personal account: %v", err)
+	}
+	if err := manager.SetCurrentAccount("work"); err != nil {
+		t.Fatalf("Failed to set current account: %v", err)
+	}
 
 	// Save original configuration
 	err = manager.Save()
@@ -735,9 +759,15 @@ func TestManagerBackupRestore(t *testing.T) {
 	}
 
 	// Modify configuration
-	manager.RemoveAccount("personal")
-	manager.SetCurrentAccount("work")
-	manager.Save()
+	if err := manager.RemoveAccount("personal"); err != nil {
+		t.Fatalf("Failed to remove personal account: %v", err)
+	}
+	if err := manager.SetCurrentAccount("work"); err != nil {
+		t.Fatalf("Failed to set current account: %v", err)
+	}
+	if err := manager.Save(); err != nil {
+		t.Fatalf("Failed to save modified config: %v", err)
+	}
 
 	// Verify modification
 	accounts := manager.ListAccounts()

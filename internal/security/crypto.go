@@ -229,7 +229,11 @@ func (cm *ModernCryptoManager) CheckKeyRotationNeeded(keyPaths []string) []KeyRo
 func (cm *ModernCryptoManager) GenerateSecureAlias(baseAlias string) string {
 	// Add entropy to prevent alias enumeration attacks
 	randomBytes := make([]byte, 4)
-	rand.Read(randomBytes)
+	if _, err := rand.Read(randomBytes); err != nil {
+		// Fallback to a simple suffix if random generation fails
+		suffix := fmt.Sprintf("%d", time.Now().UnixNano()%1000000)
+		return fmt.Sprintf("%s_%s", baseAlias, suffix)
+	}
 
 	suffix := fmt.Sprintf("%x", randomBytes)[:6]
 	return fmt.Sprintf("%s_%s", baseAlias, suffix)

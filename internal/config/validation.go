@@ -23,10 +23,18 @@ func NewConfigValidator() *ConfigValidator {
 	v := validator.New()
 
 	// Register custom validators for 2025 security standards
-	v.RegisterValidation("secure_email", validateSecureEmail)
-	v.RegisterValidation("github_username", validateGitHubUsername)
-	v.RegisterValidation("ssh_key_path", validateSSHKeyPath)
-	v.RegisterValidation("account_alias", validateAccountAlias)
+	if err := v.RegisterValidation("secure_email", validateSecureEmail); err != nil {
+		panic(fmt.Sprintf("failed to register secure_email validator: %v", err))
+	}
+	if err := v.RegisterValidation("github_username", validateGitHubUsername); err != nil {
+		panic(fmt.Sprintf("failed to register github_username validator: %v", err))
+	}
+	if err := v.RegisterValidation("ssh_key_path", validateSSHKeyPath); err != nil {
+		panic(fmt.Sprintf("failed to register ssh_key_path validator: %v", err))
+	}
+	if err := v.RegisterValidation("account_alias", validateAccountAlias); err != nil {
+		panic(fmt.Sprintf("failed to register account_alias validator: %v", err))
+	}
 
 	return &ConfigValidator{
 		validator: v,

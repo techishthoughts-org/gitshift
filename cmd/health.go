@@ -270,7 +270,15 @@ func checkSSHAgent() HealthCheck {
 
 func checkSSHKeys() HealthCheck {
 	configManager := config.NewManager()
-	configManager.Load()
+	if err := configManager.Load(); err != nil {
+		return HealthCheck{
+			Status:  "critical",
+			Message: "Failed to load configuration",
+			Details: map[string]interface{}{
+				"error": err.Error(),
+			},
+		}
+	}
 
 	accounts := configManager.ListAccounts()
 	validKeys := 0
@@ -309,7 +317,15 @@ func checkSSHKeys() HealthCheck {
 
 func checkAccountValidation() HealthCheck {
 	configManager := config.NewManager()
-	configManager.Load()
+	if err := configManager.Load(); err != nil {
+		return HealthCheck{
+			Status:  "critical",
+			Message: "Failed to load configuration",
+			Details: map[string]interface{}{
+				"error": err.Error(),
+			},
+		}
+	}
 
 	accounts := configManager.ListAccounts()
 	validAccounts := 0
@@ -437,13 +453,29 @@ func benchmarkPerformance() HealthCheck {
 	// Benchmark config loading
 	configStart := time.Now()
 	configManager := config.NewManager()
-	configManager.Load()
+	if err := configManager.Load(); err != nil {
+		return HealthCheck{
+			Status:  "critical",
+			Message: "Failed to load configuration during benchmark",
+			Details: map[string]interface{}{
+				"error": err.Error(),
+			},
+		}
+	}
 	configDuration := time.Since(configStart)
 
 	// Benchmark Git operations
 	gitStart := time.Now()
 	gitManager := git.NewManager()
-	gitManager.GetGitVersion()
+	if _, err := gitManager.GetGitVersion(); err != nil {
+		return HealthCheck{
+			Status:  "critical",
+			Message: "Failed to get Git version during benchmark",
+			Details: map[string]interface{}{
+				"error": err.Error(),
+			},
+		}
+	}
 	gitDuration := time.Since(gitStart)
 
 	totalDuration := time.Since(start)
@@ -493,7 +525,15 @@ func checkSecurityCompliance() HealthCheck {
 
 	// Check for old configuration patterns
 	configManager := config.NewManager()
-	configManager.Load()
+	if err := configManager.Load(); err != nil {
+		return HealthCheck{
+			Status:  "critical",
+			Message: "Failed to load configuration during security check",
+			Details: map[string]interface{}{
+				"error": err.Error(),
+			},
+		}
+	}
 	accounts := configManager.ListAccounts()
 
 	for _, account := range accounts {
@@ -545,11 +585,14 @@ func printHealthJSON(health *HealthStatus) error {
 // printHealthHuman outputs health status in human-readable format
 func printHealthHuman(health *HealthStatus, detailed bool) error {
 	// Status header
-	statusIcon := "✅"
-	if health.Status == "warning" {
+	var statusIcon string
+	switch health.Status {
+	case "warning":
 		statusIcon = "⚠️"
-	} else if health.Status == "critical" {
+	case "critical":
 		statusIcon = "❌"
+	default:
+		statusIcon = "✅"
 	}
 
 	fmt.Printf("%s GitPersona Health Check\n", statusIcon)
@@ -593,9 +636,10 @@ func printHealthHuman(health *HealthStatus, detailed bool) error {
 	}
 
 	// Exit with appropriate code
-	if health.Status == "critical" {
+	switch health.Status {
+	case "critical":
 		os.Exit(1)
-	} else if health.Status == "warning" {
+	case "warning":
 		os.Exit(2)
 	}
 

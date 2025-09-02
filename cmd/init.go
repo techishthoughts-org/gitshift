@@ -90,7 +90,9 @@ Examples:
 		}
 
 		// Update the current account
-		configManager.SetCurrentAccount(account.Alias)
+		if err := configManager.SetCurrentAccount(account.Alias); err != nil {
+			return fmt.Errorf("failed to set current account: %w", err)
+		}
 
 		return nil
 	},
@@ -363,8 +365,12 @@ func autoSwitchToAccount(account *models.Account, gitManager *git.Manager, verbo
 
 	// Update the current account
 	configManager := config.NewManager()
-	configManager.Load()
-	configManager.SetCurrentAccount(account.Alias)
+	if err := configManager.Load(); err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+	if err := configManager.SetCurrentAccount(account.Alias); err != nil {
+		return fmt.Errorf("failed to set current account: %w", err)
+	}
 
 	fmt.Printf("\n🎉 Successfully switched to account: %s\n", account.Alias)
 

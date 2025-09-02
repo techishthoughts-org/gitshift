@@ -99,7 +99,9 @@ func runTUI() {
 		if response == "" || strings.ToLower(response) == "y" || strings.ToLower(response) == "yes" {
 			fmt.Println()
 			// Run discovery
-			discoverCmd.RunE(discoverCmd, []string{})
+			if err := discoverCmd.RunE(discoverCmd, []string{}); err != nil {
+				fmt.Printf("Warning: Discovery failed: %v\n", err)
+			}
 			fmt.Println()
 			fmt.Println("🚀 Starting TUI...")
 			fmt.Println()

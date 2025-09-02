@@ -57,7 +57,7 @@ func NewLogger(level LogLevel) *Logger {
 // WithContext adds context to the logger
 func (l *Logger) WithContext(ctx context.Context) *Logger {
 	return &Logger{
-		Logger: l.Logger.With("trace_id", getTraceID(ctx)),
+		Logger: l.With("trace_id", getTraceID(ctx)),
 		level:  l.level,
 	}
 }
