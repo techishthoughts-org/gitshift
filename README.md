@@ -30,6 +30,7 @@ Managing multiple GitHub accounts (personal, work, client projects) is a **daily
 ## 🚀 Quick Installation
 
 ## Option 1: Install from Source (Recommended)
+
 ```bash
 # Clone the repository
 git clone https://github.com/techishthoughts/GitPersona.git
@@ -44,16 +45,19 @@ gitpersona -v
 ```
 
 ## Option 2: Go Install
+
 ```bash
 go install github.com/techishthoughts/GitPersona@latest
 ```
 
 ## Option 3: Download Binary
+
 Visit [GitPersona Releases](https://github.com/techishthoughts/GitPersona/releases) and download the appropriate binary for your platform.
 
 # 🎯 Quick Start
 
 ## 1. First Time Setup
+
 ```bash
 # Initialize GitPersona
 gitpersona init
@@ -63,12 +67,14 @@ gitpersona discover
 ```
 
 ## 2. Add your GitHub accounts automatically (ZERO manual steps!)
+
 ```bash
 gitpersona add-github username --email "user@example.com" --name "User Name"
 gitpersona add-github workuser --alias work --name "Work User" --email "work@company.com"
 ```
 
 ## 3. Switch between accounts instantly
+
 ```bash
 gitpersona switch personal    # Switch to personal account
 gitpersona switch work        # Switch to work account
@@ -76,12 +82,14 @@ gitpersona switch username    # Switch to username account
 ```
 
 ## 4. 🔍 Automatic local identification (NEW!)
+
 ```bash
 gitpersona auto-identify      # Auto-detect and switch to best matching account
 gitpersona auto-identify -v   # Verbose mode for detailed analysis
 ```
 
 ## 5. Check current status
+
 ```bash
 gitpersona current            # Show current account and Git config
 gitpersona current -v         # Detailed information
@@ -98,6 +106,7 @@ gitpersona add-github username --email "user@example.com"
 ```
 
 **What happens automatically:**
+
 - 🔐 **GitHub OAuth** with full permissions
 - 🔍 **Fetches real user data** from GitHub API
 - 🔑 **Generates Ed25519 SSH key** (quantum-resistant, 2025 standard)
@@ -121,6 +130,7 @@ gitpersona ssh doctor            # Full diagnostic suite
 ```
 
 **SSH Features:**
+
 - 🔧 **Connectivity Testing**: Detailed SSH diagnostics with helpful suggestions
 - 🔑 **Multiple Key Types**: Support for RSA, Ed25519, ECDSA keys
 - 🛡️ **Security Validation**: 2025 compliance standards
@@ -136,6 +146,7 @@ gitpersona discover --auto-import
 ```
 
 **Scans and imports from:**
+
 - `~/.gitconfig` (global Git configuration)
 - `~/.config/git/gitconfig-*` (account-specific configs)
 - `~/.ssh/config` (SSH keys configured for GitHub)
@@ -148,6 +159,7 @@ gitpersona  # Launch gorgeous TUI
 ```
 
 **Features:**
+
 - 🌈 **Modern color schemes** with gradients
 - 📱 **Responsive design** (adapts to terminal size)
 - ⚡ **Animated spinners** and smooth transitions
@@ -301,6 +313,7 @@ act pull_request --workflows .github/workflows/ci.yml --job quality
 ```
 
 **Act Configuration:**
+
 - Uses `.actrc` for default settings
 - Ubuntu runner for consistency
 - Verbose output for debugging

@@ -134,3 +134,15 @@ release: clean test build ## Prepare release build
 	@echo "Version: ${VERSION}"
 	@echo "Commit: ${COMMIT}"
 	@echo "Build Time: ${BUILD_TIME}"
+
+# Pre-commit validation
+pre-commit: ## Run pre-commit hooks on all files
+	pre-commit run --all-files
+
+# Pre-commit validation (staged files only)
+pre-commit-staged: ## Run pre-commit hooks on staged files only
+	pre-commit run
+
+# Install pre-commit hooks
+install-hooks: ## Install pre-commit hooks
+	pre-commit install
