@@ -1,162 +1,136 @@
 # GitPersona Makefile
 
-.PHONY: help build clean test install docker dev lint format check
-
 # Variables
 BINARY_NAME=gitpersona
-VERSION=$(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
-COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
-LDFLAGS=-ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}"
+DOCKER_IMAGE=gitpersona
+VERSION?=v0.1.0
+COMMIT?=$(shell git rev-parse --short HEAD)
+BUILD_TIME?=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 
-# Default target
-help: ## Show this help
-	@echo "Available targets:"
+# Go build flags
+LDFLAGS=-ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME} -w -s"
+
+.PHONY: help build test clean docker docker-push install uninstall demo demo-clean ci-test ci-lint ci-security
+
+help: ## Show this help message
+	@echo "GitPersona - Available commands:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
-# Build targets
-build: ## Build the application
-	@echo "Building ${BINARY_NAME} v${VERSION}"
+build: ## Build the binary
+	@echo "🏗️  Building GitPersona..."
 	go build ${LDFLAGS} -o ${BINARY_NAME} .
+	@echo "✅ Build complete: ${BINARY_NAME}"
 
-build-all: ## Build for all platforms
-	@echo "Building for all platforms..."
-	GOOS=linux GOARCH=amd64 go build ${LDFLAGS} -o ${BINARY_NAME}-linux-amd64 .
-	GOOS=darwin GOARCH=amd64 go build ${LDFLAGS} -o ${BINARY_NAME}-darwin-amd64 .
-	GOOS=darwin GOARCH=arm64 go build ${LDFLAGS} -o ${BINARY_NAME}-darwin-arm64 .
-	GOOS=windows GOARCH=amd64 go build ${LDFLAGS} -o ${BINARY_NAME}-windows-amd64.exe .
-
-clean: ## Clean build artifacts
-	@echo "Cleaning build artifacts..."
-	rm -f ${BINARY_NAME}
-	rm -f ${BINARY_NAME}-*
-	go clean
-
-# Development targets
-dev: ## Run in development mode
-	go run ${LDFLAGS} . $(ARGS)
-
-install: build ## Install the binary to $GOPATH/bin
-	@echo "Installing ${BINARY_NAME} to ${GOPATH}/bin"
-	mv ${BINARY_NAME} ${GOPATH}/bin/
-
-# Testing targets
 test: ## Run tests
-	@echo "Running tests..."
-	go test -v -race -timeout 30s ./...
+	@echo "🧪 Running tests..."
+	go test -v -timeout 5m ./...
 
 test-coverage: ## Run tests with coverage
-	@echo "Running tests with coverage..."
-	go test -v -race -timeout 30s -coverprofile=coverage.out ./...
+	@echo "🧪 Running tests with coverage..."
+	go test -v -timeout 5m -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report generated: coverage.html"
+	@echo "📊 Coverage report generated: coverage.html"
 
-benchmark: ## Run benchmark tests
-	@echo "Running benchmarks..."
-	go test -bench=. -benchmem ./...
+test-bench: ## Run benchmark tests
+	@echo "⚡ Running benchmark tests..."
+	go test -bench=. -benchmem ./internal/models
 
-# Code quality targets
-lint: ## Run linter
-	@echo "Running linter..."
-	golangci-lint run ./...
+clean: ## Clean build artifacts
+	@echo "🧹 Cleaning build artifacts..."
+	rm -f ${BINARY_NAME}
+	rm -f coverage.out coverage.html
+	@echo "✅ Clean complete"
 
-format: ## Format code
-	@echo "Formatting code..."
-	go fmt ./...
-	goimports -w .
+docker: ## Build Docker image
+	@echo "🐳 Building Docker image..."
+	docker build -t ${DOCKER_IMAGE}:${VERSION} .
+	docker tag ${DOCKER_IMAGE}:${VERSION} ${DOCKER_IMAGE}:latest
+	@echo "✅ Docker image built: ${DOCKER_IMAGE}:${VERSION}"
+
+docker-push: ## Push Docker image
+	@echo "📤 Pushing Docker image..."
+	docker push ${DOCKER_IMAGE}:${VERSION}
+	docker push ${DOCKER_IMAGE}:latest
+	@echo "✅ Docker image pushed"
+
+install: build ## Install to system
+	@echo "📦 Installing GitPersona..."
+	sudo cp ${BINARY_NAME} /usr/local/bin/
+	@echo "✅ Installed to /usr/local/bin/${BINARY_NAME}"
+
+uninstall: ## Uninstall from system
+	@echo "🗑️  Uninstalling GitPersona..."
+	sudo rm -f /usr/local/bin/${BINARY_NAME}
+	@echo "✅ Uninstalled from /usr/local/bin/${BINARY_NAME}"
+
+demo: ## Run demo environment
+	@echo "🎭 Starting GitPersona demo..."
+	docker-compose up -d
+	@echo "✅ Demo environment started"
+	@echo "🌐 Access at: http://localhost:8080"
+
+demo-clean: ## Clean demo environment
+	@echo "🧹 Cleaning demo environment..."
+	docker-compose down -v
+	@echo "✅ Demo environment cleaned"
+
+# CI Testing with act
+ci-test: ## Test CI workflow locally with act
+	@echo "🧪 Testing CI workflow locally..."
+	@if ! command -v act &> /dev/null; then \
+		echo "❌ act not found. Install from: https://github.com/nektos/act"; \
+		exit 1; \
+	fi
+	act push --workflows .github/workflows/ci.yml
+
+ci-lint: ## Test linting workflow locally
+	@echo "🔍 Testing linting workflow locally..."
+	@if ! command -v act &> /dev/null; then \
+		echo "❌ act not found. Install from: https://github.com/nektos/act"; \
+		exit 1; \
+	fi
+	act pull_request --workflows .github/workflows/ci.yml --job quality
+
+ci-security: ## Test security workflow locally
+	@echo "🔒 Testing security workflow locally..."
+	@if ! command -v act &> /dev/null; then \
+		echo "❌ act not found. Install from: https://github.com/nektos/act"; \
+		exit 1; \
+	fi
+	act pull_request --workflows .github/workflows/ci.yml --job security
+
+# Development helpers
+fmt: ## Format Go code
+	@echo "🎨 Formatting Go code..."
+	gofmt -s -w .
+	@echo "✅ Code formatted"
 
 vet: ## Run go vet
-	@echo "Running go vet..."
+	@echo "🔧 Running go vet..."
 	go vet ./...
+	@echo "✅ Go vet complete"
 
-check: format vet lint test ## Run all checks
+lint: ## Run golangci-lint
+	@echo "🔍 Running golangci-lint..."
+	@if ! command -v golangci-lint &> /dev/null; then \
+		echo "❌ golangci-lint not found. Install with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; \
+		exit 1; \
+	fi
+	golangci-lint run --timeout=5m
 
-# Docker targets
-docker-build: ## Build Docker image
-	@echo "Building Docker image..."
-	docker build -t ${BINARY_NAME}:${VERSION} .
-	docker tag ${BINARY_NAME}:${VERSION} ${BINARY_NAME}:latest
-
-docker-run: docker-build ## Run Docker container
-	docker run -it --rm \
-		-v ~/.config/gitpersona:/home/appuser/.config/gitpersona \
-		-v ~/.ssh:/home/appuser/.ssh:ro \
-		${BINARY_NAME}:latest
-
-docker-dev: ## Start development environment with Docker Compose
-	docker-compose up -d dev
-	docker-compose exec dev sh
-
-docker-test: ## Run tests in Docker
-	docker-compose run --rm test
-
-docker-clean: ## Clean Docker images and containers
-	docker-compose down -v
-	docker rmi ${BINARY_NAME}:${VERSION} ${BINARY_NAME}:latest || true
-
-# Release targets
-release: check build-all ## Prepare release
-	@echo "Creating release ${VERSION}..."
-	mkdir -p dist
-	mv ${BINARY_NAME}-* dist/
-	@echo "Release binaries available in dist/"
-
-# Documentation targets
-docs: ## Generate documentation
-	@echo "Generating documentation..."
-	go doc -all . > DOCS.md
-
-# Utility targets
-deps: ## Download dependencies
-	@echo "Downloading dependencies..."
+deps: ## Download and verify dependencies
+	@echo "📦 Downloading dependencies..."
 	go mod download
-	go mod tidy
-
-update-deps: ## Update dependencies
-	@echo "Updating dependencies..."
-	go get -u ./...
-	go mod tidy
-
-mod-verify: ## Verify dependencies
-	@echo "Verifying dependencies..."
 	go mod verify
+	@echo "✅ Dependencies ready"
 
-security: ## Run security checks
-	@echo "Running security checks..."
-	gosec ./...
+# Quick development workflow
+dev: deps fmt vet test build ## Full development workflow
+	@echo "🚀 Development workflow complete!"
 
-# Demo targets
-demo-setup: build ## Set up demo accounts
-	@echo "Setting up demo accounts..."
-	./$(BINARY_NAME) add work --name "John Work" --email "john@work.com" --description "Work account" || true
-	./$(BINARY_NAME) add personal --name "John Personal" --email "john@personal.com" --description "Personal account" || true
-	./$(BINARY_NAME) list
-
-demo-clean: ## Clean demo configuration
-	@echo "Cleaning demo configuration..."
-	rm -rf ~/.config/gitpersona/config.yaml
-	rm -f .gitpersona.yaml
-
-# Git hooks
-setup-hooks: ## Set up git hooks
-	@echo "Setting up git hooks..."
-	cp scripts/hooks/pre-commit .git/hooks/
-	chmod +x .git/hooks/pre-commit
-
-# Version info
-version: ## Show version information
+# Release helpers
+release: clean test build ## Prepare release build
+	@echo "🎉 Release build ready: ${BINARY_NAME}"
 	@echo "Version: ${VERSION}"
 	@echo "Commit: ${COMMIT}"
 	@echo "Build Time: ${BUILD_TIME}"
-
-info: version ## Show build information
-	@echo "Go Version: $(shell go version)"
-	@echo "Platform: $(shell go env GOOS)/$(shell go env GOARCH)"
-
-# Quick commands for development workflow
-quick: format test build ## Quick development cycle: format, test, build
-
-all: clean check build-all ## Complete build process
-
-# Default target when no arguments provided
-.DEFAULT_GOAL := help

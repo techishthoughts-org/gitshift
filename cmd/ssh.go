@@ -190,9 +190,16 @@ func init() {
 // performSSHTest performs comprehensive SSH testing for an account
 func performSSHTest(account *models.Account, verbose bool) error {
 	fmt.Printf("🔐 Testing SSH connectivity for account '%s'\n", account.Alias)
-	fmt.Printf("   Name: %s (%s)\n", account.Name, account.Email)
-	if account.GitHubUsername != "" {
-		fmt.Printf("   GitHub: @%s\n", account.GitHubUsername)
+	fmt.Printf("🔑 SSH Key: %s\n", account.SSHKeyPath)
+	fmt.Printf("📧 Email: %s\n", account.Email)
+	fmt.Printf("👤 Name: %s\n", account.Name)
+	fmt.Printf("🐙 GitHub: @%s\n", account.GitHubUsername)
+	fmt.Printf("📅 Created: %s\n", account.CreatedAt.Format("2006-01-02 15:04:05"))
+	if account.LastUsed != nil {
+		fmt.Printf("🕒 Last Used: %s\n", account.LastUsed.Format("2006-01-02 15:04:05"))
+	}
+	if account.Description != "" {
+		fmt.Printf("📝 Description: %s\n", account.Description)
 	}
 	fmt.Println()
 
@@ -326,9 +333,9 @@ func generateSSHConfig(accounts []*models.Account, outputFile string) error {
 		fmt.Printf("Include %s\n", outputFile)
 	} else {
 		// Print to stdout
-		fmt.Println("📄 SSH Configuration Entries:\n")
+		fmt.Println("📄 SSH Configuration Entries:")
 		fmt.Print(configContent)
-		fmt.Println("\n💡 To use this configuration:")
+		fmt.Println("💡 To use this configuration:")
 		fmt.Println("   1. Copy the above to your ~/.ssh/config file")
 		fmt.Println("   2. Use host aliases like: git clone git@github.com-work:user/repo.git")
 	}
@@ -340,7 +347,7 @@ func generateSSHConfig(accounts []*models.Account, outputFile string) error {
 func runSSHDiagnostics(configManager *config.Manager, jsonOutput bool) error {
 	if !jsonOutput {
 		fmt.Println("🏥 GitPersona SSH Doctor")
-		fmt.Println("Performing comprehensive SSH diagnostics...\n")
+		fmt.Println("Performing comprehensive SSH diagnostics...")
 	}
 
 	diagnostics := map[string]interface{}{

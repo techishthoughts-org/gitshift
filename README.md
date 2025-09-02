@@ -280,18 +280,45 @@ docker run -it --rm \
 
 ## 🧪 **Testing & Quality Assurance**
 
+### **Testing CI Locally with Act**
+
+You can test GitHub Actions locally using [act](https://github.com/nektos/act):
+
+```bash
+# Install act
+curl https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
+
+# Test the entire CI workflow
+make ci-test
+
+# Test specific jobs
+make ci-lint      # Test linting workflow
+make ci-security  # Test security workflow
+
+# Or run act directly
+act push --workflows .github/workflows/ci.yml
+act pull_request --workflows .github/workflows/ci.yml --job quality
+```
+
+**Act Configuration:**
+- Uses `.actrc` for default settings
+- Ubuntu runner for consistency
+- Verbose output for debugging
+- Environment variables for local testing
+
 ### **Comprehensive Test Suite**
 
 ```bash
 # Run all tests with coverage
-go test ./... -v -coverprofile=coverage.out
+make test-coverage
 
-# Property-based testing for validation
-go test ./internal/models -v -bench=.
+# Run benchmark tests
+make test-bench
 
-# Security vulnerability scanning
-go install golang.org/x/vuln/cmd/govulncheck@latest
-govulncheck ./...
+# Run specific test categories
+go test ./internal/models
+go test ./internal/config
+go test ./cmd
 ```
 
 ---

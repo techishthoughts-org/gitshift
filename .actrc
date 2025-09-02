@@ -1,0 +1,20 @@
+# Act configuration for local GitHub Actions testing
+# Install act: https://github.com/nektos/act
+
+# Use Ubuntu runner for consistency
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+
+# Environment variables for local testing
+-e .env.local
+
+# Default event type
+--defaultbranch main
+
+# Verbose output for debugging
+-v
+
+# Use specific Go version
+--env GO_VERSION=1.23
+
+# Use colima Docker socket
+--env DOCKER_HOST=unix:///Users/arthurcosta/.colima/default/docker.sock

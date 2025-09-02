@@ -67,7 +67,7 @@ func TestManagerSaveAndLoad(t *testing.T) {
 	manager := NewManager()
 
 	// Add test account
-	account := models.NewAccount("test", "Test User", "test@example.com", "~/.ssh/id_rsa_test")
+	account := models.NewAccount("test", "Test User", "test@example.com", "")
 	account.GitHubUsername = "testuser"
 	err = manager.AddAccount(account)
 	if err != nil {
@@ -103,12 +103,27 @@ func TestManagerSaveAndLoad(t *testing.T) {
 }
 
 func TestManagerAccountOperations(t *testing.T) {
+	// Create temporary config directory
+	tempDir := t.TempDir()
+	configDir := filepath.Join(tempDir, ".config", "gitpersona")
+	err := os.MkdirAll(configDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create config directory: %v", err)
+	}
+
+	// Set temporary home directory for testing
+	originalHome := os.Getenv("HOME")
+	defer func() {
+		os.Setenv("HOME", originalHome)
+	}()
+	os.Setenv("HOME", tempDir)
+
 	manager := NewManager()
 
 	// Test adding account
 	account := models.NewAccount("work", "Work User", "work@example.com", "")
 	account.GitHubUsername = "workuser"
-	err := manager.AddAccount(account)
+	err = manager.AddAccount(account)
 	if err != nil {
 		t.Fatalf("Failed to add account: %v", err)
 	}
@@ -148,11 +163,27 @@ func TestManagerAccountOperations(t *testing.T) {
 }
 
 func TestManagerCurrentAccount(t *testing.T) {
+	// Create temporary config directory
+	tempDir := t.TempDir()
+	configDir := filepath.Join(tempDir, ".config", "gitpersona")
+	err := os.MkdirAll(configDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create config directory: %v", err)
+	}
+
+	// Set temporary home directory for testing
+	originalHome := os.Getenv("HOME")
+	defer func() {
+		os.Setenv("HOME", originalHome)
+	}()
+	os.Setenv("HOME", tempDir)
+
 	manager := NewManager()
 
 	// Add test account
 	account := models.NewAccount("test", "Test User", "test@example.com", "")
-	err := manager.AddAccount(account)
+	account.GitHubUsername = "testuser"
+	err = manager.AddAccount(account)
 	if err != nil {
 		t.Fatalf("Failed to add account: %v", err)
 	}
@@ -215,6 +246,21 @@ func TestManagerProjectConfig(t *testing.T) {
 }
 
 func TestManagerValidation(t *testing.T) {
+	// Create temporary config directory
+	tempDir := t.TempDir()
+	configDir := filepath.Join(tempDir, ".config", "gitpersona")
+	err := os.MkdirAll(configDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create config directory: %v", err)
+	}
+
+	// Set temporary home directory for testing
+	originalHome := os.Getenv("HOME")
+	defer func() {
+		os.Setenv("HOME", originalHome)
+	}()
+	os.Setenv("HOME", tempDir)
+
 	manager := NewManager()
 
 	// Test adding duplicate account
@@ -223,7 +269,7 @@ func TestManagerValidation(t *testing.T) {
 	account2 := models.NewAccount("work", "User 2", "user2@example.com", "")
 	account2.GitHubUsername = "user2"
 
-	err := manager.AddAccount(account1)
+	err = manager.AddAccount(account1)
 	if err != nil {
 		t.Fatalf("Failed to add first account: %v", err)
 	}
@@ -235,9 +281,10 @@ func TestManagerValidation(t *testing.T) {
 
 	// Test adding account with invalid data
 	invalidAccount := &models.Account{
-		Alias: "", // Invalid empty alias
-		Name:  "Test User",
-		Email: "test@example.com",
+		Alias:          "", // Invalid empty alias
+		Name:           "Test User",
+		Email:          "test@example.com",
+		GitHubUsername: "testuser",
 	}
 
 	err = manager.AddAccount(invalidAccount)
@@ -361,7 +408,9 @@ func TestManagerCompleteWorkflow(t *testing.T) {
 
 	// 2. Add accounts
 	workAccount := models.NewAccount("work", "Work User", "work@example.com", "~/.ssh/id_rsa_work")
+	workAccount.GitHubUsername = "workuser"
 	personalAccount := models.NewAccount("personal", "Personal User", "personal@example.com", "~/.ssh/id_rsa_personal")
+	personalAccount.GitHubUsername = "personaluser"
 
 	err = manager.AddAccount(workAccount)
 	if err != nil {
@@ -415,11 +464,27 @@ func TestManagerCompleteWorkflow(t *testing.T) {
 
 // Test concurrent access (race condition testing)
 func TestManagerConcurrentAccess(t *testing.T) {
+	// Create temporary config directory
+	tempDir := t.TempDir()
+	configDir := filepath.Join(tempDir, ".config", "gitpersona")
+	err := os.MkdirAll(configDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create config directory: %v", err)
+	}
+
+	// Set temporary home directory for testing
+	originalHome := os.Getenv("HOME")
+	defer func() {
+		os.Setenv("HOME", originalHome)
+	}()
+	os.Setenv("HOME", tempDir)
+
 	manager := NewManager()
 
 	// Add initial account
 	account := models.NewAccount("test", "Test User", "test@example.com", "")
-	err := manager.AddAccount(account)
+	account.GitHubUsername = "testuser"
+	err = manager.AddAccount(account)
 	if err != nil {
 		t.Fatalf("Failed to add account: %v", err)
 	}
@@ -467,7 +532,7 @@ func TestManagerErrorConditions(t *testing.T) {
 	manager := NewManager()
 
 	// Test getting non-existent account
-	_, err := manager.GetAccount("nonexistent")
+	_, err = manager.GetAccount("nonexistent")
 	if err == nil {
 		t.Error("Expected error when getting non-existent account")
 	}
@@ -492,9 +557,10 @@ func TestManagerErrorConditions(t *testing.T) {
 
 	// Test adding invalid account
 	invalidAccount := &models.Account{
-		Alias: "", // Invalid
-		Name:  "Test",
-		Email: "test@example.com",
+		Alias:          "", // Invalid
+		Name:           "Test",
+		Email:          "test@example.com",
+		GitHubUsername: "testuser",
 	}
 
 	err = manager.AddAccount(invalidAccount)
@@ -524,6 +590,7 @@ func TestManagerConfigPermissions(t *testing.T) {
 
 	// Add account and save
 	account := models.NewAccount("test", "Test User", "test@example.com", "")
+	account.GitHubUsername = "testuser"
 	manager.AddAccount(account)
 
 	err := manager.Save()

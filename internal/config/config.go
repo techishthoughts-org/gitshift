@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	ConfigDirName     = ".config/gh-switcher"
+	ConfigDirName     = ".config/gitpersona"
 	ConfigFileName    = "config"
-	ProjectConfigName = ".gh-switcher.yaml"
+	ProjectConfigName = ".gitpersona.yaml"
 )
 
 type Manager struct {
@@ -99,6 +99,10 @@ func (m *Manager) GetConfig() *models.Config {
 
 // AddAccount adds a new account to the configuration
 func (m *Manager) AddAccount(account *models.Account) error {
+	if account == nil {
+		return fmt.Errorf("cannot add nil account")
+	}
+
 	if err := account.Validate(); err != nil {
 		return err
 	}
