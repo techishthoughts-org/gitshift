@@ -19,6 +19,7 @@ const (
 	AccountDetailView
 	AddAccountView
 	ConfirmationView
+	HelpView
 )
 
 // Model represents the main TUI model
@@ -197,6 +198,8 @@ func (m *Model) View() string {
 		content = m.addAccount.View()
 	case ConfirmationView:
 		content = m.confirmation.View()
+	case HelpView:
+		content = m.renderHelpView()
 	}
 
 	// Add loading overlay if needed
@@ -281,6 +284,8 @@ func (m *Model) getViewName() string {
 		return "Add Account"
 	case ConfirmationView:
 		return "Confirmation"
+	case HelpView:
+		return "Help"
 	default:
 		return "Unknown"
 	}
@@ -327,6 +332,10 @@ func (m *Model) renderFooter() string {
 			"y":   "yes",
 			"n":   "no",
 			"esc": "cancel",
+		}
+	case HelpView:
+		bindings = map[string]string{
+			"q": "quit",
 		}
 	default:
 		bindings = map[string]string{
@@ -468,6 +477,14 @@ func (m *Model) renderMainView() string {
 	)
 	sections = append(sections, tipsCard)
 
+	// Help hint
+	helpHint := RenderCard(
+		"💡 Quick Help",
+		InfoStyle.Render("Press 'h' to see all available commands and keyboard shortcuts"),
+		false,
+	)
+	sections = append(sections, helpHint)
+
 	// Layout sections based on screen width
 	if m.width > 120 {
 		// Wide layout - arrange in columns
@@ -488,4 +505,92 @@ func (m *Model) renderMainView() string {
 		// Narrow layout - single column
 		return lipgloss.JoinVertical(lipgloss.Left, sections...)
 	}
+}
+
+// renderHelpView renders the help menu view
+func (m *Model) renderHelpView() string {
+	title := RenderTitle("GitPersona Help Menu")
+
+	// Main navigation shortcuts
+	mainNav := RenderCard(
+		"🎯 Main Navigation",
+		lipgloss.JoinVertical(lipgloss.Left,
+			"h - Show/Hide this help menu",
+			"q - Quit GitPersona",
+			"esc - Go back to previous view",
+		),
+		false,
+	)
+
+	// Account management shortcuts
+	accountMgmt := RenderCard(
+		"👤 Account Management",
+		lipgloss.JoinVertical(lipgloss.Left,
+			"a - Add new GitHub account",
+			"l - List all accounts",
+			"s - Switch between accounts",
+			"c - Show current account details",
+			"i - Show account information",
+			"d - Delete account",
+		),
+		false,
+	)
+
+	// Quick actions
+	quickActions := RenderCard(
+		"⚡ Quick Actions",
+		lipgloss.JoinVertical(lipgloss.Left,
+			"Enter/Space - Select/Activate item",
+			"↑/k - Navigate up",
+			"↓/j - Navigate down",
+			"←/h - Navigate left",
+			"→/l - Navigate right",
+		),
+		false,
+	)
+
+	// Command line usage
+	cmdLine := RenderCard(
+		"💻 Command Line Usage",
+		lipgloss.JoinVertical(lipgloss.Left,
+			"gitpersona add-github <username> --name \"Name\" --email \"email\"",
+			"gitpersona switch <alias>",
+			"gitpersona update <alias> --name \"New Name\"",
+			"gitpersona auto-identify",
+			"gitpersona ssh test <alias>",
+			"gitpersona health",
+		),
+		false,
+	)
+
+	// Tips and tricks
+	tips := RenderCard(
+		"💡 Tips & Tricks",
+		lipgloss.JoinVertical(lipgloss.Left,
+			"• Use 'gitpersona auto-identify' for automatic account detection",
+			"• Press 'h' anytime to see this help menu",
+			"• Use 'gitpersona update' to modify account information",
+			"• Run 'gitpersona health' for system diagnostics",
+		),
+		false,
+	)
+
+	// Footer
+	footer := RenderCard(
+		"🔗 More Information",
+		InfoStyle.Render("Visit https://github.com/techishthoughts/GitPersona for full documentation"),
+		false,
+	)
+
+	sections := []string{
+		title,
+		mainNav,
+		accountMgmt,
+		quickActions,
+		cmdLine,
+		tips,
+		footer,
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }

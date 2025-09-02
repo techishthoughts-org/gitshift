@@ -27,56 +27,64 @@ Managing multiple GitHub accounts (personal, work, client projects) is a **daily
 
 ---
 
-## 🚀 **Quick Start**
+## 🚀 Quick Installation
 
-### **🔥 Super Easy Setup (Recommended)**
-
+## Option 1: Install from Source (Recommended)
 ```bash
-# 1. Install the application
-go install github.com/techishthoughts/GitPersona@latest
-
-"# 2. Add your GitHub accounts automatically (ZERO manual steps!)
-gitpersona add-github username --email "user@example.com" --name "User Name"
-gitpersona add-github workuser --alias work --name "Work User" --email "work@company.com""
-
-# 3. Switch between accounts instantly
-gitpersona switch personal    # Switch to personal account
-gitpersona switch work        # Switch to work account
-
-# 4. 🔍 Automatic local identification (NEW!)
-gitpersona auto-identify      # Auto-detect and switch to best matching account
-gitpersona auto-identify -v   # Verbose mode for detailed analysis
-
-# 5. Check current status
-gitpersona current            # Show current account and Git config
-gitpersona current -v         # Detailed information
-
-# 4. Enable shell integration for automatic project detection
-echo 'eval "$(gitpersona init)"' >> ~/.zshrc && source ~/.zshrc
-
-# 🎉 Done! Now your Git identity switches automatically based on project folders!
-```
-
-### **Installation Options**
-
-#### **Option 1: From Source**
-```bash
+# Clone the repository
 git clone https://github.com/techishthoughts/GitPersona.git
 cd GitPersona
+
+# Build and install to your bin directory
 go build -o gitpersona .
-sudo mv gitpersona /usr/local/bin/
+cp gitpersona ~/.local/bin/
+
+# Verify installation
+gitpersona -v
 ```
 
-#### **Option 2: Using Docker**
+## Option 2: Go Install
 ```bash
-docker build -t gitpersona .
-docker run -it --rm -v ~/.config:/root/.config -v ~/.ssh:/root/.ssh gitpersona
+go install github.com/techishthoughts/GitPersona@latest
 ```
 
-#### **Option 3: Using Homebrew (Coming Soon)**
+## Option 3: Download Binary
+Visit [GitPersona Releases](https://github.com/techishthoughts/GitPersona/releases) and download the appropriate binary for your platform.
+
+# 🎯 Quick Start
+
+## 1. First Time Setup
 ```bash
-brew tap techishthoughts/tap
-brew install gitpersona
+# Initialize GitPersona
+gitpersona init
+
+# Auto-discover existing accounts (optional)
+gitpersona discover
+```
+
+## 2. Add your GitHub accounts automatically (ZERO manual steps!)
+```bash
+gitpersona add-github username --email "user@example.com" --name "User Name"
+gitpersona add-github workuser --alias work --name "Work User" --email "work@company.com"
+```
+
+## 3. Switch between accounts instantly
+```bash
+gitpersona switch personal    # Switch to personal account
+gitpersona switch work        # Switch to work account
+gitpersona switch username    # Switch to username account
+```
+
+## 4. 🔍 Automatic local identification (NEW!)
+```bash
+gitpersona auto-identify      # Auto-detect and switch to best matching account
+gitpersona auto-identify -v   # Verbose mode for detailed analysis
+```
+
+## 5. Check current status
+```bash
+gitpersona current            # Show current account and Git config
+gitpersona current -v         # Detailed information
 ```
 
 ---

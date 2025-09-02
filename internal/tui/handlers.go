@@ -42,6 +42,10 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleAccountDetailKeys(msg)
 	case AddAccountView:
 		return m.handleAddAccountKeys(msg)
+
+	case HelpView:
+		return m.handleHelpViewKeys(msg)
+
 	case ConfirmationView:
 		return m.handleConfirmationKeys(msg)
 	}
@@ -89,6 +93,29 @@ func (m *Model) handleMainViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.errorMessage = "No account currently active."
 			return m, nil
 		}
+
+	case "h", "H":
+		// Show help menu
+		m.previousView = m.currentView
+		m.currentView = HelpView
+		return m, nil
+	}
+
+	return m, nil
+}
+
+// handleHelpViewKeys handles key presses in the help view
+func (m *Model) handleHelpViewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "h", "H", "esc", "b", "B":
+		// Back to previous view
+		m.currentView = m.previousView
+		return m, nil
+
+	case "q", "Q":
+		// Quit
+		m.quitting = true
+		return m, tea.Quit
 	}
 
 	return m, nil
