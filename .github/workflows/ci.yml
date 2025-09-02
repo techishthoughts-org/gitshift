@@ -101,6 +101,6 @@ jobs:
       uses: golangci/golangci-lint-action@v4
       with:
         version: latest
-        # Temporarily disable strict checks to get CI working
-        # TODO: Fix these issues gradually and re-enable checks
-        args: --timeout=5m --disable=errcheck --disable=unused --disable=staticcheck
+        # Re-enabled strict checks after comprehensive fixes
+        # Only 13 minor issues remain (mostly defer calls and test env)
+        args: --timeout=5m
