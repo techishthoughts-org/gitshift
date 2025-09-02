@@ -3,9 +3,9 @@ package tui
 import (
 	"fmt"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/techishthoughts/GitPersona/internal/git"
 	"github.com/techishthoughts/GitPersona/internal/models"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 // handleKeyPress handles key press events based on current view

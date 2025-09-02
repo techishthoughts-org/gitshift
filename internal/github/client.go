@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/techishthoughts/GitPersona/internal/models"
 	"github.com/google/go-github/v57/github"
+	"github.com/techishthoughts/GitPersona/internal/models"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/oauth2"
 )

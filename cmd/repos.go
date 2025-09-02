@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/spf13/cobra"
 	"github.com/techishthoughts/GitPersona/internal/config"
 	"github.com/techishthoughts/GitPersona/internal/github"
 	"github.com/techishthoughts/GitPersona/internal/models"
-	"github.com/spf13/cobra"
 )
 
 // reposCmd represents the repos command

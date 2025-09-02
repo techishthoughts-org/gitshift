@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/techishthoughts/GitPersona/internal/models"
 	"github.com/spf13/viper"
+	"github.com/techishthoughts/GitPersona/internal/models"
 )
 
 const (

@@ -3,9 +3,9 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/spf13/cobra"
 	"github.com/techishthoughts/GitPersona/internal/config"
 	"github.com/techishthoughts/GitPersona/internal/discovery"
-	"github.com/spf13/cobra"
 )
 
 // discoverCmd represents the discover command

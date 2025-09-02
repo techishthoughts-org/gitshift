@@ -5,9 +5,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/techishthoughts/GitPersona/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/techishthoughts/GitPersona/internal/models"
 )
 
 // AccountListModel handles the account list view

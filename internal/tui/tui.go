@@ -3,8 +3,8 @@ package tui
 import (
 	"fmt"
 
-	"github.com/techishthoughts/GitPersona/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/techishthoughts/GitPersona/internal/models"
 )
 
 // Run starts the TUI application

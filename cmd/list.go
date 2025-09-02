@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/techishthoughts/GitPersona/internal/config"
 	"github.com/techishthoughts/GitPersona/internal/models"
-	"github.com/spf13/cobra"
 )
 
 // listCmd represents the list command

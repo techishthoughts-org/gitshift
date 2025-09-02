@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/techishthoughts/GitPersona/internal/config"
 	"github.com/spf13/cobra"
+	"github.com/techishthoughts/GitPersona/internal/config"
 )
 
 // removeCmd represents the remove command

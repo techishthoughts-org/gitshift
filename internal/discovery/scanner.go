@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/techishthoughts/GitPersona/internal/models"
 	"github.com/spf13/viper"
+	"github.com/techishthoughts/GitPersona/internal/models"
 )
 
 // AccountDiscovery handles automatic detection of existing Git accounts

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/techishthoughts/GitPersona/internal/models"
 	"github.com/go-playground/validator/v10"
+	"github.com/techishthoughts/GitPersona/internal/models"
 	"golang.org/x/crypto/ssh"
 )
 
