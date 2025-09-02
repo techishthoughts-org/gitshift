@@ -269,6 +269,43 @@ gitpersona  # Launch gorgeous TUI
 - 🎯 **Context-aware help** system
 - ♿ **Accessibility support** (screen readers, high contrast)
 
+### **6. 🔧 Advanced Troubleshooting & Protocol Management**
+
+```bash
+# Comprehensive troubleshooting for all issues
+gitpersona troubleshoot              # Full diagnostic and auto-fix
+gitpersona troubleshoot --diagnose  # Only diagnose (no fixes)
+gitpersona troubleshoot --fix       # Only fix (skip diagnosis)
+
+# Protocol management and authentication fixes
+gitpersona protocol https           # Switch to HTTPS protocol
+gitpersona protocol ssh             # Switch to SSH protocol
+gitpersona protocol diagnose        # Diagnose protocol issues
+gitpersona protocol auto            # Auto-detect best protocol
+gitpersona protocol test            # Test current protocol
+
+# Repository management and fixes
+gitpersona repo diagnose            # Diagnose repository issues
+gitpersona repo fix                 # Auto-fix repository issues
+gitpersona repo test                # Test repository connection
+gitpersona repo setup [url]         # Setup new repository with best protocol
+
+# SSH key management and diagnostics
+gitpersona ssh-keys list            # List all SSH keys
+gitpersona ssh-keys diagnose        # Diagnose SSH authentication issues
+gitpersona ssh-keys test [account]  # Test SSH connection for an account
+gitpersona ssh-keys generate [account] # Generate new SSH key for an account
+gitpersona ssh-keys setup [account] # Setup SSH key for an account
+```
+
+**Troubleshooting Features:**
+
+- 🔍 **Comprehensive Diagnostics**: Automatic detection of all common issues
+- 🔧 **Auto-Fix Capabilities**: One-command resolution of most problems
+- 🔄 **Protocol Switching**: Seamless switching between SSH and HTTPS
+- 🛠️ **Smart Problem Resolution**: Intelligent detection of the best solution
+- 📊 **Detailed Reporting**: Clear explanations of issues and fixes applied
+
 ---
 
 ## 📊 **Usage Examples**
@@ -367,6 +404,10 @@ gitpersona health --format json | jq '.checks'
 | `project set` | Configure project automation | `gitpersona project set work` |
 | `health` | **System health monitoring** | `gitpersona health --format json` |
 | `init` | Shell integration setup | `eval "$(gitpersona init)"` |
+| `troubleshoot` | **Comprehensive troubleshooting** | `gitpersona troubleshoot` |
+| `protocol` | **Protocol management** | `gitpersona protocol https` |
+| `repo` | **Repository management** | `gitpersona repo diagnose` |
+| `ssh-keys` | **SSH key management** | `gitpersona ssh-keys list` |
 
 ---
 
@@ -484,6 +525,57 @@ gitpersona ssh test ACCOUNT_ALIAS
 2. **📊 Account Status**: `gitpersona current --verbose`
 3. **🔧 SSH Diagnostics**: `gitpersona ssh doctor`
 4. **📦 Repository Access**: `gitpersona repos ACCOUNT`
+
+## 🔧 **Advanced Troubleshooting & Issue Resolution**
+
+### **One-Command Problem Solving**
+
+```bash
+# Fix all common issues automatically
+gitpersona troubleshoot
+
+# Diagnose without fixing
+gitpersona troubleshoot --diagnose
+
+# Fix without diagnosis
+gitpersona troubleshoot --fix
+```
+
+### **Protocol & Authentication Issues**
+
+| Issue | Solution | Command |
+|-------|----------|---------|
+| **SSH vs HTTPS conflicts** | Auto-detect best protocol | `gitpersona protocol auto` |
+| **Repository not found** | Diagnose and fix | `gitpersona repo diagnose` |
+| **SSH key authentication** | Test and setup keys | `gitpersona ssh-keys test [account]` |
+| **Multiple account conflicts** | Protocol switching | `gitpersona protocol https` |
+
+### **Troubleshooting Workflow**
+
+```bash
+# 1. Quick diagnosis
+gitpersona troubleshoot --diagnose
+
+# 2. Auto-fix common issues
+gitpersona troubleshoot --fix
+
+# 3. Specific protocol fixes
+gitpersona protocol auto
+
+# 4. Repository-specific fixes
+gitpersona repo fix
+
+# 5. SSH key management
+gitpersona ssh-keys diagnose
+```
+
+### **Common Edge Cases Handled**
+
+- **SSH Key Conflicts**: Automatic detection and resolution of SSH key mismatches
+- **Protocol Mismatches**: Smart switching between SSH and HTTPS based on what works
+- **Authentication Failures**: Comprehensive diagnosis of GitHub CLI and SSH issues
+- **Repository Access**: Automatic detection of access rights and protocol preferences
+- **Multi-Account Setup**: Intelligent handling of multiple GitHub accounts with different keys
 
 ---
 
