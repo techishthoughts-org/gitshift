@@ -1,12 +1,17 @@
 name: 🏷️ Automated Release
 
 on:
+  # Trigger on successful CI completion
   workflow_run:
-    workflows: ["🚀 GitPersona CI/CD Pipeline"]
+    workflows: ["🚀 GitPersona CI"]
     types:
       - completed
     branches:
       - main
+  # Direct trigger on tag creation (more reliable)
+  push:
+    tags:
+      - 'v*'
 
 env:
   GO_VERSION: '1.23'
@@ -16,7 +21,9 @@ jobs:
   # 🏷️ Auto Release
   auto-release:
     name: 🏷️ Create Automatic Release
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+    if: |
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -33,74 +40,96 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
-    - name: 📋 Generate Changelog
-      id: changelog
+    - name: 📋 Generate Changelog and Version
+      id: version
       run: |
-        # Get the latest tag
-        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-        echo "Latest tag: $LATEST_TAG"
+        if [ "${{ github.event_name }}" = "push" ]; then
+          # Tag-based trigger - use the tag as the version
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "Tag-based release: $TAG_NAME"
+          echo "new_version=$TAG_NAME" >> $GITHUB_OUTPUT
 
-        # Generate changelog since latest tag
-        CHANGELOG=$(git log ${LATEST_TAG}..HEAD --pretty=format:"- %s (%h)" --reverse)
+          # Get previous tag for changelog
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${TAG_NAME}^ 2>/dev/null || echo "")
+          if [ -n "$PREVIOUS_TAG" ]; then
+            CHANGELOG=$(git log ${PREVIOUS_TAG}..${TAG_NAME} --pretty=format:"- %s (%h)" --reverse)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --reverse)
+          fi
+        else
+          # Workflow-based trigger - calculate new version
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $LATEST_TAG"
 
-        if [ -z "$CHANGELOG" ]; then
-          echo "No new commits since last tag"
-          exit 0
+          # Generate changelog since latest tag
+          CHANGELOG=$(git log ${LATEST_TAG}..HEAD --pretty=format:"- %s (%h)" --reverse)
+
+          if [ -z "$CHANGELOG" ]; then
+            echo "No new commits since last tag"
+            exit 0
+          fi
+
+          # Determine version bump based on commit messages
+          if git log ${LATEST_TAG}..HEAD --grep="BREAKING CHANGE\|feat!" --oneline | grep -q .; then
+            VERSION_BUMP="major"
+          elif git log ${LATEST_TAG}..HEAD --grep="feat:" --oneline | grep -q .; then
+            VERSION_BUMP="minor"
+          else
+            VERSION_BUMP="patch"
+          fi
+
+          # Calculate new version
+          CURRENT_VERSION=${LATEST_TAG#v}
+          IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
+          MAJOR=${VERSION_PARTS[0]:-0}
+          MINOR=${VERSION_PARTS[1]:-0}
+          PATCH=${VERSION_PARTS[2]:-0}
+
+          case "$VERSION_BUMP" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version will be: $NEW_VERSION"
         fi
 
         echo "changelog<<EOF" >> $GITHUB_OUTPUT
         echo "$CHANGELOG" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
 
-        # Determine version bump based on commit messages
-        if git log ${LATEST_TAG}..HEAD --grep="BREAKING CHANGE\|feat!" --oneline | grep -q .; then
-          VERSION_BUMP="major"
-        elif git log ${LATEST_TAG}..HEAD --grep="feat:" --oneline | grep -q .; then
-          VERSION_BUMP="minor"
-        else
-          VERSION_BUMP="patch"
-        fi
-
-        echo "version_bump=$VERSION_BUMP" >> $GITHUB_OUTPUT
-        echo "has_changes=true" >> $GITHUB_OUTPUT
-
-    - name: 🔢 Calculate New Version
-      id: version
-      if: steps.changelog.outputs.has_changes == 'true'
+    - name: 🏷️ Create Git Tag (Workflow Trigger Only)
+      if: github.event_name == 'workflow_run'
       run: |
-        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+        NEW_VERSION=${{ steps.version.outputs.new_version }}
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag -a $NEW_VERSION -m "Release $NEW_VERSION
 
-        # Remove 'v' prefix for calculation
-        CURRENT_VERSION=${LATEST_TAG#v}
+        Automated release created by GitHub Actions
 
-        # Split version into components
-        IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
-        MAJOR=${VERSION_PARTS[0]:-0}
-        MINOR=${VERSION_PARTS[1]:-0}
-        PATCH=${VERSION_PARTS[2]:-0}
+        ## Changes since last release:
+        ${{ steps.version.outputs.changelog }}
 
-        # Increment based on changelog analysis
-        case "${{ steps.changelog.outputs.version_bump }}" in
-          major)
-            MAJOR=$((MAJOR + 1))
-            MINOR=0
-            PATCH=0
-            ;;
-          minor)
-            MINOR=$((MINOR + 1))
-            PATCH=0
-            ;;
-          patch)
-            PATCH=$((PATCH + 1))
-            ;;
-        esac
+        ## Build Information:
+        - Commit: ${GITHUB_SHA::8}
+        - Build Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+        - Go Version: ${{ env.GO_VERSION }}"
 
-        NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
-        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-        echo "New version will be: $NEW_VERSION"
+        git push origin $NEW_VERSION
 
     - name: 🏗️ Build Release Binaries
-      if: steps.changelog.outputs.has_changes == 'true'
       run: |
         VERSION=${{ steps.version.outputs.new_version }}
         COMMIT=${GITHUB_SHA::8}
@@ -134,28 +163,7 @@ jobs:
         sha256sum * > checksums.txt
         ls -la
 
-    - name: 🏷️ Create Git Tag
-      if: steps.changelog.outputs.has_changes == 'true'
-      run: |
-        NEW_VERSION=${{ steps.version.outputs.new_version }}
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git tag -a $NEW_VERSION -m "Release $NEW_VERSION
-
-        Automated release created by GitHub Actions
-
-        ## Changes since last release:
-        ${{ steps.changelog.outputs.changelog }}
-
-        ## Build Information:
-        - Commit: ${GITHUB_SHA::8}
-        - Build Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
-        - Go Version: ${{ env.GO_VERSION }}"
-
-        git push origin $NEW_VERSION
-
     - name: 🚀 Create GitHub Release
-      if: steps.changelog.outputs.has_changes == 'true'
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ steps.version.outputs.new_version }}
@@ -189,7 +197,7 @@ jobs:
           ```
 
           ### 🆕 What's Changed
-          ${{ steps.changelog.outputs.changelog }}
+          ${{ steps.version.outputs.changelog }}
 
           ### 🔒 Security
           - **Checksums**: Verify download integrity using `checksums.txt`
@@ -223,7 +231,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: 🎊 Success Notification
-      if: steps.changelog.outputs.has_changes == 'true'
       run: |
         echo "🎉 Successfully created release ${{ steps.version.outputs.new_version }}"
         echo "📦 Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.new_version }}"
