@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/techishthoughts/GitPersona/internal/config"
+	"github.com/techishthoughts/GitPersona/internal/container"
 	"github.com/techishthoughts/GitPersona/internal/tui"
 )
 
@@ -81,6 +83,12 @@ func initConfig() {
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
+	}
+
+	// Initialize the service container
+	ctx := context.Background()
+	if err := container.InitializeGlobalSimpleContainer(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to initialize service container: %v\n", err)
 	}
 }
 

@@ -16,7 +16,7 @@ var completeCmd = &cobra.Command{
 This command converts a pending account (discovered but incomplete) into an active account.
 
 Examples:
-  gitpersona complete thukabjj --name "Arthur Alves" --email "arthur@example.com"
+  gitpersona complete personal --name "John Doe" --email "john@example.com"
   gitpersona complete work --name "Work User" --email "work@company.com"`,
 
 	Args: cobra.ExactArgs(1),

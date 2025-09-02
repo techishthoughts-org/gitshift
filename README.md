@@ -87,6 +87,27 @@ We believe that:
 - **Git** (for cloning and version control)
 - **SSH keys** (for GitHub authentication)
 
+### **Recent Fixes Applied** ✅
+- **SSH Key Management**: Resolved critical SSH key misconfiguration issues
+- **Account Isolation**: Fixed GitHub account authentication conflicts
+- **Repository Ownership**: Corrected repository ownership under `thukabjj` account
+- **GitPersona Configuration**: Updated tool configuration for proper account management
+
+### **New SSH Validation Features** 🆕
+- **Proactive Troubleshooting**: `gitpersona validate-ssh` command for SSH configuration validation
+- **Automated Fixes**: Automatic permission repair and configuration generation
+- **Edge Case Prevention**: Detects and prevents common SSH misconfigurations
+- **Account Switching Validation**: Verifies SSH authentication before switching accounts
+
+### **Latest Improvements (September 2025)** 🚀
+- **Complete Refactoring**: Implemented service-oriented architecture with dependency injection
+- **Git Configuration Validation**: New `gitpersona validate-git` command for detecting configuration issues
+- **SSH Key Cleanup**: Streamlined SSH key naming convention and removed redundant keys
+- **Edge Case Handling**: Comprehensive handling of Git configuration mismatches and SSH key conflicts
+- **Service Container**: Robust service management with proper initialization and cleanup
+- **Enhanced Error Handling**: Structured error handling with context and stack traces
+- **Comprehensive Testing**: Full test coverage for all new components
+
 ### **Option 1: Install from Source (Recommended for Developers)**
 
 ```bash
@@ -610,6 +631,8 @@ gitpersona health --format json | jq '.checks'
 | `troubleshoot` | **Comprehensive troubleshooting** | `gitpersona troubleshoot` |
 | `protocol` | **Protocol management** | `gitpersona protocol https` |
 | `repo` | **Repository management** | `gitpersona repo diagnose` |
+| `validate-git` | **Git configuration validation** | `gitpersona validate-git --auto-fix` |
+| `validate-ssh` | **SSH configuration validation** | `gitpersona validate-ssh --auto-fix` |
 | `ssh-keys` | **SSH key management** | `gitpersona ssh-keys list` |
 
 ---

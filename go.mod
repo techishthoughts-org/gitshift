@@ -12,6 +12,7 @@ require (
 	github.com/spf13/viper v1.20.1
 	golang.org/x/crypto v0.41.0
 	golang.org/x/oauth2 v0.30.0
+	golang.org/x/term v0.34.0
 )
 
 require (
