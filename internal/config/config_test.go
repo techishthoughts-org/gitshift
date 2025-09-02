@@ -634,6 +634,21 @@ func TestManagerConfigPermissions(t *testing.T) {
 
 // Performance tests
 func TestManagerPerformance(t *testing.T) {
+	// Create temporary config directory
+	tempDir := t.TempDir()
+	configDir := filepath.Join(tempDir, ".config", "gitpersona")
+	err := os.MkdirAll(configDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create config directory: %v", err)
+	}
+
+	// Set temporary home directory for testing
+	originalHome := os.Getenv("HOME")
+	defer func() {
+		os.Setenv("HOME", originalHome)
+	}()
+	os.Setenv("HOME", tempDir)
+
 	manager := NewManager()
 
 	// Add many accounts to test performance
