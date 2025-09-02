@@ -96,7 +96,7 @@ gitpersona add-github username --email "user@example.com"
 gitpersona ssh test              # Test current account
 gitpersona ssh test work         # Test specific account
 
-# Generate SSH config entries automatically  
+# Generate SSH config entries automatically
 gitpersona ssh config            # Generate for all accounts
 gitpersona ssh config work       # Generate for specific account
 
