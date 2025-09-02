@@ -1,4 +1,4 @@
-module github.com/arthurcosta/GitPersona
+module github.com/thukabjj/GitPersona
 
 go 1.25.0
 

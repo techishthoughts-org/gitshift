@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/arthurcosta/GitPersona/internal/config"
+	"github.com/thukabjj/GitPersona/internal/config"
 	"github.com/spf13/cobra"
 )
 

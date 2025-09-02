@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/arthurcosta/GitPersona/internal/models"
+	"github.com/thukabjj/GitPersona/internal/models"
 	"github.com/google/go-github/v57/github"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/oauth2"

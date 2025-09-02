@@ -3,8 +3,8 @@ package tui
 import (
 	"fmt"
 
-	"github.com/arthurcosta/GitPersona/internal/git"
-	"github.com/arthurcosta/GitPersona/internal/models"
+	"github.com/thukabjj/GitPersona/internal/git"
+	"github.com/thukabjj/GitPersona/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
 )
 

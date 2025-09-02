@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/arthurcosta/GitPersona/internal/config"
-	"github.com/arthurcosta/GitPersona/internal/models"
+	"github.com/thukabjj/GitPersona/internal/config"
+	"github.com/thukabjj/GitPersona/internal/models"
 	"github.com/spf13/cobra"
 )
 

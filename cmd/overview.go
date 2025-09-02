@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/arthurcosta/GitPersona/internal/config"
-	"github.com/arthurcosta/GitPersona/internal/github"
+	"github.com/thukabjj/GitPersona/internal/config"
+	"github.com/thukabjj/GitPersona/internal/github"
 	"github.com/spf13/cobra"
 )
 

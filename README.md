@@ -2,11 +2,11 @@
 
 > **The ultimate Terminal User Interface (TUI) for seamlessly managing multiple GitHub identities with enterprise-grade automation and beautiful design.**
 
-[![Go Version](https://img.shields.io/github/go-mod/go-version/costaar7/GitPersona)](https://golang.org/doc/devel/release.html)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/thukabjj/GitPersona)](https://golang.org/doc/devel/release.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Release](https://img.shields.io/github/v/release/costaar7/GitPersona)](https://github.com/costaar7/GitPersona/releases)
-[![Security Rating](https://img.shields.io/badge/Security-A+-brightgreen)](https://github.com/costaar7/GitPersona)
-[![2025 Compliant](https://img.shields.io/badge/2025_Standards-Compliant-blue)](https://github.com/costaar7/GitPersona)
+[![Release](https://img.shields.io/github/v/release/thukabjj/GitPersona)](https://github.com/thukabjj/GitPersona/releases)
+[![Security Rating](https://img.shields.io/badge/Security-A+-brightgreen)](https://github.com/thukabjj/GitPersona)
+[![2025 Compliant](https://img.shields.io/badge/2025_Standards-Compliant-blue)](https://github.com/thukabjj/GitPersona)
 
 ---
 
@@ -406,7 +406,7 @@ flowchart TD
 
 ```bash
 # 1. Install the application
-go install github.com/costaar7/GitPersona@latest
+go install github.com/thukabjj/GitPersona@latest
 
 # 2. Add your GitHub accounts automatically (ZERO manual steps!)
 gitpersona add-github thukabjj --email "arthur.alvesdeveloper@gmail.com"
@@ -426,7 +426,7 @@ echo 'eval "$(gitpersona init)"' >> ~/.zshrc && source ~/.zshrc
 
 #### **Option 1: From Source**
 ```bash
-git clone https://github.com/costaar7/GitPersona.git
+git clone https://github.com/thukabjj/GitPersona.git
 cd GitPersona
 go build -o gitpersona .
 sudo mv gitpersona /usr/local/bin/

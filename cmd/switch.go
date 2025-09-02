@@ -3,10 +3,10 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/arthurcosta/GitPersona/internal/config"
-	"github.com/arthurcosta/GitPersona/internal/git"
-	"github.com/arthurcosta/GitPersona/internal/models"
-	"github.com/arthurcosta/GitPersona/internal/tui"
+	"github.com/thukabjj/GitPersona/internal/config"
+	"github.com/thukabjj/GitPersona/internal/git"
+	"github.com/thukabjj/GitPersona/internal/models"
+	"github.com/thukabjj/GitPersona/internal/tui"
 	"github.com/spf13/cobra"
 )
 

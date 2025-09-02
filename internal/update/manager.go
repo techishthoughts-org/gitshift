@@ -214,7 +214,7 @@ func (um *UpdateManager) verifySLSAAttestation(filePath string, attestation Atte
 
 	cmd := exec.Command("slsa-verifier", "verify-artifact",
 		"--provenance-path", attestation.Bundle,
-		"--source-uri", "github.com/arthurcosta/GitPersona",
+		"--source-uri", "github.com/thukabjj/GitPersona",
 		filePath)
 
 	if err := cmd.Run(); err != nil {

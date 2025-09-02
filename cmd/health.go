@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/arthurcosta/GitPersona/internal/config"
-	"github.com/arthurcosta/GitPersona/internal/git"
-	"github.com/arthurcosta/GitPersona/internal/github"
+	"github.com/thukabjj/GitPersona/internal/config"
+	"github.com/thukabjj/GitPersona/internal/git"
+	"github.com/thukabjj/GitPersona/internal/github"
 	"github.com/spf13/cobra"
 )
 

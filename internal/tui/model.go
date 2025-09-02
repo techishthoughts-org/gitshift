@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/arthurcosta/GitPersona/internal/config"
-	"github.com/arthurcosta/GitPersona/internal/models"
+	"github.com/thukabjj/GitPersona/internal/config"
+	"github.com/thukabjj/GitPersona/internal/models"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
