@@ -32,6 +32,12 @@ Features:
 - 🔍 Smart discovery of existing Git configurations
 - 📊 Repository management and insights`,
 	Run: func(cmd *cobra.Command, args []string) {
+		// Check if version flag is set
+		if version, _ := cmd.Flags().GetBool("version"); version {
+			showVersion()
+			return
+		}
+
 		// If no command is specified, show the TUI
 		runTUI()
 	},
@@ -126,4 +132,21 @@ func isFirstRun() bool {
 
 	accounts := configManager.ListAccounts()
 	return len(accounts) == 0
+}
+
+// showVersion displays version information
+func showVersion() {
+	fmt.Println("🎭 GitPersona - Revolutionary GitHub Identity Management")
+	fmt.Println("Version: v0.1.0")
+	fmt.Println("Go Version: go1.23.0")
+	fmt.Println("Build Time: 2025-01-02")
+	fmt.Println()
+	fmt.Println("🚀 Features:")
+	fmt.Println("  • Automatic GitHub account setup")
+	fmt.Println("  • Smart account switching")
+	fmt.Println("  • SSH key management")
+	fmt.Println("  • Project-based configuration")
+	fmt.Println("  • Beautiful TUI interface")
+	fmt.Println()
+	fmt.Println("📚 Documentation: https://github.com/techishthoughts/GitPersona")
 }
