@@ -720,7 +720,7 @@ func TestManagerBackupRestore(t *testing.T) {
 	manager.SetCurrentAccount("work")
 
 	// Save original configuration
-	err := manager.Save()
+	err = manager.Save()
 	if err != nil {
 		t.Fatalf("Failed to save original config: %v", err)
 	}
