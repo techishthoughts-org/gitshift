@@ -63,6 +63,7 @@ func init() {
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("version", "v", false, "Print version information")
 
+	// Validation commands will register themselves via their init() functions
 }
 
 // registerValidationCommands manually registers the validation commands
