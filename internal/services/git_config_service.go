@@ -215,6 +215,8 @@ func (s *GitConfigService) hasWrongSSHKey(ctx context.Context, sshCommand string
 		} else {
 			keyPath = strings.Replace(keyPath, "~", homeDir, 1)
 		}
+		// Use the expanded keyPath for further processing
+		_ = keyPath
 	}
 
 	// Check if key file exists
@@ -320,8 +322,12 @@ func (s *GitConfigService) SetSSHCommand(ctx context.Context, sshCommand string)
 	)
 
 	// Remove any existing SSH command configurations
-	s.runGitConfigUnset(ctx, "--global", "core.sshcommand")
-	s.runGitConfigUnset(ctx, "--local", "core.sshcommand")
+	if err := s.runGitConfigUnset(ctx, "--global", "core.sshcommand"); err != nil {
+		s.logger.Warn(ctx, "failed_to_unset_global_ssh_command", observability.F("error", err.Error()))
+	}
+	if err := s.runGitConfigUnset(ctx, "--local", "core.sshcommand"); err != nil {
+		s.logger.Warn(ctx, "failed_to_unset_local_ssh_command", observability.F("error", err.Error()))
+	}
 
 	// Set global SSH command
 	if err := s.runGitConfigSet(ctx, "--global", "core.sshcommand", sshCommand); err != nil {

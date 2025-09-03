@@ -1,6 +1,7 @@
 package errors
 
 import (
+	"errors"
 	"fmt"
 	"runtime"
 	"time"
@@ -136,8 +137,12 @@ func (e *GitPersonaError) Unwrap() error {
 }
 
 // Is checks if the error has a specific error code
-func (e *GitPersonaError) Is(code ErrorCode) bool {
-	return e.Code == code
+func (e *GitPersonaError) Is(err error) bool {
+	var gitPersonaErr *GitPersonaError
+	if errors.As(err, &gitPersonaErr) {
+		return e.Code == gitPersonaErr.Code
+	}
+	return false
 }
 
 // getCallerLocation returns the file and line number where the error was created
