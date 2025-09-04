@@ -68,29 +68,8 @@ func init() {
 
 // registerValidationCommands manually registers the validation commands
 func registerValidationCommands() {
-	// Create simple validate-git command
-	validateGitCommand := &cobra.Command{
-		Use:   "validate-git",
-		Short: "🔍 Validate Git configuration",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("🔍 Analyzing Git configuration...")
-			fmt.Println("✅ Git configuration looks good!")
-			return nil
-		},
-	}
-	rootCmd.AddCommand(validateGitCommand)
-
-	// Create simple validate-ssh command
-	validateSSHCommand := &cobra.Command{
-		Use:   "validate-ssh",
-		Short: "🔍 Validate SSH configuration",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("🔍 Validating SSH configuration...")
-			fmt.Println("✅ SSH configuration looks good!")
-			return nil
-		},
-	}
-	rootCmd.AddCommand(validateSSHCommand)
+	// Validation commands are now registered via their init() functions
+	// This function is kept for backward compatibility but does nothing
 }
 
 // initCommands initializes all the command subcommands

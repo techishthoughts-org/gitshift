@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/techishthoughts/GitPersona/internal/models"
 	"github.com/techishthoughts/GitPersona/internal/observability"
-	"github.com/techishthoughts/GitPersona/internal/validation"
+	"github.com/techishthoughts/GitPersona/internal/services"
 )
 
 // testFakeGitMgr implements the minimal GitConfigManager interface for tests
@@ -33,19 +34,46 @@ func TestNewSimpleContainer(t *testing.T) {
 // Package-level fakes used across tests
 type fakeConfigSvc struct{}
 
-func (f *fakeConfigSvc) Load(ctx context.Context) error { return nil }
-func (f *fakeConfigSvc) Save(ctx context.Context) error { return nil }
-func (f *fakeConfigSvc) GetAccounts(ctx context.Context) map[string]interface{} {
-	return map[string]interface{}{}
+func (f *fakeConfigSvc) Load(ctx context.Context) error                               { return nil }
+func (f *fakeConfigSvc) Save(ctx context.Context) error                               { return nil }
+func (f *fakeConfigSvc) Reload(ctx context.Context) error                             { return nil }
+func (f *fakeConfigSvc) Validate(ctx context.Context) error                           { return nil }
+func (f *fakeConfigSvc) Get(ctx context.Context, key string) interface{}              { return nil }
+func (f *fakeConfigSvc) Set(ctx context.Context, key string, value interface{}) error { return nil }
+func (f *fakeConfigSvc) GetString(ctx context.Context, key string) string             { return "" }
+func (f *fakeConfigSvc) GetBool(ctx context.Context, key string) bool                 { return false }
+func (f *fakeConfigSvc) GetInt(ctx context.Context, key string) int                   { return 0 }
+func (f *fakeConfigSvc) GetAccount(ctx context.Context, alias string) (*models.Account, error) {
+	return nil, nil
 }
-func (f *fakeConfigSvc) GetCurrentAccount(ctx context.Context) string              { return "" }
-func (f *fakeConfigSvc) SetCurrentAccount(ctx context.Context, alias string) error { return nil }
+func (f *fakeConfigSvc) SetAccount(ctx context.Context, account *models.Account) error { return nil }
+func (f *fakeConfigSvc) DeleteAccount(ctx context.Context, alias string) error         { return nil }
+func (f *fakeConfigSvc) ListAccounts(ctx context.Context) ([]*models.Account, error)   { return nil, nil }
+func (f *fakeConfigSvc) SetCurrentAccount(ctx context.Context, alias string) error     { return nil }
+func (f *fakeConfigSvc) GetCurrentAccount(ctx context.Context) string                  { return "" }
+func (f *fakeConfigSvc) ValidateConfiguration(ctx context.Context) error               { return nil }
+func (f *fakeConfigSvc) CheckForConflicts(ctx context.Context) ([]*services.ConfigConflict, error) {
+	return nil, nil
+}
 
 type fakeSSH struct{}
 
-func (f *fakeSSH) ValidateSSHConfiguration() (*validation.ValidationResult, error) {
-	return &validation.ValidationResult{}, nil
+func (f *fakeSSH) GenerateKey(ctx context.Context, keyType string, email string, keyPath string) (*services.SSHKey, error) {
+	return nil, nil
 }
+func (f *fakeSSH) ValidateKey(ctx context.Context, keyPath string) (*services.SSHKeyInfo, error) {
+	return nil, nil
+}
+func (f *fakeSSH) ListKeys(ctx context.Context) ([]*services.SSHKeyInfo, error) { return nil, nil }
+func (f *fakeSSH) DeleteKey(ctx context.Context, keyPath string) error          { return nil }
+func (f *fakeSSH) ValidateConfiguration(ctx context.Context) (*services.SSHValidationResult, error) {
+	return nil, nil
+}
+func (f *fakeSSH) FixPermissions(ctx context.Context, keyPath string) error           { return nil }
+func (f *fakeSSH) GenerateSSHConfig(ctx context.Context) (string, error)              { return "", nil }
+func (f *fakeSSH) TestGitHubAuthentication(ctx context.Context, keyPath string) error { return nil }
+func (f *fakeSSH) DiagnoseIssues(ctx context.Context) ([]*services.SSHIssue, error)   { return nil, nil }
+func (f *fakeSSH) FixIssues(ctx context.Context, issues []*services.SSHIssue) error   { return nil }
 
 func TestSimpleContainerServiceManagement(t *testing.T) {
 	container := NewSimpleContainer()
