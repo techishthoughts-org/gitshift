@@ -48,8 +48,6 @@ Features:
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() error {
-	// Register validation commands before executing
-	registerValidationCommands()
 	return rootCmd.Execute()
 }
 
@@ -64,25 +62,6 @@ func init() {
 	rootCmd.Flags().BoolP("version", "v", false, "Print version information")
 
 	// Validation commands will register themselves via their init() functions
-}
-
-// registerValidationCommands manually registers the validation commands
-func registerValidationCommands() {
-	// Validation commands are now registered via their init() functions
-	// This function is kept for backward compatibility but does nothing
-}
-
-// initCommands initializes all the command subcommands
-func initCommands() {
-	// Force initialization of validation commands by calling their init functions manually
-	// This ensures the commands are registered even if their init() functions aren't called automatically
-	initValidationCommands()
-}
-
-// initValidationCommands manually initializes validation commands
-func initValidationCommands() {
-	// The validation commands should auto-register via their init() functions
-	// If they don't appear, there might be a compilation issue
 }
 
 // initConfig reads in config file and ENV variables if set.

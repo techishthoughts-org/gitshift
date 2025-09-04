@@ -38,7 +38,11 @@ func TestUpdateGitConfig_usesGitService(t *testing.T) {
 		SSHKeyPath: "/home/alice/.ssh/id_rsa",
 	}
 
-	if err := updateGitConfig(acct); err != nil {
+	// Create a switch command and test the updateGitConfig method
+	switchCmd := NewSwitchCommand()
+	ctx := context.Background()
+
+	if err := switchCmd.updateGitConfig(ctx, acct); err != nil {
 		t.Fatalf("updateGitConfig failed: %v", err)
 	}
 
