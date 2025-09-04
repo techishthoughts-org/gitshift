@@ -1,13 +1,18 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
-	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/techishthoughts/GitPersona/internal/config"
+	"github.com/techishthoughts/GitPersona/internal/container"
+	"github.com/techishthoughts/GitPersona/internal/models"
 )
 
 var (
@@ -168,7 +173,7 @@ func performAccountSwitch(configManager *config.Manager, targetAlias string, tar
 		return fmt.Errorf("failed to save configuration: %w", err)
 	}
 
-	// Update Git configuration
+	// Update Git configuration via GitConfigService from the container
 	if err := updateGitConfig(targetAccount); err != nil {
 		return fmt.Errorf("failed to update Git configuration: %w", err)
 	}
@@ -177,8 +182,58 @@ func performAccountSwitch(configManager *config.Manager, targetAlias string, tar
 }
 
 func updateGitConfig(account interface{}) error {
-	// TODO: Implement proper Git config update
-	// For now, just return success
+	// Try to cast to expected account type
+	acc, ok := account.(*models.Account)
+	if !ok {
+		// If we don't have a real account object, nothing to do
+		return fmt.Errorf("invalid account object for git config update")
+	}
+
+	ctx := context.Background()
+
+	// Get GitConfigService from container
+	c := container.GetGlobalSimpleContainer()
+	svcRaw := c.GetGitService()
+	if svcRaw == nil {
+		return fmt.Errorf("git config service not available in container")
+	}
+
+	// Try to cast to GitConfigManager interface
+	gitSvc, ok := svcRaw.(interface {
+		SetUserConfiguration(ctx context.Context, name, email string) error
+		SetSSHCommand(ctx context.Context, sshCommand string) error
+	})
+	if !ok {
+		return fmt.Errorf("git service does not implement required interface")
+	}
+
+	// Set user configuration
+	if acc.Name != "" || acc.Email != "" {
+		if err := gitSvc.SetUserConfiguration(ctx, acc.Name, acc.Email); err != nil {
+			return fmt.Errorf("failed to set user configuration: %w", err)
+		}
+		fmt.Printf("✅ Updated Git user configuration: %s <%s>\n", acc.Name, acc.Email)
+	}
+
+	// Set SSH command
+	sshCmd := ""
+	if acc.SSHKeyPath != "" {
+		sshCmd = fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes", acc.SSHKeyPath)
+	}
+
+	if err := gitSvc.SetSSHCommand(ctx, sshCmd); err != nil {
+		// Try a best-effort fallback to edit the user's global gitconfig directly
+		fmt.Printf("⚠️  Warning: failed to set SSH command via git service: %v\n", err)
+		fmt.Printf("🔧 Attempting direct ~/.gitconfig update...\n")
+
+		if err := updateUserGitconfig(sshCmd); err != nil {
+			return fmt.Errorf("failed to update ~/.gitconfig directly: %w", err)
+		}
+		fmt.Printf("✅ Updated ~/.gitconfig directly\n")
+	} else {
+		fmt.Printf("✅ Updated Git SSH command: %s\n", sshCmd)
+	}
+
 	return nil
 }
 
@@ -209,9 +264,67 @@ func testSSHAuthentication(account interface{}) error {
 	return nil
 }
 
-func runGitCommand(args ...string) error {
-	cmd := exec.Command("git", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+// updateUserGitconfig does a best-effort edit of the user's ~/.gitconfig to set core.sshcommand
+func updateUserGitconfig(sshCmd string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	gitconfigPath := filepath.Join(home, ".gitconfig")
+
+	// Read existing content or create empty content if file doesn't exist
+	var content []byte
+	if _, err := os.Stat(gitconfigPath); err == nil {
+		content, err = ioutil.ReadFile(gitconfigPath)
+		if err != nil {
+			return fmt.Errorf("failed to read ~/.gitconfig: %w", err)
+		}
+	} else {
+		// File doesn't exist, create it
+		content = []byte{}
+	}
+
+	lines := strings.Split(string(content), "\n")
+	found := false
+
+	// Look for existing core.sshcommand line
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "core.sshcommand") || strings.Contains(trimmed, "core.sshcommand=") {
+			lines[i] = "\tcore.sshcommand = " + sshCmd
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		// Look for [core] section and add after it
+		added := false
+		for i, line := range lines {
+			if strings.HasPrefix(strings.TrimSpace(line), "[core]") {
+				// Insert after this line
+				insertAt := i + 1
+				newLines := append(lines[:insertAt], append([]string{"\tcore.sshcommand = " + sshCmd}, lines[insertAt:]...)...)
+				lines = newLines
+				added = true
+				break
+			}
+		}
+
+		if !added {
+			// No [core] section found, add it at the end
+			if len(lines) > 0 && lines[len(lines)-1] != "" {
+				lines = append(lines, "")
+			}
+			lines = append(lines, "[core]", "\tcore.sshcommand = "+sshCmd)
+		}
+	}
+
+	newContent := strings.Join(lines, "\n")
+	if err := ioutil.WriteFile(gitconfigPath, []byte(newContent), 0644); err != nil {
+		return fmt.Errorf("failed to write ~/.gitconfig: %w", err)
+	}
+
+	return nil
 }

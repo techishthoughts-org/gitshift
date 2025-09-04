@@ -3,16 +3,24 @@ package services
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"regexp"
 	"strings"
 
+	"github.com/techishthoughts/GitPersona/internal/execrunner"
 	"github.com/techishthoughts/GitPersona/internal/observability"
 )
 
 // GitConfigService handles Git configuration management and validation
 type GitConfigService struct {
 	logger observability.Logger
+	runner execrunner.CmdRunner
+}
+
+// GitConfigManager defines the minimal interface used by the command layer.
+// Keeping it here groups the concrete implementation and the interface.
+type GitConfigManager interface {
+	SetUserConfiguration(ctx context.Context, name, email string) error
+	SetSSHCommand(ctx context.Context, sshCommand string) error
 }
 
 // GitConfig represents Git configuration state
@@ -36,9 +44,15 @@ type GitConfigIssue struct {
 }
 
 // NewGitConfigService creates a new Git configuration service
-func NewGitConfigService(logger observability.Logger) *GitConfigService {
+func NewGitConfigService(logger observability.Logger, runner execrunner.CmdRunner) *GitConfigService {
+	if runner == nil {
+		// If no runner provided, use the real implementation
+		runner = &execrunner.RealCmdRunner{}
+	}
+
 	return &GitConfigService{
 		logger: logger,
+		runner: runner,
 	}
 }
 
@@ -329,6 +343,12 @@ func (s *GitConfigService) SetSSHCommand(ctx context.Context, sshCommand string)
 		s.logger.Warn(ctx, "failed_to_unset_local_ssh_command", observability.F("error", err.Error()))
 	}
 
+	// If sshCommand is empty, we've already removed existing configs — done.
+	if strings.TrimSpace(sshCommand) == "" {
+		s.logger.Info(ctx, "git_ssh_command_unset")
+		return nil
+	}
+
 	// Set global SSH command
 	if err := s.runGitConfigSet(ctx, "--global", "core.sshcommand", sshCommand); err != nil {
 		return fmt.Errorf("failed to set SSH command: %w", err)
@@ -340,29 +360,25 @@ func (s *GitConfigService) SetSSHCommand(ctx context.Context, sshCommand string)
 
 // Helper methods for running Git commands
 func (s *GitConfigService) runGitConfig(ctx context.Context, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"config"}, args...)...)
-	output, err := cmd.Output()
+	out, err := s.runner.CombinedOutput(ctx, "git", append([]string{"config"}, args...)...)
 	if err != nil {
 		return "", err
 	}
-	return string(output), nil
+	return string(out), nil
 }
 
 func (s *GitConfigService) runGitConfigSet(ctx context.Context, args ...string) error {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"config"}, args...)...)
-	return cmd.Run()
+	return s.runner.Run(ctx, "git", append([]string{"config"}, args...)...)
 }
 
 func (s *GitConfigService) runGitConfigUnset(ctx context.Context, args ...string) error {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"config", "--unset"}, args...)...)
-	return cmd.Run()
+	return s.runner.Run(ctx, "git", append([]string{"config", "--unset"}, args...)...)
 }
 
 func (s *GitConfigService) runGitRemote(ctx context.Context, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"remote"}, args...)...)
-	output, err := cmd.Output()
+	out, err := s.runner.CombinedOutput(ctx, "git", append([]string{"remote"}, args...)...)
 	if err != nil {
 		return "", err
 	}
-	return string(output), nil
+	return string(out), nil
 }

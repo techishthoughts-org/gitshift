@@ -4,22 +4,24 @@ import (
 	"context"
 	"sync"
 
+	"github.com/techishthoughts/GitPersona/internal/execrunner"
 	"github.com/techishthoughts/GitPersona/internal/observability"
 	"github.com/techishthoughts/GitPersona/internal/services"
+	"github.com/techishthoughts/GitPersona/internal/validation"
 )
 
 // SimpleContainer manages all service dependencies without complex type assertions
 type SimpleContainer struct {
 	mu sync.RWMutex
 
-	// Core services as interface{} to avoid type issues
-	configService     interface{}
-	accountService    interface{}
-	sshService        interface{}
-	gitService        interface{}
-	githubService     interface{}
-	healthService     interface{}
-	validationService interface{}
+	// Core services typed to useful interfaces for safer access
+	configService     ConfigService
+	accountService    AccountService
+	sshService        SSHValidator
+	gitService        services.GitConfigManager
+	githubService     GitHubService
+	healthService     HealthService
+	validationService ValidationService
 
 	// Infrastructure
 	logger observability.Logger
@@ -51,98 +53,130 @@ func (c *SimpleContainer) SetLogger(logger observability.Logger) {
 }
 
 // GetConfigService returns the config service instance
-func (c *SimpleContainer) GetConfigService() interface{} {
+// ConfigService is the minimal interface our commands expect from the config service
+type ConfigService interface {
+	Load(ctx context.Context) error
+	Save(ctx context.Context) error
+	GetAccounts(ctx context.Context) map[string]interface{}
+	GetCurrentAccount(ctx context.Context) string
+	SetCurrentAccount(ctx context.Context, alias string) error
+}
+
+// GetConfigService returns the config service instance
+func (c *SimpleContainer) GetConfigService() ConfigService {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.configService
 }
 
 // SetConfigService sets the config service instance
-func (c *SimpleContainer) SetConfigService(service interface{}) {
+func (c *SimpleContainer) SetConfigService(service ConfigService) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.configService = service
 }
 
 // GetAccountService returns the account service instance
-func (c *SimpleContainer) GetAccountService() interface{} {
+// AccountService is a placeholder for future account management APIs
+type AccountService interface{}
+
+// GetAccountService returns the account service instance
+func (c *SimpleContainer) GetAccountService() AccountService {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.accountService
 }
 
 // SetAccountService sets the account service instance
-func (c *SimpleContainer) SetAccountService(service interface{}) {
+func (c *SimpleContainer) SetAccountService(service AccountService) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.accountService = service
 }
 
 // GetSSHService returns the SSH service instance
-func (c *SimpleContainer) GetSSHService() interface{} {
+// SSHValidator is the minimal interface for SSH validation
+type SSHValidator interface {
+	ValidateSSHConfiguration() (*validation.ValidationResult, error)
+}
+
+// GetSSHService returns the SSH service instance
+func (c *SimpleContainer) GetSSHService() SSHValidator {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.sshService
 }
 
 // SetSSHService sets the SSH service instance
-func (c *SimpleContainer) SetSSHService(service interface{}) {
+func (c *SimpleContainer) SetSSHService(service SSHValidator) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.sshService = service
 }
 
 // GetGitService returns the Git service instance
-func (c *SimpleContainer) GetGitService() interface{} {
+func (c *SimpleContainer) GetGitService() services.GitConfigManager {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.gitService
 }
 
 // SetGitService sets the Git service instance
-func (c *SimpleContainer) SetGitService(service interface{}) {
+func (c *SimpleContainer) SetGitService(service services.GitConfigManager) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.gitService = service
 }
 
 // GetGitHubService returns the GitHub service instance
-func (c *SimpleContainer) GetGitHubService() interface{} {
+// GitHubService is a minimal typing for the GitHub client
+type GitHubService interface{}
+
+// GetGitHubService returns the GitHub service instance
+func (c *SimpleContainer) GetGitHubService() GitHubService {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.githubService
 }
 
 // SetGitHubService sets the GitHub service instance
-func (c *SimpleContainer) SetGitHubService(service interface{}) {
+func (c *SimpleContainer) SetGitHubService(service GitHubService) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.githubService = service
 }
 
 // GetHealthService returns the health service instance
-func (c *SimpleContainer) GetHealthService() interface{} {
+// HealthService is a placeholder typing for health checks
+type HealthService interface{}
+
+// GetHealthService returns the health service instance
+func (c *SimpleContainer) GetHealthService() HealthService {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.healthService
 }
 
 // SetHealthService sets the health service instance
-func (c *SimpleContainer) SetHealthService(service interface{}) {
+func (c *SimpleContainer) SetHealthService(service HealthService) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.healthService = service
 }
 
 // GetValidationService returns the validation service instance
-func (c *SimpleContainer) GetValidationService() interface{} {
+// ValidationService is a placeholder typing
+type ValidationService interface{}
+
+// GetValidationService returns the validation service instance
+func (c *SimpleContainer) GetValidationService() ValidationService {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.validationService
 }
 
 // SetValidationService sets the validation service instance
-func (c *SimpleContainer) SetValidationService(service interface{}) {
+func (c *SimpleContainer) SetValidationService(service ValidationService) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.validationService = service
@@ -158,8 +192,9 @@ func (c *SimpleContainer) Initialize(ctx context.Context) error {
 	configService := services.NewRealConfigService(configPath, logger)
 	c.SetConfigService(configService)
 
-	// Initialize the Git config service
-	gitConfigService := services.NewGitConfigService(logger)
+	// Initialize the Git config service with a real command runner
+	runner := execrunner.RealCmdRunner{}
+	gitConfigService := services.NewGitConfigService(logger, &runner)
 	c.SetGitService(gitConfigService)
 
 	// TODO: Initialize other services as they are implemented

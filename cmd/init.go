@@ -59,6 +59,7 @@ Examples:
 					if err == nil && account.SSHKeyPath != "" {
 						fmt.Printf("export GIT_SSH_COMMAND=\"%s\"\n", gitManager.GenerateSSHCommand(account.SSHKeyPath))
 					}
+					// reweite .gitconfig with current account info
 				}
 			}
 			return nil
