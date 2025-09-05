@@ -283,10 +283,49 @@ func (c *SwitchCommand) performAccountSwitch(ctx context.Context, configService 
 		}
 	}
 
+	// Manage SSH agent for the account
+	if err := c.manageSSHAgent(ctx, targetAccount); err != nil {
+		c.PrintWarning(ctx, "SSH agent management failed, but continuing with switch",
+			observability.F("error", err.Error()),
+		)
+	}
+
 	// Update Git configuration
 	if err := c.updateGitConfig(ctx, targetAccount); err != nil {
 		return fmt.Errorf("failed to update Git configuration: %w", err)
 	}
+
+	return nil
+}
+
+// manageSSHAgent manages the SSH agent for the account
+func (c *SwitchCommand) manageSSHAgent(ctx context.Context, account *models.Account) error {
+	container := c.GetContainer()
+	sshAgentService := container.GetSSHAgentService()
+
+	if sshAgentService == nil {
+		c.PrintWarning(ctx, "SSH agent service not available, skipping SSH agent management")
+		return nil
+	}
+
+	// If no SSH key is configured, skip SSH agent management
+	if account.SSHKeyPath == "" {
+		c.PrintInfo(ctx, "No SSH key configured for account, skipping SSH agent management")
+		return nil
+	}
+
+	c.PrintInfo(ctx, "Managing SSH agent for account",
+		observability.F("ssh_key", account.SSHKeyPath),
+	)
+
+	// Switch to the account's SSH key (this will clear other keys and load only this one)
+	if err := sshAgentService.SwitchToAccount(ctx, account.SSHKeyPath); err != nil {
+		return fmt.Errorf("failed to switch SSH agent to account key: %w", err)
+	}
+
+	c.PrintSuccess(ctx, "SSH agent configured for account",
+		observability.F("ssh_key", account.SSHKeyPath),
+	)
 
 	return nil
 }

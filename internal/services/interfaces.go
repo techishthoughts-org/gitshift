@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/techishthoughts/GitPersona/internal/models"
 )
@@ -302,4 +303,36 @@ type SystemIssue struct {
 	Description string `json:"description"`
 	Fix         string `json:"fix"`
 	Fixed       bool   `json:"fixed"`
+}
+
+// SSHAgentService manages SSH agent operations
+type SSHAgentService interface {
+	// Agent management
+	IsAgentRunning(ctx context.Context) (bool, error)
+	StartAgent(ctx context.Context) error
+	StopAgent(ctx context.Context) error
+
+	// Key management
+	LoadKey(ctx context.Context, keyPath string) error
+	UnloadKey(ctx context.Context, keyPath string) error
+	ClearAllKeys(ctx context.Context) error
+	ListLoadedKeys(ctx context.Context) ([]string, error)
+
+	// Account-specific operations
+	SwitchToAccount(ctx context.Context, keyPath string) error
+	IsolateAccount(ctx context.Context, keyPath string) error
+
+	// Status and diagnostics
+	GetAgentStatus(ctx context.Context) (*SSHAgentStatus, error)
+	DiagnoseAgentIssues(ctx context.Context) ([]string, error)
+}
+
+// SSHAgentStatus represents the current state of the SSH agent
+type SSHAgentStatus struct {
+	Running     bool      `json:"running"`
+	PID         int       `json:"pid,omitempty"`
+	SocketPath  string    `json:"socket_path,omitempty"`
+	LoadedKeys  []string  `json:"loaded_keys"`
+	KeyCount    int       `json:"key_count"`
+	LastUpdated time.Time `json:"last_updated"`
 }

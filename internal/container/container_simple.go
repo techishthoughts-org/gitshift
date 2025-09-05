@@ -17,6 +17,7 @@ type SimpleContainer struct {
 	configService     services.ConfigurationService
 	accountService    services.AccountService
 	sshService        services.SSHService
+	sshAgentService   services.SSHAgentService
 	gitService        services.GitConfigManager
 	githubService     services.GitHubService
 	healthService     services.HealthService
@@ -91,6 +92,20 @@ func (c *SimpleContainer) SetSSHService(service services.SSHService) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.sshService = service
+}
+
+// GetSSHAgentService returns the SSH agent service instance
+func (c *SimpleContainer) GetSSHAgentService() services.SSHAgentService {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.sshAgentService
+}
+
+// SetSSHAgentService sets the SSH agent service instance
+func (c *SimpleContainer) SetSSHAgentService(service services.SSHAgentService) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sshAgentService = service
 }
 
 // GetGitService returns the Git service instance
@@ -171,6 +186,10 @@ func (c *SimpleContainer) Initialize(ctx context.Context) error {
 	// Initialize the SSH service
 	sshService := services.NewRealSSHService(logger, &runner)
 	c.SetSSHService(sshService)
+
+	// Initialize the SSH agent service
+	sshAgentService := services.NewRealSSHAgentService(logger, &runner)
+	c.SetSSHAgentService(sshAgentService)
 
 	// TODO: Initialize GitHub, Health, and Validation services as they are implemented
 	logger.Info(ctx, "simple_service_container_initialized")
