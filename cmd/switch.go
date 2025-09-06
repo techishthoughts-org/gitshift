@@ -9,6 +9,7 @@ import (
 	"github.com/techishthoughts/GitPersona/internal/errors"
 	"github.com/techishthoughts/GitPersona/internal/models"
 	"github.com/techishthoughts/GitPersona/internal/observability"
+	"github.com/techishthoughts/GitPersona/internal/services"
 )
 
 // SwitchCommand handles account switching with proper validation and logging
@@ -33,7 +34,7 @@ func NewSwitchCommand() *SwitchCommand {
 			"gitpersona switch work --validate-only",
 			"gitpersona switch personal --force",
 		).WithFlags(
-			commands.Flag{Name: "validate", Short: "v", Type: "bool", Default: false, Description: "Only validate current account without switching"},
+			commands.Flag{Name: "validate", Short: "V", Type: "bool", Default: false, Description: "Only validate current account without switching"},
 			commands.Flag{Name: "skip-validation", Short: "s", Type: "bool", Default: false, Description: "Skip SSH validation (not recommended)"},
 			commands.Flag{Name: "force", Short: "f", Type: "bool", Default: false, Description: "Force switch even if validation fails"},
 		),
@@ -81,7 +82,147 @@ func (c *SwitchCommand) Validate(args []string) error {
 	return nil
 }
 
-// Run executes the switch command logic
+// loadConfiguration loads the configuration using the config service
+func (c *SwitchCommand) loadConfiguration(ctx context.Context, configService services.ConfigurationService) error {
+	if configService == nil {
+		return fmt.Errorf("config service not available")
+	}
+	return configService.Load(ctx)
+}
+
+// getAccount retrieves an account using the config service
+func (c *SwitchCommand) getAccount(ctx context.Context, configService services.ConfigurationService, alias string) (*models.Account, error) {
+	if configService == nil {
+		return nil, errors.New(errors.ErrCodeInternal, "config service not available")
+	}
+
+	return configService.GetAccount(ctx, alias)
+}
+
+// validateCurrentAccount validates the current account without switching
+func (c *SwitchCommand) validateCurrentAccount(ctx context.Context, configService services.ConfigurationService) error {
+	if configService == nil {
+		return errors.New(errors.ErrCodeInternal, "config service not available")
+	}
+
+	currentAlias := configService.GetCurrentAccount(ctx)
+	if currentAlias == "" {
+		c.PrintWarning(ctx, "No current account set")
+		return nil
+	}
+
+	// Get account details
+	account, err := configService.GetAccount(ctx, currentAlias)
+	if err != nil {
+		c.PrintWarning(ctx, "Could not retrieve current account details",
+			observability.F("account", currentAlias),
+			observability.F("error", err.Error()),
+		)
+		return nil
+	}
+
+	// Display current account information
+	c.PrintInfo(ctx, fmt.Sprintf("Current account: %s", currentAlias),
+		observability.F("account", currentAlias),
+		observability.F("name", account.Name),
+		observability.F("email", account.Email),
+	)
+
+	// Validate SSH configuration
+	if err := c.validateAccountSSH(ctx, account); err != nil {
+		c.PrintWarning(ctx, "SSH validation failed for current account",
+			observability.F("account", currentAlias),
+			observability.F("error", err.Error()),
+		)
+	} else {
+		c.PrintSuccess(ctx, "SSH validation passed for current account",
+			observability.F("account", currentAlias),
+		)
+	}
+
+	return nil
+}
+
+// validateAccountSSH validates the SSH configuration for an account
+func (c *SwitchCommand) validateAccountSSH(ctx context.Context, account *models.Account) error {
+	// Get SSH service from container
+	container := c.GetContainer()
+	sshService := container.GetSSHService()
+
+	if sshService == nil {
+		c.PrintWarning(ctx, "SSH service not available, skipping validation")
+		return nil
+	}
+
+	// Validate SSH configuration using proper interface
+	_, err := sshService.ValidateConfiguration(ctx)
+	if err != nil {
+		return fmt.Errorf("SSH validation failed: %w", err)
+	}
+
+	return nil
+}
+
+// performAccountSwitch performs the actual account switch
+func (c *SwitchCommand) performAccountSwitch(ctx context.Context, configService services.ConfigurationService, targetAlias string, targetAccount *models.Account) error {
+	c.GetLogger().Info(ctx, "performing_account_switch",
+		observability.F("target_account", targetAlias),
+		observability.F("account_name", targetAccount.Name),
+	)
+
+	// Update current account in config service
+	if err := configService.SetCurrentAccount(ctx, targetAlias); err != nil {
+		return fmt.Errorf("failed to set current account: %w", err)
+	}
+
+	// Manage SSH agent for the account
+	if err := c.manageSSHAgent(ctx, targetAccount); err != nil {
+		c.PrintWarning(ctx, "SSH agent management failed, but continuing with switch",
+			observability.F("error", err.Error()),
+		)
+	}
+
+	// Update Git configuration
+	if err := c.updateGitConfig(ctx, targetAccount); err != nil {
+		return fmt.Errorf("failed to update Git configuration: %w", err)
+	}
+
+	return nil
+}
+
+// manageSSHAgent manages the SSH agent for the account
+func (c *SwitchCommand) manageSSHAgent(ctx context.Context, account *models.Account) error {
+	container := c.GetContainer()
+	sshAgentService := container.GetSSHAgentService()
+
+	if sshAgentService == nil {
+		c.PrintWarning(ctx, "SSH agent service not available, skipping SSH agent management")
+		return nil
+	}
+
+	// If no SSH key is configured, skip SSH agent management
+	if account.SSHKeyPath == "" {
+		c.PrintInfo(ctx, "No SSH key configured for account, skipping SSH agent management")
+		return nil
+	}
+
+	c.PrintInfo(ctx, "Managing SSH agent for account",
+		observability.F("ssh_key", account.SSHKeyPath),
+	)
+
+	// Switch to the account's SSH key (this will clear other keys and load only this one)
+	if err := sshAgentService.SwitchToAccount(ctx, account.SSHKeyPath); err != nil {
+		return fmt.Errorf("failed to switch SSH agent to account key: %w", err)
+	}
+
+	c.PrintSuccess(ctx, "SSH agent configured for account",
+		observability.F("ssh_key", account.SSHKeyPath),
+	)
+
+	return nil
+}
+
+// Implement the Run method that was missing
 func (c *SwitchCommand) Run(ctx context.Context, args []string) error {
 	container := c.GetContainer()
 
@@ -150,186 +291,6 @@ func (c *SwitchCommand) Run(ctx context.Context, args []string) error {
 	return nil
 }
 
-// loadConfiguration loads the configuration using the config service
-func (c *SwitchCommand) loadConfiguration(ctx context.Context, configService interface{}) error {
-	// Try to load configuration if the service supports it
-	if service, ok := configService.(interface{ Load(context.Context) error }); ok {
-		return service.Load(ctx)
-	}
-
-	// Fallback to success if service doesn't support loading
-	return nil
-}
-
-// getAccount retrieves an account using the config service
-func (c *SwitchCommand) getAccount(ctx context.Context, configService interface{}, alias string) (*models.Account, error) {
-	// Try to get account from config service if available
-	if service, ok := configService.(interface {
-		GetAccounts(context.Context) map[string]interface{}
-	}); ok {
-		accounts := service.GetAccounts(ctx)
-		if accountData, exists := accounts[alias]; exists {
-			// Convert to Account model
-			if accountMap, ok := accountData.(map[string]interface{}); ok {
-				account := &models.Account{
-					Alias: alias,
-				}
-
-				if name, exists := accountMap["name"]; exists {
-					account.Name = fmt.Sprintf("%v", name)
-				}
-				if email, exists := accountMap["email"]; exists {
-					account.Email = fmt.Sprintf("%v", email)
-				}
-				if sshKeyPath, exists := accountMap["ssh_key_path"]; exists {
-					account.SSHKeyPath = fmt.Sprintf("%v", sshKeyPath)
-				}
-				if githubUsername, exists := accountMap["github_username"]; exists {
-					account.GitHubUsername = fmt.Sprintf("%v", githubUsername)
-				}
-
-				return account, nil
-			}
-		}
-	}
-
-	return nil, errors.AccountNotFound(alias, map[string]interface{}{
-		"command": "switch",
-	})
-}
-
-// validateCurrentAccount validates the current account without switching
-func (c *SwitchCommand) validateCurrentAccount(ctx context.Context, configService interface{}) error {
-	// Try to get current account from config service
-	var currentAlias string
-	if service, ok := configService.(interface{ GetCurrentAccount(context.Context) string }); ok {
-		currentAlias = service.GetCurrentAccount(ctx)
-	}
-
-	if currentAlias == "" {
-		c.PrintWarning(ctx, "No current account set")
-		return nil
-	}
-
-	// Try to get account details
-	account, err := c.getAccount(ctx, configService, currentAlias)
-	if err != nil {
-		c.PrintWarning(ctx, "Could not retrieve current account details",
-			observability.F("account", currentAlias),
-			observability.F("error", err.Error()),
-		)
-		return nil
-	}
-
-	// Display current account information
-	c.PrintInfo(ctx, fmt.Sprintf("Current account: %s", currentAlias),
-		observability.F("account", currentAlias),
-		observability.F("name", account.Name),
-		observability.F("email", account.Email),
-	)
-
-	// Validate SSH configuration
-	if err := c.validateAccountSSH(ctx, account); err != nil {
-		c.PrintWarning(ctx, "SSH validation failed for current account",
-			observability.F("account", currentAlias),
-			observability.F("error", err.Error()),
-		)
-	} else {
-		c.PrintSuccess(ctx, "SSH validation passed for current account",
-			observability.F("account", currentAlias),
-		)
-	}
-
-	return nil
-}
-
-// validateAccountSSH validates the SSH configuration for an account
-func (c *SwitchCommand) validateAccountSSH(ctx context.Context, account *models.Account) error {
-	// Get SSH service from container
-	container := c.GetContainer()
-	sshService := container.GetSSHService()
-
-	if sshService == nil {
-		c.PrintWarning(ctx, "SSH service not available, skipping validation")
-		return nil
-	}
-
-	// Try to validate SSH configuration
-	if service, ok := sshService.(interface {
-		ValidateSSHConfiguration() (interface{}, error)
-	}); ok {
-		_, err := service.ValidateSSHConfiguration()
-		if err != nil {
-			return fmt.Errorf("SSH validation failed: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// performAccountSwitch performs the actual account switch
-func (c *SwitchCommand) performAccountSwitch(ctx context.Context, configService interface{}, targetAlias string, targetAccount *models.Account) error {
-	c.GetLogger().Info(ctx, "performing_account_switch",
-		observability.F("target_account", targetAlias),
-		observability.F("account_name", targetAccount.Name),
-	)
-
-	// Update current account in config service
-	if service, ok := configService.(interface {
-		SetCurrentAccount(context.Context, string) error
-	}); ok {
-		if err := service.SetCurrentAccount(ctx, targetAlias); err != nil {
-			return fmt.Errorf("failed to set current account: %w", err)
-		}
-	}
-
-	// Manage SSH agent for the account
-	if err := c.manageSSHAgent(ctx, targetAccount); err != nil {
-		c.PrintWarning(ctx, "SSH agent management failed, but continuing with switch",
-			observability.F("error", err.Error()),
-		)
-	}
-
-	// Update Git configuration
-	if err := c.updateGitConfig(ctx, targetAccount); err != nil {
-		return fmt.Errorf("failed to update Git configuration: %w", err)
-	}
-
-	return nil
-}
-
-// manageSSHAgent manages the SSH agent for the account
-func (c *SwitchCommand) manageSSHAgent(ctx context.Context, account *models.Account) error {
-	container := c.GetContainer()
-	sshAgentService := container.GetSSHAgentService()
-
-	if sshAgentService == nil {
-		c.PrintWarning(ctx, "SSH agent service not available, skipping SSH agent management")
-		return nil
-	}
-
-	// If no SSH key is configured, skip SSH agent management
-	if account.SSHKeyPath == "" {
-		c.PrintInfo(ctx, "No SSH key configured for account, skipping SSH agent management")
-		return nil
-	}
-
-	c.PrintInfo(ctx, "Managing SSH agent for account",
-		observability.F("ssh_key", account.SSHKeyPath),
-	)
-
-	// Switch to the account's SSH key (this will clear other keys and load only this one)
-	if err := sshAgentService.SwitchToAccount(ctx, account.SSHKeyPath); err != nil {
-		return fmt.Errorf("failed to switch SSH agent to account key: %w", err)
-	}
-
-	c.PrintSuccess(ctx, "SSH agent configured for account",
-		observability.F("ssh_key", account.SSHKeyPath),
-	)
-
-	return nil
-}
-
 // updateGitConfig updates the Git configuration for the account
 func (c *SwitchCommand) updateGitConfig(ctx context.Context, account *models.Account) error {
 	container := c.GetContainer()
@@ -341,34 +302,26 @@ func (c *SwitchCommand) updateGitConfig(ctx context.Context, account *models.Acc
 
 	// Set user configuration
 	if account.Name != "" || account.Email != "" {
-		if service, ok := gitService.(interface {
-			SetUserConfiguration(ctx context.Context, name, email string) error
-		}); ok {
-			if err := service.SetUserConfiguration(ctx, account.Name, account.Email); err != nil {
-				return fmt.Errorf("failed to set user configuration: %w", err)
-			}
-			c.PrintSuccess(ctx, fmt.Sprintf("Updated Git user configuration: %s <%s>", account.Name, account.Email))
+		if err := gitService.SetUserConfiguration(ctx, account.Name, account.Email); err != nil {
+			return fmt.Errorf("failed to set user configuration: %w", err)
 		}
+		c.PrintSuccess(ctx, fmt.Sprintf("Updated Git user configuration: %s <%s>", account.Name, account.Email))
 	}
 
 	// Set SSH command
 	if account.SSHKeyPath != "" {
 		sshCmd := fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes", account.SSHKeyPath)
-		if service, ok := gitService.(interface {
-			SetSSHCommand(ctx context.Context, sshCommand string) error
-		}); ok {
-			if err := service.SetSSHCommand(ctx, sshCmd); err != nil {
-				return fmt.Errorf("failed to set SSH command: %w", err)
-			}
-			c.PrintSuccess(ctx, fmt.Sprintf("Updated Git SSH command: %s", sshCmd))
+		if err := gitService.SetSSHCommand(ctx, sshCmd); err != nil {
+			return fmt.Errorf("failed to set SSH command: %w", err)
 		}
+		c.PrintSuccess(ctx, fmt.Sprintf("Updated Git SSH command: %s", sshCmd))
 	}
 
 	return nil
 }
 
 // validateSwitchSuccess validates that the switch was successful
-func (c *SwitchCommand) validateSwitchSuccess(ctx context.Context, configService interface{}, targetAlias string) error {
+func (c *SwitchCommand) validateSwitchSuccess(ctx context.Context, configService services.ConfigurationService, targetAlias string) error {
 	logger := c.GetLogger()
 
 	logger.Info(ctx, "validating_switch_success",
@@ -376,11 +329,9 @@ func (c *SwitchCommand) validateSwitchSuccess(ctx context.Context, configService
 	)
 
 	// Verify the current account was set correctly
-	if service, ok := configService.(interface{ GetCurrentAccount(context.Context) string }); ok {
-		currentAccount := service.GetCurrentAccount(ctx)
-		if currentAccount != targetAlias {
-			return fmt.Errorf("account switch verification failed: expected %s, got %s", targetAlias, currentAccount)
-		}
+	currentAccount := configService.GetCurrentAccount(ctx)
+	if currentAccount != targetAlias {
+		return fmt.Errorf("account switch verification failed: expected %s, got %s", targetAlias, currentAccount)
 	}
 
 	return nil
@@ -413,7 +364,9 @@ Examples:
 )
 
 func init() {
-	rootCmd.AddCommand(switchCmd)
+	// Use the new command architecture
+	newSwitchCmd := NewSwitchCommand().CreateCobraCommand()
+	rootCmd.AddCommand(newSwitchCmd)
 }
 
 // runSwitch runs the switch command
