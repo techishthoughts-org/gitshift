@@ -12,7 +12,7 @@ import (
 )
 
 var sshKeysCmd = &cobra.Command{
-	Use:   "ssh-keys",
+	Use:   "ssh-keys [action]",
 	Short: "Manage SSH keys and resolve authentication issues",
 	Long: `Manage SSH keys and automatically resolve SSH authentication issues.
 
@@ -25,6 +25,7 @@ Examples:
   gitpersona ssh-keys test [account]    # Test SSH connection for an account
   gitpersona ssh-keys generate [account] # Generate new SSH key for an account
   gitpersona ssh-keys setup [account]   # Setup SSH key for an account`,
+	RunE: executeSSHKeys,
 }
 
 func init() {
@@ -111,7 +112,42 @@ func diagnoseSSHKeys() error {
 		fmt.Println("💡 Run: eval $(ssh-agent -s) && ssh-add ~/.ssh/id_rsa")
 	} else {
 		fmt.Println("✅ SSH agent running with keys:")
-		fmt.Println(string(output))
+		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+		keyCount := 0
+		for _, line := range lines {
+			if strings.TrimSpace(line) != "" && !strings.Contains(line, "The agent has no identities") {
+				keyCount++
+				fmt.Printf("  %d. %s\n", keyCount, line)
+			}
+		}
+
+		if keyCount > 1 {
+			fmt.Println("⚠️  WARNING: Multiple keys loaded - this can cause authentication conflicts!")
+			fmt.Println("💡 Run: gitpersona ssh-agent --clear to clear all keys")
+		}
+	}
+
+	fmt.Println("")
+
+	// Check SSH config
+	fmt.Println("📋 SSH Config Status:")
+	sshConfigPath := filepath.Join(os.Getenv("HOME"), ".ssh", "config")
+	if _, err := os.Stat(sshConfigPath); os.IsNotExist(err) {
+		fmt.Println("❌ SSH config file does not exist")
+		fmt.Println("💡 Run: gitpersona ssh-keys setup [account] to create SSH config")
+	} else {
+		fmt.Println("✅ SSH config file exists")
+		// Check for multiple GitHub hosts
+		content, err := os.ReadFile(sshConfigPath)
+		if err == nil {
+			githubHosts := strings.Count(string(content), "Host github")
+			if githubHosts > 1 {
+				fmt.Printf("✅ Found %d GitHub host configurations\n", githubHosts)
+			} else {
+				fmt.Println("⚠️  Only one GitHub host configuration found")
+				fmt.Println("💡 Consider adding multiple hosts for different accounts")
+			}
+		}
 	}
 
 	fmt.Println("")
@@ -133,6 +169,35 @@ func diagnoseSSHKeys() error {
 	} else {
 		fmt.Println("❌ GitHub SSH connection failed")
 		fmt.Println("💡 Check your SSH keys and GitHub account settings")
+	}
+
+	// Test specific host configurations
+	fmt.Println("")
+	fmt.Println("🧪 Testing SSH Host Configurations:")
+	sshDir := filepath.Join(os.Getenv("HOME"), ".ssh")
+	files, err := os.ReadDir(sshDir)
+	if err == nil {
+		for _, file := range files {
+			if strings.HasPrefix(file.Name(), "id_") && !strings.HasSuffix(file.Name(), ".pub") {
+				keyPath := filepath.Join(sshDir, file.Name())
+				fmt.Printf("  Testing key: %s\n", file.Name())
+
+				cmd := exec.Command("ssh", "-T", "git@github.com", "-i", keyPath, "-o", "IdentitiesOnly=yes")
+				output, _ := cmd.CombinedOutput()
+
+				if strings.Contains(string(output), "successfully authenticated") {
+					lines := strings.Split(string(output), "\n")
+					for _, line := range lines {
+						if strings.Contains(line, "Hi") && strings.Contains(line, "!") {
+							fmt.Printf("    ✅ %s\n", strings.TrimSpace(line))
+							break
+						}
+					}
+				} else {
+					fmt.Printf("    ❌ Authentication failed\n")
+				}
+			}
+		}
 	}
 
 	return nil

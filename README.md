@@ -27,13 +27,17 @@ Managing multiple GitHub accounts (personal, work, client projects) is a **daily
 
 **GitPersona** provides **zero-effort** GitHub identity management with revolutionary automation, intelligent diagnostics, and beautiful CLI experience.
 
-### 🆕 **Latest Enhancements (v2.0)**
+### 🆕 **Latest Enhancements (v2.1)**
 
 - **🔍 Intelligent Diagnostics**: Comprehensive system health checks
 - **🛠️ Auto-Repair**: Automatic fixing of SSH and Git configuration issues
 - **🔐 Advanced SSH Management**: Smart conflict detection and resolution
 - **🧬 Deep Validation**: Proactive issue detection before problems occur
 - **⚡ Enhanced Performance**: Optimized account switching and validation
+- **🔑 SSH Agent Isolation**: Prevents multiple key conflicts by ensuring only one key is active
+- **📋 SSH Config Management**: Automatic generation and validation of SSH host configurations
+- **🔍 Enhanced Key Validation**: Comprehensive SSH key testing and conflict detection
+- **🌐 Multi-Account Support**: Improved support for multiple GitHub accounts with proper key isolation
 
 ---
 
@@ -123,6 +127,21 @@ gitpersona ssh-agent --clear
 # Load specific SSH key
 gitpersona ssh-agent --load ~/.ssh/id_ed25519_work
 
+# Diagnose SSH authentication issues
+gitpersona ssh-keys diagnose
+
+# List all available SSH keys
+gitpersona ssh-keys list
+
+# Test SSH connection for specific account
+gitpersona ssh-keys test work
+
+# Generate new SSH key for account
+gitpersona ssh-keys generate work
+
+# Setup SSH key for account
+gitpersona ssh-keys setup work
+
 # Validate SSH configuration
 gitpersona validate-ssh
 
@@ -183,6 +202,9 @@ GitPersona automatically detects and resolves common SSH issues:
 - **Duplicate Keys**: Multiple keys authenticating as the same user
 - **Permission Issues**: Incorrect file permissions on SSH keys
 - **Missing Keys**: Generates new keys when needed
+- **SSH Agent Conflicts**: Multiple keys loaded simultaneously causing authentication conflicts
+- **SSH Config Issues**: Missing or misconfigured SSH host entries
+- **Key Isolation**: Ensures only one key is active at a time to prevent conflicts
 
 ### **Smart Account Switching**
 
@@ -258,6 +280,48 @@ export GITPERSONA_SSH_DIR="~/.ssh"
 
 ---
 
+## 🔑 **SSH Key Management Best Practices**
+
+Based on real-world experience with multiple GitHub accounts, GitPersona implements the following best practices:
+
+### **Key Isolation Strategy**
+- **One Key Per Account**: Each GitHub account should have its own unique SSH key
+- **SSH Agent Management**: Only load one key at a time to prevent authentication conflicts
+- **Host-Specific Configurations**: Use SSH config host aliases for different accounts
+
+### **SSH Config Best Practices**
+```bash
+# Example SSH config for multiple accounts
+Host github-work
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_ed25519_work
+    IdentitiesOnly yes
+    UseKeychain yes
+
+Host github-personal
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_ed25519_personal
+    IdentitiesOnly yes
+    UseKeychain yes
+```
+
+### **Common Issues and Solutions**
+- **Multiple Keys in Agent**: Clear SSH agent and load only the required key
+- **Wrong Account Authentication**: Verify key ownership and GitHub account association
+- **SSH Config Missing**: Generate proper SSH config with host aliases
+- **Permission Issues**: Ensure SSH keys have correct permissions (600)
+
+### **Automated Conflict Resolution**
+GitPersona automatically:
+- Detects multiple keys authenticating as the same account
+- Identifies SSH agent conflicts
+- Validates SSH config completeness
+- Provides specific recommendations for fixes
+
+---
+
 ## 🚨 **Troubleshooting**
 
 ### **Common Issues & Solutions**
@@ -274,6 +338,46 @@ gitpersona diagnose --fix
 # Test SSH connection manually
 ssh -T git@github.com -i ~/.ssh/id_ed25519_account
 ```
+
+#### **SSH Socket Directory Issues**
+
+If you encounter errors like `unix_listener: cannot bind to path /Users/username/.ssh/socket/git@github.com-22.XXXXX: No such file or directory`:
+
+```bash
+# Create SSH socket directories manually
+mkdir -p ~/.ssh/socket ~/.ssh/sockets ~/.ssh/control
+chmod 700 ~/.ssh/socket ~/.ssh/sockets ~/.ssh/control
+
+# Or let GitPersona fix it automatically
+gitpersona diagnose --fix
+
+# Verify the directories exist
+ls -la ~/.ssh/socket/
+```
+
+**Note**: GitPersona now automatically creates these directories when needed, but manual creation may be required in some cases.
+
+#### **SSH Key Validation Issues**
+
+If SSH validation fails with "Permission denied (publickey)":
+
+```bash
+# Check which SSH key is actually working
+ssh -T git@github.com -i ~/.ssh/id_ed25519_account
+ssh -T git@github.com -i ~/.ssh/id_rsa_account
+
+# Update account configuration to use the correct key
+gitpersona add-github username --ssh-key ~/.ssh/id_ed25519_account
+
+# Or manually edit the config file
+# Update ssh_key_path in ~/.config/gitpersona/config.yaml
+```
+
+**Common causes**:
+- SSH key not added to GitHub account
+- Wrong SSH key configured for the account
+- SSH key file permissions incorrect (should be 600)
+- Multiple keys causing authentication conflicts
 
 #### **Account Switch Failures**
 

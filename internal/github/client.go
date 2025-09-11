@@ -2,9 +2,8 @@ package github
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"os"
@@ -244,7 +243,7 @@ func (c *Client) promptForEmail(username string) string {
 	return defaultEmail
 }
 
-// generateSSHKey generates a new SSH key pair
+// generateSSHKey generates a new SSH key pair or finds existing working key
 func (c *Client) generateSSHKey(alias, email string) (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -256,8 +255,14 @@ func (c *Client) generateSSHKey(alias, email string) (string, error) {
 		return "", err
 	}
 
-	// Generate key file names
-	keyName := fmt.Sprintf("id_rsa_%s", alias)
+	// First, try to find existing SSH keys that work with GitHub
+	if existingKey := c.findExistingWorkingSSHKey(alias, email); existingKey != "" {
+		fmt.Printf("🔑 Found existing working SSH key: %s\n", existingKey)
+		return existingKey, nil
+	}
+
+	// Generate key file names - prefer ED25519 over RSA
+	keyName := fmt.Sprintf("id_ed25519_%s", alias)
 	privateKeyPath := filepath.Join(sshDir, keyName)
 	publicKeyPath := privateKeyPath + ".pub"
 
@@ -267,37 +272,31 @@ func (c *Client) generateSSHKey(alias, email string) (string, error) {
 		return privateKeyPath, nil
 	}
 
-	// Generate RSA key pair
-	privateKey, err := rsa.GenerateKey(rand.Reader, 4096)
+	// Generate ED25519 key pair (preferred in 2025)
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate RSA key: %w", err)
+		return "", fmt.Errorf("failed to generate ED25519 key: %w", err)
 	}
 
-	// Save private key
-	privateKeyFile, err := os.OpenFile(privateKeyPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	// Convert to SSH format
+	sshPublicKey, err := ssh.NewPublicKey(publicKey)
 	if err != nil {
-		return "", fmt.Errorf("failed to create private key file: %w", err)
-	}
-	defer privateKeyFile.Close()
-
-	privateKeyPEM := &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
+		return "", fmt.Errorf("failed to create SSH public key: %w", err)
 	}
 
-	if err := pem.Encode(privateKeyFile, privateKeyPEM); err != nil {
+	// Save private key in OpenSSH format
+	opensshPrivateKey, err := ssh.MarshalPrivateKey(privateKey, "")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal private key: %w", err)
+	}
+
+	if err := os.WriteFile(privateKeyPath, pem.EncodeToMemory(opensshPrivateKey), 0600); err != nil {
 		return "", fmt.Errorf("failed to write private key: %w", err)
-	}
-
-	// Generate public key
-	publicKey, err := ssh.NewPublicKey(&privateKey.PublicKey)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate public key: %w", err)
 	}
 
 	// Save public key
 	publicKeyData := fmt.Sprintf("%s %s\n",
-		strings.TrimSpace(string(ssh.MarshalAuthorizedKey(publicKey))),
+		strings.TrimSpace(string(ssh.MarshalAuthorizedKey(sshPublicKey))),
 		email)
 
 	if err := os.WriteFile(publicKeyPath, []byte(publicKeyData), 0644); err != nil {
@@ -543,4 +542,49 @@ func (c *Client) UploadSSHKeyToGitHub(keyPath, title string) error {
 
 	fmt.Printf("✅ SSH key automatically uploaded to GitHub!\n")
 	return nil
+}
+
+// findExistingWorkingSSHKey searches for existing SSH keys that work with GitHub
+func (c *Client) findExistingWorkingSSHKey(alias, email string) string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+
+	sshDir := filepath.Join(homeDir, ".ssh")
+
+	// Common SSH key patterns to check
+	keyPatterns := []string{
+		fmt.Sprintf("id_ed25519_%s", alias),
+		fmt.Sprintf("id_rsa_%s", alias),
+		fmt.Sprintf("id_ed25519_%s", strings.Split(email, "@")[0]), // email prefix
+		fmt.Sprintf("id_rsa_%s", strings.Split(email, "@")[0]),
+		"id_ed25519_costaar7", // specific to this case
+		"id_rsa_costaar7",
+	}
+
+	// Test each potential key
+	for _, pattern := range keyPatterns {
+		keyPath := filepath.Join(sshDir, pattern)
+		if _, err := os.Stat(keyPath); err == nil {
+			// Test if this key works with GitHub
+			if c.testSSHKeyWithGitHub(keyPath) {
+				return keyPath
+			}
+		}
+	}
+
+	return ""
+}
+
+// testSSHKeyWithGitHub tests if an SSH key works with GitHub
+func (c *Client) testSSHKeyWithGitHub(keyPath string) bool {
+	cmd := exec.Command("ssh", "-T", "-i", keyPath, "-o", "IdentitiesOnly=yes", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=5", "git@github.com")
+	output, _ := cmd.CombinedOutput()
+
+	outputStr := strings.TrimSpace(string(output))
+
+	// SSH returns exit code 1 even for successful authentication (GitHub doesn't provide shell access)
+	// So we check the output content instead of the error
+	return strings.Contains(outputStr, "successfully authenticated") || strings.Contains(outputStr, "Hi ")
 }

@@ -7,7 +7,6 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/google/go-github/v57 v57.0.0
-	github.com/lmittmann/tint v1.1.2
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/viper v1.20.1
 	golang.org/x/crypto v0.41.0

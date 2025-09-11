@@ -305,6 +305,16 @@ type SystemIssue struct {
 	Fixed       bool   `json:"fixed"`
 }
 
+// GitService handles Git repository operations
+type GitService interface {
+	// Repository validation
+	ValidateRepositoryExists(ctx context.Context, repoURL string) error
+
+	// Remote URL management
+	GetRemoteURL(ctx context.Context, remote string) (string, error)
+	SetRemoteURL(ctx context.Context, remote, url string) error
+}
+
 // SSHAgentService manages SSH agent operations
 type SSHAgentService interface {
 	// Agent management
@@ -320,7 +330,14 @@ type SSHAgentService interface {
 
 	// Account-specific operations
 	SwitchToAccount(ctx context.Context, keyPath string) error
+	SwitchToAccountWithCleanup(ctx context.Context, keyPath string) error
 	IsolateAccount(ctx context.Context, keyPath string) error
+
+	// Socket cleanup operations
+	CleanupSSHSockets(ctx context.Context) error
+
+	// SSH validation operations
+	ValidateSSHConnectionWithRetry(ctx context.Context, keyPath string) error
 
 	// Status and diagnostics
 	GetAgentStatus(ctx context.Context) (*SSHAgentStatus, error)

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/techishthoughts/GitPersona/internal/commands"
@@ -145,21 +146,33 @@ func (c *SwitchCommand) validateCurrentAccount(ctx context.Context, configServic
 
 // validateAccountSSH validates the SSH configuration for an account
 func (c *SwitchCommand) validateAccountSSH(ctx context.Context, account *models.Account) error {
-	// Get SSH service from container
+	// Get SSH agent service from container
 	container := c.GetContainer()
-	sshService := container.GetSSHService()
+	sshAgentService := container.GetSSHAgentService()
 
-	if sshService == nil {
-		c.PrintWarning(ctx, "SSH service not available, skipping validation")
+	if sshAgentService == nil {
+		c.PrintWarning(ctx, "SSH agent service not available, skipping validation")
 		return nil
 	}
 
-	// Validate SSH configuration using proper interface
-	_, err := sshService.ValidateConfiguration(ctx)
-	if err != nil {
+	// If no SSH key is configured, skip validation
+	if account.SSHKeyPath == "" {
+		c.PrintInfo(ctx, "No SSH key configured for account, skipping validation")
+		return nil
+	}
+
+	// Use the ValidateSSHConnectionWithRetry method from SSH agent service
+	c.PrintInfo(ctx, "Validating SSH connection with retry mechanism...",
+		observability.F("ssh_key", account.SSHKeyPath),
+	)
+
+	if err := sshAgentService.ValidateSSHConnectionWithRetry(ctx, account.SSHKeyPath); err != nil {
 		return fmt.Errorf("SSH validation failed: %w", err)
 	}
 
+	c.PrintSuccess(ctx, "SSH validation successful",
+		observability.F("ssh_key", account.SSHKeyPath),
+	)
 	return nil
 }
 
@@ -210,10 +223,28 @@ func (c *SwitchCommand) manageSSHAgent(ctx context.Context, account *models.Acco
 		observability.F("ssh_key", account.SSHKeyPath),
 	)
 
-	// Switch to the account's SSH key (this will clear other keys and load only this one)
-	if err := sshAgentService.SwitchToAccount(ctx, account.SSHKeyPath); err != nil {
-		return fmt.Errorf("failed to switch SSH agent to account key: %w", err)
+	// Switch to the account's SSH key with socket cleanup (this will clear other keys and load only this one)
+	if err := sshAgentService.SwitchToAccountWithCleanup(ctx, account.SSHKeyPath); err != nil {
+		c.PrintWarning(ctx, "SSH agent switch encountered an issue",
+			observability.F("error", err.Error()),
+			observability.F("ssh_key", account.SSHKeyPath),
+		)
+
+		// Provide helpful error message based on error type
+		if strings.Contains(err.Error(), "socket") {
+			c.PrintInfo(ctx, "💡 Try running: gitpersona ssh-agent --cleanup")
+		} else if strings.Contains(err.Error(), "permission") {
+			c.PrintInfo(ctx, "💡 Check SSH key permissions: chmod 600 "+account.SSHKeyPath)
+		} else if strings.Contains(err.Error(), "not found") {
+			c.PrintInfo(ctx, "💡 SSH key file not found: "+account.SSHKeyPath)
+		}
+
+		// Don't fail the entire switch - SSH agent issues shouldn't block the account switch
+		c.PrintInfo(ctx, "Continuing with account switch despite SSH agent issue")
+		return nil
 	}
+
+	// Note: SSH validation is now handled in validateAccountSSH before the switch
 
 	c.PrintSuccess(ctx, "SSH agent configured for account",
 		observability.F("ssh_key", account.SSHKeyPath),
@@ -256,11 +287,16 @@ func (c *SwitchCommand) Run(ctx context.Context, args []string) error {
 	if !c.skipValidation {
 		if err := c.validateAccountSSH(ctx, targetAccount); err != nil {
 			if c.force {
-				c.PrintWarning(ctx, "SSH validation failed, but forcing switch",
+				c.PrintWarning(ctx, "SSH validation failed, but forcing switch due to --force flag",
 					observability.F("account", targetAlias),
 					observability.F("error", err.Error()),
 				)
+				c.PrintInfo(ctx, "⚠️  Warning: Proceeding with switch despite validation failure")
 			} else {
+				c.PrintError(ctx, "SSH validation failed. Use --force to bypass validation",
+					observability.F("account", targetAlias),
+					observability.F("error", err.Error()),
+				)
 				return errors.SSHValidationFailed(err, map[string]interface{}{
 					"account": targetAlias,
 					"command": "switch",
@@ -364,15 +400,30 @@ Examples:
 )
 
 func init() {
-	// Use the new command architecture
-	newSwitchCmd := NewSwitchCommand().CreateCobraCommand()
-	rootCmd.AddCommand(newSwitchCmd)
+	// Add flags to the command
+	switchCmd.Flags().BoolP("validate", "V", false, "Only validate current account without switching")
+	switchCmd.Flags().BoolP("skip-validation", "s", false, "Skip SSH validation (not recommended)")
+	switchCmd.Flags().BoolP("force", "f", false, "Force switch even if validation fails")
+
+	rootCmd.AddCommand(switchCmd)
 }
 
-// runSwitch runs the switch command
+// runSwitch runs the switch command using the service-oriented approach
 func runSwitch(cmd *cobra.Command, args []string) error {
-	// Create and run the switch command
+	// Create a new switch command instance
 	switchCmd := NewSwitchCommand()
+
+	// Get flag values and set them
+	switchCmd.validateOnly, _ = cmd.Flags().GetBool("validate")
+	switchCmd.skipValidation, _ = cmd.Flags().GetBool("skip-validation")
+	switchCmd.force, _ = cmd.Flags().GetBool("force")
+
+	// Validate arguments
+	if err := switchCmd.Validate(args); err != nil {
+		return err
+	}
+
+	// Execute using the service-oriented implementation
 	ctx := context.Background()
-	return switchCmd.Execute(ctx, args)
+	return switchCmd.Run(ctx, args)
 }

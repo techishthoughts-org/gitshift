@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -167,6 +169,14 @@ func (v *SSHKeyValidator) checkKeyExistence(ctx context.Context, result *SSHKeyV
 
 // testGitHubAuthentication tests GitHub authentication with the SSH key
 func (v *SSHKeyValidator) testGitHubAuthentication(ctx context.Context, result *SSHKeyValidationResult) error {
+	// Ensure SSH socket directories exist before testing
+	if err := v.ensureSSHSocketDirectories(ctx); err != nil {
+		v.logger.Warn(ctx, "failed_to_ensure_ssh_socket_directories",
+			observability.F("error", err.Error()),
+		)
+		// Continue with the test even if socket directory creation fails
+	}
+
 	// Test authentication with the specific key
 	out, err := v.runner.CombinedOutput(ctx, "ssh", "-T", "git@github.com", "-i", result.KeyPath, "-o", "IdentitiesOnly=yes", "-o", "StrictHostKeyChecking=no")
 
@@ -221,8 +231,15 @@ func (v *SSHKeyValidator) detectKeyConflicts(ctx context.Context, result *SSHKey
 		return nil
 	}
 
+	// Get SSH directory path dynamically
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+	sshDir := filepath.Join(homeDir, ".ssh")
+
 	// Get all SSH keys in the .ssh directory
-	out, err := v.runner.CombinedOutput(ctx, "find", "/Users/arthurcosta/.ssh", "-name", "id_*", "-type", "f", "!", "-name", "*.pub")
+	out, err := v.runner.CombinedOutput(ctx, "find", sshDir, "-name", "id_*", "-type", "f", "!", "-name", "*.pub")
 	if err != nil {
 		return err
 	}
@@ -261,7 +278,45 @@ func (v *SSHKeyValidator) detectKeyConflicts(ctx context.Context, result *SSHKey
 		}
 	}
 
+	// Check for SSH agent conflicts
+	v.detectSSHAgentConflicts(ctx, result)
+
 	return nil
+}
+
+// detectSSHAgentConflicts detects conflicts in the SSH agent
+func (v *SSHKeyValidator) detectSSHAgentConflicts(ctx context.Context, result *SSHKeyValidationResult) {
+	// Check SSH agent status
+	out, err := v.runner.CombinedOutput(ctx, "ssh-add", "-l")
+	if err != nil {
+		// SSH agent not running or no keys loaded
+		return
+	}
+
+	output := string(out)
+	if strings.Contains(output, "The agent has no identities") {
+		return
+	}
+
+	// Count loaded keys
+	lines := strings.Split(output, "\n")
+	keyCount := 0
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" && !strings.Contains(line, "The agent has no identities") {
+			keyCount++
+		}
+	}
+
+	if keyCount > 1 {
+		result.Conflicts = append(result.Conflicts, SSHKeyConflict{
+			Type:               "multiple_keys_in_agent",
+			Description:        fmt.Sprintf("SSH agent has %d keys loaded, which can cause authentication conflicts", keyCount),
+			ConflictingKeyPath: "",
+			ConflictingAccount: "",
+			Severity:           "medium",
+			Resolution:         "Clear SSH agent and load only the required key for the current account",
+		})
+	}
 }
 
 // generateRecommendations generates recommendations based on validation results
@@ -381,4 +436,39 @@ func (v *SSHKeyValidator) ValidateAllAccountKeys(ctx context.Context, accounts m
 	}
 
 	return results, nil
+}
+
+// ensureSSHSocketDirectories ensures that SSH socket directories exist
+func (v *SSHKeyValidator) ensureSSHSocketDirectories(ctx context.Context) error {
+	v.logger.Info(ctx, "ensuring_ssh_socket_directories")
+
+	// Get home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	// Common SSH socket directories
+	socketDirs := []string{
+		filepath.Join(homeDir, ".ssh", "socket"),
+		filepath.Join(homeDir, ".ssh", "sockets"),
+		filepath.Join(homeDir, ".ssh", "control"),
+	}
+
+	// Ensure each socket directory exists
+	for _, socketDir := range socketDirs {
+		if err := os.MkdirAll(socketDir, 0700); err != nil {
+			v.logger.Warn(ctx, "failed_to_create_socket_directory",
+				observability.F("path", socketDir),
+				observability.F("error", err.Error()),
+			)
+			return fmt.Errorf("failed to create socket directory %s: %w", socketDir, err)
+		}
+		v.logger.Info(ctx, "socket_directory_ensured",
+			observability.F("path", socketDir),
+		)
+	}
+
+	v.logger.Info(ctx, "ssh_socket_directories_ensured")
+	return nil
 }
