@@ -10,10 +10,11 @@
 
 ---
 
-## 💡 **The Problem**
+## 🎯 **What is GitPersona?**
 
-Managing multiple GitHub accounts (personal, work, client projects) is a **daily pain point** for developers:
+GitPersona solves the daily pain of managing multiple GitHub accounts (personal, work, client projects) with **zero-effort automation** and **intelligent diagnostics**.
 
+### **The Problem We Solve**
 - 🔄 **Constant switching** between different Git configurations
 - 🔑 **SSH key management** across multiple accounts
 - 😤 **Forgotten commits** with wrong email/name
@@ -23,21 +24,13 @@ Managing multiple GitHub accounts (personal, work, client projects) is a **daily
 - 🔍 **Difficult troubleshooting** when things break
 - 🚫 **SSH key conflicts** and authentication failures
 
-## 🎯 **The Solution**
-
-**GitPersona** provides **zero-effort** GitHub identity management with revolutionary automation, intelligent diagnostics, and beautiful CLI experience.
-
-### 🆕 **Latest Enhancements (v2.1)**
-
-- **🔍 Intelligent Diagnostics**: Comprehensive system health checks
-- **🛠️ Auto-Repair**: Automatic fixing of SSH and Git configuration issues
-- **🔐 Advanced SSH Management**: Smart conflict detection and resolution
-- **🧬 Deep Validation**: Proactive issue detection before problems occur
-- **⚡ Enhanced Performance**: Optimized account switching and validation
-- **🔑 SSH Agent Isolation**: Prevents multiple key conflicts by ensuring only one key is active
-- **📋 SSH Config Management**: Automatic generation and validation of SSH host configurations
-- **🔍 Enhanced Key Validation**: Comprehensive SSH key testing and conflict detection
-- **🌐 Multi-Account Support**: Improved support for multiple GitHub accounts with proper key isolation
+### **Our Solution**
+**GitPersona** provides **revolutionary automation** with:
+- 🧠 **Intelligent Diagnostics** - Proactive issue detection and auto-repair
+- 🔐 **Advanced SSH Management** - Smart conflict detection and resolution
+- ⚡ **Lightning-Fast Switching** - Sub-second account transitions
+- 🛡️ **Enterprise Security** - Cryptographic best practices and validation
+- 🎨 **Beautiful CLI** - Intuitive commands with rich feedback
 
 ---
 
@@ -46,11 +39,9 @@ Managing multiple GitHub accounts (personal, work, client projects) is a **daily
 ### **Installation**
 
 ```bash
-# Clone the repository
+# Clone and build
 git clone https://github.com/techishthoughts/GitPersona.git
 cd GitPersona
-
-# Build the binary
 go build -o gitpersona
 
 # Install system-wide (optional)
@@ -60,25 +51,26 @@ sudo mv gitpersona /usr/local/bin/
 ### **First-Time Setup**
 
 ```bash
-# Run comprehensive system check
+# 1. Run comprehensive system check
 gitpersona diagnose --verbose
 
-# Add your first GitHub account (fully automated)
+# 2. Add your first GitHub account (fully automated)
 gitpersona add-github yourusername --email "your@email.com" --name "Your Name"
 
-# Switch to the account
+# 3. Switch to the account
 gitpersona switch yourusername
 
-# Verify everything is working
+# 4. Verify everything is working
 gitpersona status
 ```
+
+**That's it!** 🎉 Your GitHub identity management is now fully automated.
 
 ---
 
 ## 📚 **Core Commands**
 
 ### **Account Management**
-
 ```bash
 # Add GitHub account with automated setup
 gitpersona add-github username --email "user@example.com" --name "Full Name"
@@ -86,7 +78,7 @@ gitpersona add-github username --email "user@example.com" --name "Full Name"
 # List all configured accounts
 gitpersona list
 
-# Switch between accounts
+# Switch between accounts (with automatic GITHUB_TOKEN management)
 gitpersona switch work
 gitpersona switch personal
 
@@ -97,8 +89,7 @@ gitpersona remove oldaccount
 gitpersona status
 ```
 
-### **🆕 Diagnostic & Health Commands**
-
+### **Diagnostics & Health**
 ```bash
 # Comprehensive system diagnostics
 gitpersona diagnose
@@ -116,7 +107,6 @@ gitpersona diagnose --git-only
 ```
 
 ### **SSH Management**
-
 ```bash
 # Check SSH agent status
 gitpersona ssh-agent --status
@@ -138,22 +128,13 @@ gitpersona ssh-keys test work
 
 # Generate new SSH key for account
 gitpersona ssh-keys generate work
-
-# Setup SSH key for account
-gitpersona ssh-keys setup work
-
-# Validate SSH configuration
-gitpersona validate-ssh
-
-# Validate Git configuration
-gitpersona validate-git
 ```
 
 ---
 
 ## 🔍 **Intelligent Diagnostics**
 
-GitPersona now includes a comprehensive diagnostic system that proactively identifies and fixes issues:
+GitPersona includes a comprehensive diagnostic system that proactively identifies and fixes issues:
 
 ### **Health Check Categories**
 
@@ -192,21 +173,31 @@ $ gitpersona diagnose --verbose
 
 ---
 
-## 🛠️ **Advanced Features**
+## 🆕 **Latest Features**
 
-### **SSH Key Conflict Resolution**
+### **Zsh Secrets Integration**
+GitPersona automatically manages your `GITHUB_TOKEN` in your `zsh_secrets` file when switching accounts:
 
-GitPersona automatically detects and resolves common SSH issues:
+```bash
+# The switch command automatically updates your zsh_secrets file
+gitpersona switch work
 
-- **Wrong Account Authentication**: Keys linked to incorrect GitHub accounts
-- **Duplicate Keys**: Multiple keys authenticating as the same user
-- **Permission Issues**: Incorrect file permissions on SSH keys
-- **Missing Keys**: Generates new keys when needed
-- **SSH Agent Conflicts**: Multiple keys loaded simultaneously causing authentication conflicts
-- **SSH Config Issues**: Missing or misconfigured SSH host entries
-- **Key Isolation**: Ensures only one key is active at a time to prevent conflicts
+# This updates the GITHUB_TOKEN in ~/.zsh_secrets
+# export GITHUB_TOKEN="ghp_your_token_here"
+```
+
+**Supported zsh_secrets locations:**
+- `~/.zsh_secrets` (default)
+- `~/.config/zsh_secrets`
+- `~/.secrets/zsh_secrets`
+- `~/.zsh/secrets`
 
 ### **Smart Account Switching**
+The switch command automatically:
+- Updates Git configuration (user.name, user.email)
+- Configures SSH keys for the account
+- **Updates GITHUB_TOKEN in zsh_secrets file**
+- Validates SSH connection to GitHub
 
 ```bash
 # Switch with validation
@@ -219,31 +210,21 @@ gitpersona switch personal --force
 gitpersona switch client --skip-validation
 ```
 
-The switch command automatically:
-- Updates Git configuration (user.name, user.email)
-- Configures SSH keys for the account
-- **Updates GITHUB_TOKEN in zsh_secrets file**
-- Validates SSH connection to GitHub
-
-### **Automated GitHub Integration**
-
-```bash
-# Automatically add SSH keys to GitHub
-gitpersona add-github newuser --automated-ssh
-
-# Generate and upload new SSH key
-gitpersona ssh-keys generate --upload-to-github
-
-# Validate SSH key ownership
-gitpersona ssh-keys validate --account thukabjj
-```
+### **SSH Key Conflict Resolution**
+GitPersona automatically detects and resolves common SSH issues:
+- **Wrong Account Authentication**: Keys linked to incorrect GitHub accounts
+- **Duplicate Keys**: Multiple keys authenticating as the same user
+- **Permission Issues**: Incorrect file permissions on SSH keys
+- **Missing Keys**: Generates new keys when needed
+- **SSH Agent Conflicts**: Multiple keys loaded simultaneously causing authentication conflicts
+- **SSH Config Issues**: Missing or misconfigured SSH host entries
+- **Key Isolation**: Ensures only one key is active at a time to prevent conflicts
 
 ---
 
 ## 🔧 **Configuration**
 
 ### **Configuration File**
-
 GitPersona stores configuration in `~/.config/gitpersona/config.yaml`:
 
 ```yaml
@@ -284,68 +265,6 @@ export GITPERSONA_DEBUG=true
 export GITPERSONA_SSH_DIR="~/.ssh"
 ```
 
-### **Zsh Secrets Integration**
-
-GitPersona automatically manages your `GITHUB_TOKEN` in your `zsh_secrets` file when switching accounts:
-
-```bash
-# The switch command automatically updates your zsh_secrets file
-gitpersona switch work
-
-# This updates the GITHUB_TOKEN in ~/.zsh_secrets
-# export GITHUB_TOKEN="ghp_your_token_here"
-```
-
-**Supported zsh_secrets locations:**
-- `~/.zsh_secrets` (default)
-- `~/.config/zsh_secrets`
-- `~/.secrets/zsh_secrets`
-- `~/.zsh/secrets`
-
-The tool will automatically detect and use your existing zsh_secrets file, or create one at the default location if none exists.
-
----
-
-## 🔑 **SSH Key Management Best Practices**
-
-Based on real-world experience with multiple GitHub accounts, GitPersona implements the following best practices:
-
-### **Key Isolation Strategy**
-- **One Key Per Account**: Each GitHub account should have its own unique SSH key
-- **SSH Agent Management**: Only load one key at a time to prevent authentication conflicts
-- **Host-Specific Configurations**: Use SSH config host aliases for different accounts
-
-### **SSH Config Best Practices**
-```bash
-# Example SSH config for multiple accounts
-Host github-work
-    HostName github.com
-    User git
-    IdentityFile ~/.ssh/id_ed25519_work
-    IdentitiesOnly yes
-    UseKeychain yes
-
-Host github-personal
-    HostName github.com
-    User git
-    IdentityFile ~/.ssh/id_ed25519_personal
-    IdentitiesOnly yes
-    UseKeychain yes
-```
-
-### **Common Issues and Solutions**
-- **Multiple Keys in Agent**: Clear SSH agent and load only the required key
-- **Wrong Account Authentication**: Verify key ownership and GitHub account association
-- **SSH Config Missing**: Generate proper SSH config with host aliases
-- **Permission Issues**: Ensure SSH keys have correct permissions (600)
-
-### **Automated Conflict Resolution**
-GitPersona automatically:
-- Detects multiple keys authenticating as the same account
-- Identifies SSH agent conflicts
-- Validates SSH config completeness
-- Provides specific recommendations for fixes
-
 ---
 
 ## 🚨 **Troubleshooting**
@@ -353,7 +272,6 @@ GitPersona automatically:
 ### **Common Issues & Solutions**
 
 #### **SSH Authentication Failures**
-
 ```bash
 # Diagnose SSH issues
 gitpersona diagnose --ssh-only --verbose
@@ -365,48 +283,7 @@ gitpersona diagnose --fix
 ssh -T git@github.com -i ~/.ssh/id_ed25519_account
 ```
 
-#### **SSH Socket Directory Issues**
-
-If you encounter errors like `unix_listener: cannot bind to path /Users/username/.ssh/socket/git@github.com-22.XXXXX: No such file or directory`:
-
-```bash
-# Create SSH socket directories manually
-mkdir -p ~/.ssh/socket ~/.ssh/sockets ~/.ssh/control
-chmod 700 ~/.ssh/socket ~/.ssh/sockets ~/.ssh/control
-
-# Or let GitPersona fix it automatically
-gitpersona diagnose --fix
-
-# Verify the directories exist
-ls -la ~/.ssh/socket/
-```
-
-**Note**: GitPersona now automatically creates these directories when needed, but manual creation may be required in some cases.
-
-#### **SSH Key Validation Issues**
-
-If SSH validation fails with "Permission denied (publickey)":
-
-```bash
-# Check which SSH key is actually working
-ssh -T git@github.com -i ~/.ssh/id_ed25519_account
-ssh -T git@github.com -i ~/.ssh/id_rsa_account
-
-# Update account configuration to use the correct key
-gitpersona add-github username --ssh-key ~/.ssh/id_ed25519_account
-
-# Or manually edit the config file
-# Update ssh_key_path in ~/.config/gitpersona/config.yaml
-```
-
-**Common causes**:
-- SSH key not added to GitHub account
-- Wrong SSH key configured for the account
-- SSH key file permissions incorrect (should be 600)
-- Multiple keys causing authentication conflicts
-
 #### **Account Switch Failures**
-
 ```bash
 # Force switch with detailed output
 gitpersona switch account --force --verbose
@@ -419,21 +296,7 @@ gitpersona ssh-agent --clear
 gitpersona switch account
 ```
 
-#### **Git Configuration Issues**
-
-```bash
-# Check Git configuration
-gitpersona validate-git --verbose
-
-# Fix Git configuration automatically
-gitpersona diagnose --git-only --fix
-
-# Manual Git configuration check
-git config --global --list
-```
-
-### **Getting Help**
-
+#### **Getting Help**
 ```bash
 # General help
 gitpersona --help
@@ -448,6 +311,17 @@ gitpersona switch account --verbose
 
 ---
 
+## 📖 **Documentation**
+
+- **[📋 User Guide](docs/USER_GUIDE.md)** - Complete user documentation
+- **[🔧 Configuration Guide](docs/CONFIGURATION.md)** - Detailed configuration options
+- **[🚨 Troubleshooting Guide](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[🏗️ Architecture Guide](docs/ARCHITECTURE.md)** - Technical architecture and design
+- **[🤝 Contributing Guide](docs/CONTRIBUTING.md)** - How to contribute to the project
+- **[🔒 Security Guide](docs/SECURITY.md)** - Security best practices and considerations
+
+---
+
 ## 🏗️ **Architecture**
 
 ### **Core Technologies**
@@ -459,20 +333,6 @@ gitpersona switch account --verbose
 | **Configuration** | Viper | Flexible configuration management |
 | **SSH Management** | golang.org/x/crypto | SSH key operations |
 | **GitHub API** | GitHub CLI Integration | GitHub operations |
-
-### **Service Architecture**
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   CLI Commands  │ -> │  Service Layer   │ -> │  Core Services  │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-│                      │                      │
-├─ diagnose           ├─ ConfigService       ├─ SSHKeyValidator
-├─ switch             ├─ AccountService      ├─ GitConfigService
-├─ add-github         ├─ SSHAgentService     ├─ GitHubService
-├─ ssh-agent          ├─ ValidationService   └─ HealthService
-└─ validate-*         └─ DiagnosticService
-```
 
 ### **Key Design Principles**
 
@@ -497,6 +357,8 @@ gitpersona switch account --verbose
 
 ## 🤝 **Contributing**
 
+We welcome contributions! Please see our [Contributing Guide](docs/CONTRIBUTING.md) for details.
+
 ### **Development Setup**
 
 ```bash
@@ -514,43 +376,11 @@ go test ./...
 go build -o gitpersona-dev
 ```
 
-### **Testing**
-
-```bash
-# Run all tests
-go test ./...
-
-# Run with coverage
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out
-
-# Run specific test suites
-go test ./internal/services/...
-go test ./cmd/...
-```
-
-### **Adding New Features**
-
-1. **Create Service**: Add new service in `internal/services/`
-2. **Add Command**: Create command in `cmd/`
-3. **Register**: Update service container in `internal/container/`
-4. **Test**: Add comprehensive tests
-5. **Document**: Update README and examples
-
 ---
 
 ## 📄 **License**
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 **Acknowledgments**
-
-- **[Cobra](https://github.com/spf13/cobra)** - Excellent CLI framework
-- **[GitHub CLI](https://cli.github.com/)** - GitHub integration
-- **Go Community** - Outstanding ecosystem and tools
-- **Contributors** - Thank you for making GitPersona better
 
 ---
 
