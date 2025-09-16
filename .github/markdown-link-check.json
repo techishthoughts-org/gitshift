@@ -1,0 +1,43 @@
+{
+  "ignorePatterns": [
+    {
+      "pattern": "^https://github.com/techishthoughts/GitPersona"
+    },
+    {
+      "pattern": "^https://github.com/techishthoughts/GitPersona/issues"
+    },
+    {
+      "pattern": "^https://github.com/techishthoughts/GitPersona/discussions"
+    },
+    {
+      "pattern": "^https://github.com/techishthoughts/GitPersona/releases"
+    },
+    {
+      "pattern": "^https://github.com/techishthoughts/GitPersona/wiki"
+    },
+    {
+      "pattern": "^mailto:"
+    },
+    {
+      "pattern": "^#"
+    }
+  ],
+  "replacementPatterns": [
+    {
+      "pattern": "^/",
+      "replacement": "https://github.com/techishthoughts/GitPersona/blob/main/"
+    }
+  ],
+  "httpHeaders": [
+    {
+      "urls": ["https://github.com"],
+      "headers": {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      }
+    }
+  ],
+  "timeout": "20s",
+  "retryOn429": true,
+  "retryCount": 3,
+  "fallbackRetryDelay": "1000ms"
+}

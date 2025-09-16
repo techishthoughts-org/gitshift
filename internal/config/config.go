@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/spf13/viper"
@@ -19,6 +20,7 @@ const (
 type Manager struct {
 	configPath string
 	config     *models.Config
+	mu         sync.RWMutex
 }
 
 // NewManager creates a new configuration manager
@@ -116,6 +118,9 @@ func (m *Manager) AddAccount(account *models.Account) error {
 		return err
 	}
 
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if _, exists := m.config.Accounts[account.Alias]; exists {
 		return models.ErrAccountExists
 	}
@@ -132,6 +137,9 @@ func (m *Manager) AddAccount(account *models.Account) error {
 
 // RemoveAccount removes an account from the configuration
 func (m *Manager) RemoveAccount(alias string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	account, exists := m.config.Accounts[alias]
 	if !exists {
 		return models.ErrAccountNotFound
@@ -159,6 +167,9 @@ func (m *Manager) RemoveAccount(alias string) error {
 
 // GetAccount returns an account by alias
 func (m *Manager) GetAccount(alias string) (*models.Account, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	account, exists := m.config.Accounts[alias]
 	if !exists {
 		return nil, models.ErrAccountNotFound
@@ -168,6 +179,9 @@ func (m *Manager) GetAccount(alias string) (*models.Account, error) {
 
 // ListAccounts returns all accounts
 func (m *Manager) ListAccounts() []*models.Account {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	accounts := make([]*models.Account, 0, len(m.config.Accounts))
 	for _, account := range m.config.Accounts {
 		accounts = append(accounts, account)

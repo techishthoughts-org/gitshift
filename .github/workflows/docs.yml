@@ -1,0 +1,183 @@
+name: 📚 Documentation & Website
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.23'
+
+jobs:
+  # 📚 Documentation Validation
+  docs-validation:
+    name: 📚 Validate Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🔍 Check Markdown Links
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
+      with:
+        use-quiet-mode: 'yes'
+        use-verbose-mode: 'yes'
+        config-file: '.github/markdown-link-check.json'
+        folder-path: 'docs/'
+
+    - name: 📝 Check Documentation Structure
+      run: |
+        echo "Validating documentation structure..."
+
+        # Check if all required docs exist
+        required_docs=("README.md" "docs/USER_GUIDE.md" "docs/CONFIGURATION.md" "docs/TROUBLESHOOTING.md" "docs/ARCHITECTURE.md" "docs/SECURITY.md" "docs/CONTRIBUTING.md")
+
+        for doc in "${required_docs[@]}"; do
+          if [ -f "$doc" ]; then
+            echo "✅ $doc exists"
+          else
+            echo "❌ $doc missing"
+            exit 1
+          fi
+        done
+
+        echo "✅ All required documentation files present"
+
+    - name: 📊 Documentation Metrics
+      run: |
+        echo "## 📚 Documentation Metrics" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        # Count documentation files
+        DOC_COUNT=$(find docs/ -name "*.md" | wc -l)
+        echo "**Documentation Files**: $DOC_COUNT" >> $GITHUB_STEP_SUMMARY
+
+        # Count total lines in documentation
+        DOC_LINES=$(find docs/ -name "*.md" -exec wc -l {} + | tail -1 | awk '{print $1}')
+        echo "**Total Documentation Lines**: $DOC_LINES" >> $GITHUB_STEP_SUMMARY
+
+        # Count README lines
+        README_LINES=$(wc -l < README.md)
+        echo "**README Lines**: $README_LINES" >> $GITHUB_STEP_SUMMARY
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📋 Documentation Coverage" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ User Guide" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Configuration Guide" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Troubleshooting Guide" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Architecture Guide" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Security Guide" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Contributing Guide" >> $GITHUB_STEP_SUMMARY
+
+  # 🌐 Website Deployment (if using GitHub Pages)
+  website-deploy:
+    name: 🌐 Deploy Documentation Website
+    runs-on: ubuntu-latest
+    needs: docs-validation
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🐹 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: 📚 Generate Documentation Site
+      run: |
+        echo "Generating documentation website..."
+
+        # Create site directory
+        mkdir -p site
+
+        # Copy documentation files
+        cp -r docs/ site/
+        cp README.md site/
+
+        # Create index.html from README.md
+        echo "Converting README.md to index.html..."
+        # Note: In a real implementation, you'd use a markdown to HTML converter
+        # For now, we'll create a simple index
+        cat > site/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>GitPersona Documentation</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+                h1 { color: #2c3e50; }
+                h2 { color: #34495e; }
+                .nav { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; }
+                .nav a { display: block; margin: 10px 0; color: #007bff; text-decoration: none; }
+                .nav a:hover { text-decoration: underline; }
+            </style>
+        </head>
+        <body>
+            <h1>🎭 GitPersona Documentation</h1>
+            <p>Welcome to the GitPersona documentation. Choose a guide to get started:</p>
+
+            <div class="nav">
+                <h2>📚 Documentation</h2>
+                <a href="USER_GUIDE.md">📋 User Guide</a>
+                <a href="CONFIGURATION.md">⚙️ Configuration Guide</a>
+                <a href="TROUBLESHOOTING.md">🚨 Troubleshooting Guide</a>
+                <a href="ARCHITECTURE.md">🏗️ Architecture Guide</a>
+                <a href="SECURITY.md">🔒 Security Guide</a>
+                <a href="CONTRIBUTING.md">🤝 Contributing Guide</a>
+            </div>
+
+            <p><strong>Quick Start:</strong> <a href="USER_GUIDE.md">Get started with GitPersona</a></p>
+        </body>
+        </html>
+        EOF
+
+    - name: 🚀 Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      if: github.ref == 'refs/heads/main'
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./site
+        cname: # Add your custom domain here if you have one
+
+  # 📊 Documentation Analytics
+  docs-analytics:
+    name: 📊 Documentation Analytics
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 📊 Generate Documentation Analytics
+      run: |
+        echo "## 📊 Documentation Analytics" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        # Count documentation files by type
+        echo "### 📁 Documentation Structure" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        for file in docs/*.md; do
+          if [ -f "$file" ]; then
+            filename=$(basename "$file" .md)
+            lines=$(wc -l < "$file")
+            size=$(du -h "$file" | cut -f1)
+            echo "- **$filename**: $lines lines, $size" >> $GITHUB_STEP_SUMMARY
+          fi
+        done
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📈 Documentation Health" >> $GITHUB_STEP_SUMMARY
+        echo "- **Total Files**: $(find docs/ -name "*.md" | wc -l)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Total Size**: $(du -sh docs/ | cut -f1)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Last Updated**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,168 @@
+name: 🔄 Dependency Updates
+
+on:
+  schedule:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    inputs:
+      update_type:
+        description: 'Type of update to perform'
+        required: true
+        default: 'minor'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+env:
+  GO_VERSION: '1.23'
+
+jobs:
+  # 🔍 Check for Updates
+  check-updates:
+    name: 🔍 Check for Dependency Updates
+    runs-on: ubuntu-latest
+    outputs:
+      has-updates: ${{ steps.check.outputs.has-updates }}
+      update-summary: ${{ steps.check.outputs.update-summary }}
+
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🐹 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: 🔍 Check for Updates
+      id: check
+      run: |
+        echo "Checking for dependency updates..."
+
+        # Get current dependencies
+        go list -m -u all > current_deps.txt
+
+        # Check for updates
+        UPDATES=$(go list -m -u all | grep '\[u\]' || true)
+
+        if [ -n "$UPDATES" ]; then
+          echo "has-updates=true" >> $GITHUB_OUTPUT
+          echo "update-summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$UPDATES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "Found dependency updates:"
+          echo "$UPDATES"
+        else
+          echo "has-updates=false" >> $GITHUB_OUTPUT
+          echo "No dependency updates found"
+        fi
+
+  # 📝 Create Issue
+  create-issue:
+    name: 📝 Create Update Issue
+    needs: check-updates
+    if: needs.check-updates.outputs.has-updates == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+    - name: 📝 Create Dependency Update Issue
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const updateSummary = `${{ needs.check-updates.outputs.update-summary }}`;
+
+          const issueBody = `## 🔄 Dependency Updates Available
+
+          The following dependency updates are available for GitPersona:
+
+          \`\`\`
+          ${updateSummary}
+          \`\`\`
+
+          ### 📋 Update Checklist
+
+          - [ ] Review each dependency update
+          - [ ] Test updates in development environment
+          - [ ] Update go.mod and go.sum files
+          - [ ] Run full test suite
+          - [ ] Update documentation if needed
+          - [ ] Create pull request with updates
+
+          ### 🔍 How to Update
+
+          1. **Review Updates**: Check each dependency for breaking changes
+          2. **Test Locally**: Run \`go mod tidy\` and \`go test ./...\`
+          3. **Update Files**: Commit changes to go.mod and go.sum
+          4. **Create PR**: Submit pull request with updates
+
+          ### 🚨 Important Notes
+
+          - Always test updates thoroughly before merging
+          - Check for security advisories in updated packages
+          - Consider impact on existing functionality
+          - Update documentation if APIs have changed
+
+          ---
+
+          **Auto-generated on**: ${new Date().toISOString()}
+          **Triggered by**: ${{ github.event_name === 'schedule' ? 'Scheduled check' : 'Manual trigger' }}`;
+
+          await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: `🔄 Dependency Updates Available - ${new Date().toLocaleDateString()}`,
+            body: issueBody,
+            labels: ['dependencies', 'maintenance', 'automated']
+          });
+
+  # 🧪 Test Updates
+  test-updates:
+    name: 🧪 Test Dependency Updates
+    needs: check-updates
+    if: needs.check-updates.outputs.has-updates == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🐹 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: 🔄 Update Dependencies
+      run: |
+        echo "Updating dependencies for testing..."
+        go get -u ./...
+        go mod tidy
+
+    - name: 🧪 Run Tests with Updates
+      run: |
+        echo "Running tests with updated dependencies..."
+        go test -v -timeout 5m ./...
+
+    - name: 🏗️ Build with Updates
+      run: |
+        echo "Building with updated dependencies..."
+        go build -o gitpersona .
+        ./gitpersona --version
+
+    - name: 📊 Generate Update Report
+      run: |
+        echo "## Dependency Update Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "✅ **Tests Passed**: All tests completed successfully with updated dependencies" >> $GITHUB_STEP_SUMMARY
+        echo "✅ **Build Successful**: Binary builds without errors" >> $GITHUB_STEP_SUMMARY
+        echo "✅ **Version Check**: Application version command works correctly" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Updated Dependencies:" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "${{ needs.check-updates.outputs.update-summary }}" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
