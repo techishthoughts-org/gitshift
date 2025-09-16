@@ -10,6 +10,9 @@ import (
 	"golang.org/x/term"
 )
 
+// ContextKey represents a custom type for context keys
+type ContextKey string
+
 // LogLevel represents the logging level
 type LogLevel int
 
@@ -172,7 +175,7 @@ func (l *structuredLogger) log(ctx context.Context, level LogLevel, msg string, 
 	entry := l.formatLogEntry(level, msg, allFields)
 
 	// Write to output
-	fmt.Fprintln(l.output, entry)
+	_, _ = fmt.Fprintln(l.output, entry)
 }
 
 // formatLogEntry formats a log entry
@@ -198,7 +201,7 @@ func (l *structuredLogger) formatLogEntry(level LogLevel, msg string, fields []F
 
 // getRequestID extracts request ID from context
 func getRequestID(ctx context.Context) string {
-	if id, ok := ctx.Value("request_id").(string); ok {
+	if id, ok := ctx.Value(ContextKey("request_id")).(string); ok {
 		return id
 	}
 	return ""
@@ -206,7 +209,7 @@ func getRequestID(ctx context.Context) string {
 
 // getUserID extracts user ID from context
 func getUserID(ctx context.Context) string {
-	if id, ok := ctx.Value("user_id").(string); ok {
+	if id, ok := ctx.Value(ContextKey("user_id")).(string); ok {
 		return id
 	}
 	return ""
@@ -214,11 +217,11 @@ func getUserID(ctx context.Context) string {
 
 // Context helpers for adding values to context
 func WithRequestID(ctx context.Context, requestID string) context.Context {
-	return context.WithValue(ctx, "request_id", requestID)
+	return context.WithValue(ctx, ContextKey("request_id"), requestID)
 }
 
 func WithUserID(ctx context.Context, userID string) context.Context {
-	return context.WithValue(ctx, "user_id", userID)
+	return context.WithValue(ctx, ContextKey("user_id"), userID)
 }
 
 // Convenience functions for common logging patterns

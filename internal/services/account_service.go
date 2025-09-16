@@ -52,6 +52,10 @@ func (s *RealAccountService) GetAccount(ctx context.Context, alias string) (*mod
 
 // CreateAccount creates a new account
 func (s *RealAccountService) CreateAccount(ctx context.Context, account *models.Account) error {
+	if account == nil {
+		return fmt.Errorf("account cannot be nil")
+	}
+
 	s.logger.Info(ctx, "creating_account",
 		observability.F("alias", account.Alias),
 		observability.F("name", account.Name),
@@ -89,6 +93,10 @@ func (s *RealAccountService) CreateAccount(ctx context.Context, account *models.
 
 // UpdateAccount updates an existing account
 func (s *RealAccountService) UpdateAccount(ctx context.Context, account *models.Account) error {
+	if account == nil {
+		return fmt.Errorf("account cannot be nil")
+	}
+
 	s.logger.Info(ctx, "updating_account",
 		observability.F("alias", account.Alias),
 	)
@@ -255,6 +263,10 @@ func (s *RealAccountService) MarkAccountAsUsed(ctx context.Context, alias string
 
 // ValidateAccount validates an account configuration
 func (s *RealAccountService) ValidateAccount(ctx context.Context, account *models.Account) error {
+	if account == nil {
+		return fmt.Errorf("account cannot be nil")
+	}
+
 	s.logger.Info(ctx, "validating_account",
 		observability.F("alias", account.Alias),
 	)
@@ -277,6 +289,10 @@ func (s *RealAccountService) ValidateAccount(ctx context.Context, account *model
 
 // TestAccountSSH tests SSH connectivity for an account
 func (s *RealAccountService) TestAccountSSH(ctx context.Context, account *models.Account) error {
+	if account == nil {
+		return fmt.Errorf("account cannot be nil")
+	}
+
 	s.logger.Info(ctx, "testing_account_ssh",
 		observability.F("alias", account.Alias),
 		observability.F("ssh_key_path", account.SSHKeyPath),

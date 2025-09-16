@@ -137,9 +137,7 @@ func (s *RealSSHService) ValidateKey(ctx context.Context, keyPath string) (*SSHK
 	if len(parts) >= 4 {
 		keyInfo.Fingerprint = parts[1]
 		keyInfo.Type = strings.Trim(parts[3], "()")
-		if size, err := fmt.Sscanf(parts[0], "%d", &keyInfo.Size); err == nil && size == 1 {
-			// Size parsed successfully
-		}
+		_, _ = fmt.Sscanf(parts[0], "%d", &keyInfo.Size)
 	}
 
 	// Extract email from public key
@@ -388,10 +386,10 @@ func (s *RealSSHService) GenerateSSHConfig(ctx context.Context) (string, error) 
 		// Generate host entry
 		hostName := fmt.Sprintf("github-%s", key.Email)
 		config += fmt.Sprintf("Host %s\n", hostName)
-		config += fmt.Sprintf("  HostName github.com\n")
-		config += fmt.Sprintf("  User git\n")
+		config += "  HostName github.com\n"
+		config += "  User git\n"
 		config += fmt.Sprintf("  IdentityFile %s\n", key.Path)
-		config += fmt.Sprintf("  IdentitiesOnly yes\n\n")
+		config += "  IdentitiesOnly yes\n\n"
 	}
 
 	s.logger.Info(ctx, "ssh_config_generated_successfully",

@@ -15,6 +15,7 @@ func TestNewManager(t *testing.T) {
 
 	if manager == nil {
 		t.Error("NewManager should return a non-nil manager")
+		return
 	}
 
 	// Test that config is initialized
@@ -30,9 +31,9 @@ func TestManagerLoad(t *testing.T) {
 	// Set temporary home directory for testing
 	originalHome := os.Getenv("HOME")
 	defer func() {
-		os.Setenv("HOME", originalHome)
+		_ = os.Setenv("HOME", originalHome)
 	}()
-	os.Setenv("HOME", tempDir)
+	_ = os.Setenv("HOME", tempDir)
 
 	manager := NewManager()
 
@@ -60,9 +61,9 @@ func TestManagerSaveAndLoad(t *testing.T) {
 	// Set temporary home directory for testing
 	originalHome := os.Getenv("HOME")
 	defer func() {
-		os.Setenv("HOME", originalHome)
+		_ = os.Setenv("HOME", originalHome)
 	}()
-	os.Setenv("HOME", tempDir)
+	_ = os.Setenv("HOME", tempDir)
 
 	manager := NewManager()
 
@@ -114,9 +115,9 @@ func TestManagerAccountOperations(t *testing.T) {
 	// Set temporary home directory for testing
 	originalHome := os.Getenv("HOME")
 	defer func() {
-		os.Setenv("HOME", originalHome)
+		_ = os.Setenv("HOME", originalHome)
 	}()
-	os.Setenv("HOME", tempDir)
+	_ = os.Setenv("HOME", tempDir)
 
 	manager := NewManager()
 
@@ -174,9 +175,9 @@ func TestManagerCurrentAccount(t *testing.T) {
 	// Set temporary home directory for testing
 	originalHome := os.Getenv("HOME")
 	defer func() {
-		os.Setenv("HOME", originalHome)
+		_ = os.Setenv("HOME", originalHome)
 	}()
-	os.Setenv("HOME", tempDir)
+	_ = os.Setenv("HOME", tempDir)
 
 	manager := NewManager()
 
@@ -263,9 +264,9 @@ func TestManagerValidation(t *testing.T) {
 	// Set temporary home directory for testing
 	originalHome := os.Getenv("HOME")
 	defer func() {
-		os.Setenv("HOME", originalHome)
+		_ = os.Setenv("HOME", originalHome)
 	}()
-	os.Setenv("HOME", tempDir)
+	_ = os.Setenv("HOME", tempDir)
 
 	manager := NewManager()
 
@@ -311,9 +312,9 @@ func TestManagerConfigMigration(t *testing.T) {
 	// Set temporary home directory for testing
 	originalHome := os.Getenv("HOME")
 	defer func() {
-		os.Setenv("HOME", originalHome)
+		_ = os.Setenv("HOME", originalHome)
 	}()
-	os.Setenv("HOME", tempDir)
+	_ = os.Setenv("HOME", tempDir)
 
 	// Create old config format (simulated)
 	configFile := filepath.Join(configDir, "config.yaml")
@@ -406,9 +407,9 @@ func TestManagerCompleteWorkflow(t *testing.T) {
 	// Set temporary home directory for testing
 	originalHome := os.Getenv("HOME")
 	defer func() {
-		os.Setenv("HOME", originalHome)
+		_ = os.Setenv("HOME", originalHome)
 	}()
-	os.Setenv("HOME", tempDir)
+	_ = os.Setenv("HOME", tempDir)
 
 	manager := NewManager()
 
@@ -487,9 +488,9 @@ func TestManagerConcurrentAccess(t *testing.T) {
 	// Set temporary home directory for testing
 	originalHome := os.Getenv("HOME")
 	defer func() {
-		os.Setenv("HOME", originalHome)
+		_ = os.Setenv("HOME", originalHome)
 	}()
-	os.Setenv("HOME", tempDir)
+	_ = os.Setenv("HOME", tempDir)
 
 	manager := NewManager()
 
@@ -556,9 +557,9 @@ func TestManagerErrorConditions(t *testing.T) {
 	// Set temporary home directory for testing
 	originalHome := os.Getenv("HOME")
 	defer func() {
-		os.Setenv("HOME", originalHome)
+		_ = os.Setenv("HOME", originalHome)
 	}()
-	os.Setenv("HOME", tempDir)
+	_ = os.Setenv("HOME", tempDir)
 
 	manager := NewManager()
 
@@ -618,9 +619,9 @@ func TestManagerConfigPermissions(t *testing.T) {
 	// Set temporary home directory for testing
 	originalHome := os.Getenv("HOME")
 	defer func() {
-		os.Setenv("HOME", originalHome)
+		_ = os.Setenv("HOME", originalHome)
 	}()
-	os.Setenv("HOME", tempDir)
+	_ = os.Setenv("HOME", tempDir)
 
 	manager := NewManager()
 
@@ -663,9 +664,9 @@ func TestManagerPerformance(t *testing.T) {
 	// Set temporary home directory for testing
 	originalHome := os.Getenv("HOME")
 	defer func() {
-		os.Setenv("HOME", originalHome)
+		_ = os.Setenv("HOME", originalHome)
 	}()
-	os.Setenv("HOME", tempDir)
+	_ = os.Setenv("HOME", tempDir)
 
 	manager := NewManager()
 
@@ -723,9 +724,9 @@ func TestManagerBackupRestore(t *testing.T) {
 	// Set temporary home directory for testing
 	originalHome := os.Getenv("HOME")
 	defer func() {
-		os.Setenv("HOME", originalHome)
+		_ = os.Setenv("HOME", originalHome)
 	}()
-	os.Setenv("HOME", tempDir)
+	_ = os.Setenv("HOME", tempDir)
 
 	manager := NewManager()
 

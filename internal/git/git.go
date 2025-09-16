@@ -36,6 +36,10 @@ func (m *Manager) IsGitRepo(path string) bool {
 
 // SetLocalConfig sets the Git configuration for the current repository
 func (m *Manager) SetLocalConfig(account *models.Account) error {
+	if account == nil {
+		return fmt.Errorf("account cannot be nil")
+	}
+
 	if err := m.setUserName(account.Name, false); err != nil {
 		return fmt.Errorf("failed to set user.name: %w", err)
 	}
@@ -49,6 +53,10 @@ func (m *Manager) SetLocalConfig(account *models.Account) error {
 
 // SetGlobalConfig sets the global Git configuration
 func (m *Manager) SetGlobalConfig(account *models.Account) error {
+	if account == nil {
+		return fmt.Errorf("account cannot be nil")
+	}
+
 	if err := m.setUserName(account.Name, true); err != nil {
 		return fmt.Errorf("failed to set global user.name: %w", err)
 	}
@@ -122,7 +130,7 @@ func (m *Manager) ValidateSSHKey(sshKeyPath string) error {
 	if err != nil {
 		return fmt.Errorf("SSH key file is not readable: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	return nil
 }

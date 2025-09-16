@@ -191,10 +191,11 @@ func diagnoseGitHubCLI() error {
 		}
 	}
 
-	if accountCount == 0 {
-		return fmt.Errorf("No GitHub accounts authenticated")
-	} else if accountCount == 1 {
-		return fmt.Errorf("Only one account authenticated (multiple accounts recommended)")
+	switch accountCount {
+	case 0:
+		return fmt.Errorf("no GitHub accounts authenticated")
+	case 1:
+		return fmt.Errorf("only one account authenticated (multiple accounts recommended)")
 	}
 
 	return nil
@@ -227,13 +228,13 @@ func diagnoseGitConfig() error {
 	// Check global user.name
 	cmd := exec.Command("git", "config", "--global", "--get", "user.name")
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Global user.name not set")
+		return fmt.Errorf("global user.name not set")
 	}
 
 	// Check global user.email
 	cmd = exec.Command("git", "config", "--global", "--get", "user.email")
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Global user.email not set")
+		return fmt.Errorf("global user.email not set")
 	}
 
 	return nil
@@ -248,18 +249,18 @@ func diagnoseGitPersonaConfig() error {
 	}
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return fmt.Errorf("Configuration file not found")
+		return fmt.Errorf("configuration file not found")
 	}
 
 	// Try to load configuration
 	configManager := config.NewManager()
 	if err := configManager.Load(); err != nil {
-		return fmt.Errorf("Failed to load configuration: %v", err)
+		return fmt.Errorf("failed to load configuration: %v", err)
 	}
 
 	accounts := configManager.ListAccounts()
 	if len(accounts) == 0 {
-		return fmt.Errorf("No accounts configured")
+		return fmt.Errorf("no accounts configured")
 	}
 
 	return nil
@@ -272,7 +273,7 @@ func fixSSHKeyIssues() error {
 	if err := cmd.Run(); err != nil {
 		fmt.Println("   🔄 Starting SSH agent...")
 		cmd = exec.Command("eval", "$(ssh-agent -s)")
-		cmd.Run() // Ignore errors
+		_ = cmd.Run() // Ignore errors
 	}
 
 	// Try to add common SSH keys
@@ -284,7 +285,7 @@ func fixSSHKeyIssues() error {
 		if _, err := os.Stat(keyPath); err == nil {
 			fmt.Printf("   🔄 Adding SSH key: %s\n", key)
 			cmd := exec.Command("ssh-add", keyPath)
-			cmd.Run() // Ignore errors
+			_ = cmd.Run() // Ignore errors
 		}
 	}
 

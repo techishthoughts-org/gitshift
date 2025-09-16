@@ -125,9 +125,10 @@ func (c *ValidateGitCommand) displayGitAnalysis(ctx context.Context, config inte
 					for _, issue := range issueList {
 						severity := "⚠️"
 						if s, exists := issue["severity"]; exists {
-							if s == "high" {
+							switch s {
+							case "high":
 								severity = "🚨"
-							} else if s == "low" {
+							case "low":
 								severity = "ℹ️"
 							}
 						}

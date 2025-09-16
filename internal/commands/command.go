@@ -11,6 +11,9 @@ import (
 	"github.com/techishthoughts/GitPersona/internal/observability"
 )
 
+// ContextKey represents a custom type for context keys
+type ContextKey string
+
 // Command represents a unified command interface
 type Command interface {
 	Name() string
@@ -183,7 +186,7 @@ func (c *BaseCommand) CreateCobraCommand() *cobra.Command {
 		Example: c.formatExamples(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Store args in context for error reporting
-			ctx := context.WithValue(c.ctx, "args", args)
+			ctx := context.WithValue(c.ctx, ContextKey("args"), args)
 			return c.Execute(ctx, args)
 		},
 	}

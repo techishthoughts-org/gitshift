@@ -226,9 +226,7 @@ func (s *RealConfigService) ListAccounts(ctx context.Context) ([]*models.Account
 	// Get accounts from manager
 	accounts := s.manager.ListAccounts()
 	accountList := make([]*models.Account, 0, len(accounts))
-	for _, account := range accounts {
-		accountList = append(accountList, account)
-	}
+	accountList = append(accountList, accounts...)
 
 	return accountList, nil
 }

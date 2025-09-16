@@ -69,13 +69,16 @@ jobs:
         echo "**Overall Coverage**: ${{ env.coverage_percentage }}%" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
-        # Coverage thresholds
-        if (( $(echo "${{ env.coverage_percentage }} >= 80" | bc -l) )); then
-          echo "✅ **Status**: Excellent coverage (≥80%)" >> $GITHUB_STEP_SUMMARY
+        # Coverage thresholds - progressive goals
+        if (( $(echo "${{ env.coverage_percentage }} >= 90" | bc -l) )); then
+          echo "✅ **Status**: Excellent coverage (${{ env.coverage_percentage }}%)" >> $GITHUB_STEP_SUMMARY
+        elif (( $(echo "${{ env.coverage_percentage }} >= 80" | bc -l) )); then
+          echo "🟡 **Status**: Good coverage (${{ env.coverage_percentage }}%) - aim for 90%+" >> $GITHUB_STEP_SUMMARY
         elif (( $(echo "${{ env.coverage_percentage }} >= 70" | bc -l) )); then
-          echo "⚠️ **Status**: Good coverage (≥70%)" >> $GITHUB_STEP_SUMMARY
+          echo "🟠 **Status**: Moderate coverage (${{ env.coverage_percentage }}%) - aim for 80%+" >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ **Status**: Coverage needs improvement (<70%)" >> $GITHUB_STEP_SUMMARY
+          echo "❌ **Status**: Low coverage (${{ env.coverage_percentage }}%) - must improve to at least 70%" >> $GITHUB_STEP_SUMMARY
+          exit 1
         fi
 
         echo "" >> $GITHUB_STEP_SUMMARY

@@ -158,7 +158,7 @@ func (v *SSHValidator) validateSSHConfig(result *ValidationResult) error {
 	if err != nil {
 		return fmt.Errorf("failed to open SSH config: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	lineNum := 0
@@ -417,6 +417,106 @@ func (v *SSHValidator) checkConfigurationConflicts(result *ValidationResult) err
 		}
 	}
 
+	// Check for SSH agent key conflicts
+	if err := v.checkSSHAgentConflicts(result); err != nil {
+		return err
+	}
+
+	// Check for default github.com host configuration conflicts
+	if err := v.checkDefaultGitHubHostConflicts(result); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// checkSSHAgentConflicts checks for SSH agent key conflicts
+func (v *SSHValidator) checkSSHAgentConflicts(result *ValidationResult) error {
+	// Check if SSH agent is running and has multiple keys
+	cmd := exec.Command("ssh-add", "-l")
+	output, err := cmd.Output()
+	if err != nil {
+		// SSH agent not running or no keys - this is not necessarily a problem
+		return nil
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	keyCount := 0
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" && !strings.Contains(line, "The agent has no identities") {
+			keyCount++
+		}
+	}
+
+	if keyCount > 1 {
+		result.Issues = append(result.Issues, ValidationIssue{
+			Severity:    "critical",
+			Category:    "authentication",
+			Description: fmt.Sprintf("SSH agent has %d keys loaded, which may cause authentication conflicts", keyCount),
+			Solution:    "Clear SSH agent and load only the required key, or use SSH config with IdentitiesOnly",
+			Code:        "ssh-add -D && ssh-add ~/.ssh/your_key",
+		})
+	}
+
+	return nil
+}
+
+// checkDefaultGitHubHostConflicts checks for problematic default github.com configurations
+func (v *SSHValidator) checkDefaultGitHubHostConflicts(result *ValidationResult) error {
+	// Check if there's a default github.com configuration that might conflict
+	if _, err := os.Stat(v.sshConfigPath); os.IsNotExist(err) {
+		return nil
+	}
+
+	file, err := os.Open(v.sshConfigPath)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = file.Close() }()
+
+	scanner := bufio.NewScanner(file)
+	hasDefaultGitHubHost := false
+	hasIdentitiesOnly := false
+	lineNum := 0
+
+	for scanner.Scan() {
+		lineNum++
+		line := strings.TrimSpace(scanner.Text())
+
+		// Skip comments and empty lines
+		if strings.HasPrefix(line, "#") || line == "" {
+			continue
+		}
+
+		// Check for default github.com host
+		if strings.HasPrefix(line, "Host ") {
+			host := strings.TrimSpace(strings.TrimPrefix(line, "Host "))
+			if host == "github.com" {
+				hasDefaultGitHubHost = true
+			}
+		}
+
+		// Check for IdentitiesOnly setting
+		if strings.Contains(line, "IdentitiesOnly") && strings.Contains(line, "yes") {
+			hasIdentitiesOnly = true
+		}
+	}
+
+	// Report issues with default github.com configuration
+	if hasDefaultGitHubHost && !hasIdentitiesOnly {
+		result.Issues = append(result.Issues, ValidationIssue{
+			Severity:    "critical",
+			Category:    "authentication",
+			Description: "Default github.com host configuration without IdentitiesOnly may cause key selection conflicts",
+			Solution:    "Add 'IdentitiesOnly yes' to your github.com host configuration or use specific host aliases",
+			Code: `Host github.com
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/your_key
+    IdentitiesOnly yes`,
+		})
+	}
+
 	return nil
 }
 
@@ -459,25 +559,85 @@ func (v *SSHValidator) GenerateSSHConfig(accounts []models.Account) string {
 	var config strings.Builder
 
 	config.WriteString("# GitPersona Generated SSH Configuration\n")
-	config.WriteString("# Generated on: " + time.Now().Format(time.RFC3339) + "\n\n")
+	config.WriteString("# Generated on: " + time.Now().Format(time.RFC3339) + "\n")
+	config.WriteString("# This configuration prevents SSH key conflicts by using specific host aliases\n\n")
 
-	for _, account := range accounts {
-		if account.SSHKeyPath == "" {
-			continue
-		}
-
-		hostAlias := fmt.Sprintf("github-%s", account.GitHubUsername)
-		config.WriteString(fmt.Sprintf("# %s GitHub Account\n", account.Name))
-		config.WriteString(fmt.Sprintf("Host %s\n", hostAlias))
+	// Add a default github.com configuration if there's only one account
+	if len(accounts) == 1 && accounts[0].SSHKeyPath != "" {
+		account := accounts[0]
+		config.WriteString("# Default GitHub configuration (single account)\n")
+		config.WriteString("Host github.com\n")
 		config.WriteString("    HostName github.com\n")
 		config.WriteString("    User git\n")
 		config.WriteString(fmt.Sprintf("    IdentityFile %s\n", account.SSHKeyPath))
+		config.WriteString("    IdentitiesOnly yes\n")
 		config.WriteString("    UseKeychain yes\n")
 		config.WriteString("    AddKeysToAgent yes\n")
-		config.WriteString("    IdentitiesOnly yes\n")
 		config.WriteString("    ServerAliveInterval 60\n")
 		config.WriteString("    ServerAliveCountMax 3\n\n")
+	} else if len(accounts) > 1 {
+		// For multiple accounts, use specific host aliases
+		config.WriteString("# Multiple GitHub accounts - use specific host aliases\n")
+		config.WriteString("# Usage: git clone git@github-work:user/repo.git\n\n")
+
+		for _, account := range accounts {
+			if account.SSHKeyPath == "" {
+				continue
+			}
+
+			hostAlias := fmt.Sprintf("github-%s", account.Alias)
+			config.WriteString(fmt.Sprintf("# %s GitHub Account (%s)\n", account.Name, account.GitHubUsername))
+			config.WriteString(fmt.Sprintf("Host %s\n", hostAlias))
+			config.WriteString("    HostName github.com\n")
+			config.WriteString("    User git\n")
+			config.WriteString(fmt.Sprintf("    IdentityFile %s\n", account.SSHKeyPath))
+			config.WriteString("    IdentitiesOnly yes\n")
+			config.WriteString("    UseKeychain yes\n")
+			config.WriteString("    AddKeysToAgent yes\n")
+			config.WriteString("    ServerAliveInterval 60\n")
+			config.WriteString("    ServerAliveCountMax 3\n\n")
+		}
 	}
+
+	return config.String()
+}
+
+// GenerateSSHConfigForAccount generates SSH config for a specific account
+func (v *SSHValidator) GenerateSSHConfigForAccount(account models.Account) string {
+	var config strings.Builder
+
+	config.WriteString("# SSH Configuration for " + account.Name + "\n")
+	config.WriteString("# Generated on: " + time.Now().Format(time.RFC3339) + "\n\n")
+
+	if account.SSHKeyPath == "" {
+		config.WriteString("# No SSH key configured for this account\n")
+		return config.String()
+	}
+
+	// Generate both default and alias configurations
+	config.WriteString("# Default github.com configuration\n")
+	config.WriteString("Host github.com\n")
+	config.WriteString("    HostName github.com\n")
+	config.WriteString("    User git\n")
+	config.WriteString(fmt.Sprintf("    IdentityFile %s\n", account.SSHKeyPath))
+	config.WriteString("    IdentitiesOnly yes\n")
+	config.WriteString("    UseKeychain yes\n")
+	config.WriteString("    AddKeysToAgent yes\n")
+	config.WriteString("    ServerAliveInterval 60\n")
+	config.WriteString("    ServerAliveCountMax 3\n\n")
+
+	// Also generate an alias for explicit usage
+	hostAlias := fmt.Sprintf("github-%s", account.Alias)
+	config.WriteString(fmt.Sprintf("# Alias for explicit usage: git@%s\n", hostAlias))
+	config.WriteString(fmt.Sprintf("Host %s\n", hostAlias))
+	config.WriteString("    HostName github.com\n")
+	config.WriteString("    User git\n")
+	config.WriteString(fmt.Sprintf("    IdentityFile %s\n", account.SSHKeyPath))
+	config.WriteString("    IdentitiesOnly yes\n")
+	config.WriteString("    UseKeychain yes\n")
+	config.WriteString("    AddKeysToAgent yes\n")
+	config.WriteString("    ServerAliveInterval 60\n")
+	config.WriteString("    ServerAliveCountMax 3\n\n")
 
 	return config.String()
 }

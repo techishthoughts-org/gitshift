@@ -203,15 +203,15 @@ func setupRepository(url string) error {
 	if strings.HasPrefix(url, "git@github.com:") {
 		fmt.Println("✅ Using SSH protocol")
 		cmd = exec.Command("gh", "config", "set", "git_protocol", "ssh")
-		cmd.Run() // Ignore errors
+		_ = cmd.Run() // Ignore errors
 	} else if strings.HasPrefix(url, "https://github.com/") {
 		fmt.Println("✅ Using HTTPS protocol")
 		cmd = exec.Command("gh", "config", "set", "git_protocol", "https")
-		cmd.Run() // Ignore errors
+		_ = cmd.Run() // Ignore errors
 	} else {
 		fmt.Println("⚠️  Unknown URL format, defaulting to HTTPS")
 		cmd = exec.Command("gh", "config", "set", "git_protocol", "https")
-		cmd.Run() // Ignore errors
+		_ = cmd.Run() // Ignore errors
 	}
 
 	// Test connection

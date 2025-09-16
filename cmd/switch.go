@@ -162,12 +162,27 @@ func (c *SwitchCommand) validateAccountSSH(ctx context.Context, account *models.
 		return nil
 	}
 
+	// Check for SSH key conflicts before validation
+	if err := c.checkSSHKeyConflicts(ctx, account); err != nil {
+		c.PrintWarning(ctx, "SSH key conflicts detected",
+			observability.F("error", err.Error()),
+		)
+		c.PrintInfo(ctx, "💡 Consider running: gitpersona ssh-agent --cleanup")
+	}
+
 	// Use the ValidateSSHConnectionWithRetry method from SSH agent service
 	c.PrintInfo(ctx, "Validating SSH connection with retry mechanism...",
 		observability.F("ssh_key", account.SSHKeyPath),
 	)
 
 	if err := sshAgentService.ValidateSSHConnectionWithRetry(ctx, account.SSHKeyPath); err != nil {
+		// Provide specific error messages for common SSH issues
+		if strings.Contains(err.Error(), "Repository not found") {
+			return c.handleRepositoryNotFoundError(ctx, account, err)
+		}
+		if strings.Contains(err.Error(), "Permission denied") {
+			return c.handlePermissionDeniedError(ctx, account, err)
+		}
 		return fmt.Errorf("SSH validation failed: %w", err)
 	}
 
@@ -175,6 +190,70 @@ func (c *SwitchCommand) validateAccountSSH(ctx context.Context, account *models.
 		observability.F("ssh_key", account.SSHKeyPath),
 	)
 	return nil
+}
+
+// checkSSHKeyConflicts checks for potential SSH key conflicts
+func (c *SwitchCommand) checkSSHKeyConflicts(ctx context.Context, account *models.Account) error {
+	// Check if SSH agent has multiple keys loaded
+	container := c.GetContainer()
+	sshAgentService := container.GetSSHAgentService()
+
+	if service, ok := sshAgentService.(interface {
+		ListLoadedKeys(ctx context.Context) ([]string, error)
+	}); ok {
+		keys, err := service.ListLoadedKeys(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to check loaded keys: %w", err)
+		}
+
+		if len(keys) > 1 {
+			return fmt.Errorf("SSH agent has %d keys loaded, which may cause authentication conflicts", len(keys))
+		}
+	}
+
+	return nil
+}
+
+// handleRepositoryNotFoundError provides specific guidance for repository not found errors
+func (c *SwitchCommand) handleRepositoryNotFoundError(ctx context.Context, account *models.Account, err error) error {
+	c.PrintError(ctx, "Repository not found - this usually indicates SSH key authentication issues",
+		observability.F("account", account.Alias),
+		observability.F("ssh_key", account.SSHKeyPath),
+	)
+
+	c.PrintInfo(ctx, "🔍 Troubleshooting steps:")
+	c.PrintInfo(ctx, "  1. Verify the SSH key is associated with the correct GitHub account")
+	c.PrintInfo(ctx, "  2. Check if multiple SSH keys are loaded in the agent")
+	c.PrintInfo(ctx, "  3. Ensure your SSH config uses IdentitiesOnly=yes")
+	c.PrintInfo(ctx, "  4. Try: gitpersona ssh-agent --cleanup")
+
+	// Generate SSH config suggestion
+	if account.SSHKeyPath != "" {
+		c.PrintInfo(ctx, "💡 Recommended SSH config:")
+		c.PrintInfo(ctx, fmt.Sprintf("   Host github.com"))
+		c.PrintInfo(ctx, fmt.Sprintf("     HostName github.com"))
+		c.PrintInfo(ctx, fmt.Sprintf("     User git"))
+		c.PrintInfo(ctx, fmt.Sprintf("     IdentityFile %s", account.SSHKeyPath))
+		c.PrintInfo(ctx, fmt.Sprintf("     IdentitiesOnly yes"))
+	}
+
+	return fmt.Errorf("SSH authentication failed - wrong key may be used: %w", err)
+}
+
+// handlePermissionDeniedError provides specific guidance for permission denied errors
+func (c *SwitchCommand) handlePermissionDeniedError(ctx context.Context, account *models.Account, err error) error {
+	c.PrintError(ctx, "Permission denied - SSH key may not be properly configured",
+		observability.F("account", account.Alias),
+		observability.F("ssh_key", account.SSHKeyPath),
+	)
+
+	c.PrintInfo(ctx, "🔍 Troubleshooting steps:")
+	c.PrintInfo(ctx, "  1. Verify the public key is added to your GitHub account")
+	c.PrintInfo(ctx, "  2. Check SSH key permissions: chmod 600 "+account.SSHKeyPath)
+	c.PrintInfo(ctx, "  3. Test SSH connection: ssh -T git@github.com -i "+account.SSHKeyPath)
+	c.PrintInfo(ctx, "  4. Ensure the key is not password-protected or remove passphrase")
+
+	return fmt.Errorf("SSH permission denied: %w", err)
 }
 
 // performAccountSwitch performs the actual account switch

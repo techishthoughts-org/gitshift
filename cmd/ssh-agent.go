@@ -325,9 +325,9 @@ func cleanupSSHSocketsDirect() error {
 
 	// Try to close existing SSH connections
 	fmt.Println("  🔌 Attempting to close existing SSH connections...")
-	exec.Command("ssh", "-O", "exit", "github.com").Run()
-	exec.Command("ssh", "-O", "exit", "gitlab.com").Run()
-	exec.Command("ssh", "-O", "exit", "bitbucket.org").Run()
+	_ = exec.Command("ssh", "-O", "exit", "github.com").Run()
+	_ = exec.Command("ssh", "-O", "exit", "gitlab.com").Run()
+	_ = exec.Command("ssh", "-O", "exit", "bitbucket.org").Run()
 
 	// Ensure socket directories exist after cleanup
 	fmt.Println("  📁 Ensuring socket directories exist...")

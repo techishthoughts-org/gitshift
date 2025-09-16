@@ -85,7 +85,7 @@ func (um *UpdateManager) CheckForUpdates() (*Release, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for updates: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("update check failed with status %d", resp.StatusCode)
@@ -126,7 +126,7 @@ func (um *UpdateManager) PerformSecureUpdate(release *Release) error {
 	if err != nil {
 		return fmt.Errorf("download failed: %w", err)
 	}
-	defer os.Remove(tempPath)
+	defer func() { _ = os.Remove(tempPath) }()
 
 	// Verify signatures (2025 security requirement)
 	if err := um.verifySignatures(tempPath, asset, release); err != nil {
@@ -150,7 +150,7 @@ func (um *UpdateManager) secureDownload(asset *Asset) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Create temporary file
 	tempDir := os.TempDir()
@@ -160,7 +160,7 @@ func (um *UpdateManager) secureDownload(asset *Asset) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Download with progress and hash calculation
 	hasher := sha256.New()
@@ -304,13 +304,13 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+	defer func() { _ = sourceFile.Close() }()
 
 	destFile, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
+	defer func() { _ = destFile.Close() }()
 
 	_, err = io.Copy(destFile, sourceFile)
 	return err

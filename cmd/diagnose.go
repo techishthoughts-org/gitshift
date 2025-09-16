@@ -535,7 +535,7 @@ func (c *DiagnoseCommand) displayResults(ctx context.Context, results *Diagnosti
 	c.PrintInfo(ctx, fmt.Sprintf("\n%s Overall Health: %s", healthEmoji, strings.ToUpper(results.OverallHealth)))
 
 	// Summary
-	c.PrintInfo(ctx, fmt.Sprintf("\n📊 Summary:"))
+	c.PrintInfo(ctx, "\n📊 Summary:")
 	c.PrintInfo(ctx, fmt.Sprintf("  • Issues: %d", len(results.Issues)))
 	c.PrintInfo(ctx, fmt.Sprintf("  • Warnings: %d", len(results.Warnings)))
 	c.PrintInfo(ctx, fmt.Sprintf("  • Accounts: %d configured", len(results.AccountResults)))
