@@ -28,8 +28,10 @@ func (m *Manager) IsGitRepo(path string) bool {
 	// Check if we're inside a git worktree
 	cmd := exec.Command("git", "rev-parse", "--git-dir")
 	cmd.Dir = path
-	err := cmd.Run()
-	return err == nil
+	if err := cmd.Run(); err != nil {
+		return false
+	}
+	return true
 }
 
 // SetLocalConfig sets the Git configuration for the current repository

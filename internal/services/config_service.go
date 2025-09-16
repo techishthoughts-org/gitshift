@@ -298,7 +298,7 @@ func (s *RealConfigService) CheckForConflicts(ctx context.Context) ([]*ConfigCon
 			if existingAlias, exists := seenEmails[account.Email]; exists {
 				conflicts = append(conflicts, &ConfigConflict{
 					Type:        "duplicate_email",
-					Description: fmt.Sprintf("Email '%s' is used by both '%s' and '%s'", account.Email, existingAlias, alias),
+					Description: "Email '" + account.Email + "' is used by both '" + existingAlias + "' and '" + alias + "'",
 					Severity:    "high",
 					Resolution:  "Use different email addresses for different accounts",
 				})
@@ -312,7 +312,7 @@ func (s *RealConfigService) CheckForConflicts(ctx context.Context) ([]*ConfigCon
 			if existingAlias, exists := seenSSHKeys[account.SSHKeyPath]; exists {
 				conflicts = append(conflicts, &ConfigConflict{
 					Type:        "duplicate_ssh_key",
-					Description: fmt.Sprintf("SSH key '%s' is used by both '%s' and '%s'", account.SSHKeyPath, existingAlias, alias),
+					Description: "SSH key '" + account.SSHKeyPath + "' is used by both '" + existingAlias + "' and '" + alias + "'",
 					Severity:    "high",
 					Resolution:  "Use different SSH keys for different accounts",
 				})

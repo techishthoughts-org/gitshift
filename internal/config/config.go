@@ -305,7 +305,7 @@ func (m *Manager) CompletePendingAccount(alias string, name, email string) (*mod
 		Email:          email,
 		GitHubUsername: pending.GitHubUsername,
 		SSHKeyPath:     pending.PartialData["ssh_key_path"],
-		Description:    fmt.Sprintf("Completed from pending account (source: %s)", pending.Source),
+		Description:    "Completed from pending account (source: " + pending.Source + ")",
 		Status:         models.AccountStatusActive,
 		IsDefault:      false,
 		CreatedAt:      time.Now(),

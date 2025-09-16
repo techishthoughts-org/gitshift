@@ -156,7 +156,7 @@ func (s *RealGitService) convertSSHToHTTP(sshURL string) string {
 		// Replace first : with /
 		parts := strings.SplitN(url, ":", 2)
 		if len(parts) == 2 {
-			return fmt.Sprintf("https://%s/%s", parts[0], parts[1])
+			return "https://" + parts[0] + "/" + parts[1]
 		}
 	}
 	return sshURL

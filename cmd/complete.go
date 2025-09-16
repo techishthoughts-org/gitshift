@@ -82,6 +82,10 @@ func init() {
 
 	completeCmd.Flags().StringP("name", "n", "", "Git user name (required)")
 	completeCmd.Flags().StringP("email", "e", "", "Git user email (required)")
-	completeCmd.MarkFlagRequired("name")
-	completeCmd.MarkFlagRequired("email")
+	if err := completeCmd.MarkFlagRequired("name"); err != nil {
+		panic(fmt.Sprintf("failed to mark name flag as required: %v", err))
+	}
+	if err := completeCmd.MarkFlagRequired("email"); err != nil {
+		panic(fmt.Sprintf("failed to mark email flag as required: %v", err))
+	}
 }

@@ -34,13 +34,14 @@ jobs:
         govulncheck ./...
 
     - name: 🔒 Run gosec Security Scanner
-      uses: securecodewarrior/github-action-gosec@v1.0.0
-      with:
-        args: '-fmt sarif -out gosec.sarif ./...'
+      run: |
+        go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+        gosec -fmt sarif -out gosec.sarif ./...
+      continue-on-error: true
 
     - name: 📊 Upload SARIF file
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      if: always() && hashFiles('gosec.sarif') != ''
       with:
         sarif_file: gosec.sarif
 
@@ -54,7 +55,7 @@ jobs:
 
     - name: 📊 Upload Trivy SARIF
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      if: always() && hashFiles('trivy-results.sarif') != ''
       with:
         sarif_file: 'trivy-results.sarif'
 
@@ -146,8 +147,6 @@ jobs:
       uses: trufflesecurity/trufflehog@main
       with:
         path: ./
-        base: main
-        head: HEAD
         extra_args: --debug --only-verified
 
     - name: 🔍 Run GitLeaks

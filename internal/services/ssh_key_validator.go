@@ -218,7 +218,7 @@ func (v *SSHKeyValidator) checkAccountMismatch(ctx context.Context, result *SSHK
 		result.Issues = append(result.Issues, SSHValidationIssue{
 			Type:        "account_mismatch",
 			Severity:    "critical",
-			Description: fmt.Sprintf("SSH key authenticates as '%s' but expected '%s'", result.GitHubAccount, result.ExpectedAccount),
+			Description: "SSH key authenticates as '" + result.GitHubAccount + "' but expected '" + result.ExpectedAccount + "'",
 			Fix:         "Remove this key from the wrong GitHub account and add it to the correct one",
 			Automated:   false,
 		})
@@ -335,7 +335,7 @@ func (v *SSHKeyValidator) generateRecommendations(ctx context.Context, result *S
 	}
 
 	if result.GitHubAccount != result.ExpectedAccount && result.ExpectedAccount != "" {
-		result.Recommendations = append(result.Recommendations, fmt.Sprintf("Move SSH key from '%s' to '%s' GitHub account", result.GitHubAccount, result.ExpectedAccount))
+		result.Recommendations = append(result.Recommendations, "Move SSH key from '"+result.GitHubAccount+"' to '"+result.ExpectedAccount+"' GitHub account")
 	}
 
 	if len(result.Conflicts) > 0 {
