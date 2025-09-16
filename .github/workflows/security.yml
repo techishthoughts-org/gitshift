@@ -34,7 +34,7 @@ jobs:
         govulncheck ./...
 
     - name: 🔒 Run gosec Security Scanner
-      uses: securecodewarrior/github-action-gosec@master
+      uses: securecodewarrior/github-action-gosec@v1.0.0
       with:
         args: '-fmt sarif -out gosec.sarif ./...'
 
@@ -45,7 +45,7 @@ jobs:
         sarif_file: gosec.sarif
 
     - name: 🔍 Run Trivy Vulnerability Scanner
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@0.32.0
       with:
         scan-type: 'fs'
         scan-ref: '.'
@@ -79,7 +79,9 @@ jobs:
     - name: 🔍 Check for Known Vulnerabilities
       run: |
         echo "Checking for known vulnerabilities in dependencies..."
-        go list -json -m all | nancy sleuth
+        # Note: nancy sleuth requires installation - using govulncheck instead
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+        govulncheck ./...
 
     - name: 🔒 Audit Dependencies
       run: |
@@ -152,7 +154,7 @@ jobs:
       uses: gitleaks/gitleaks-action@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+        # GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Optional - only needed for commercial use
 
   # 📊 Security Summary
   security-summary:

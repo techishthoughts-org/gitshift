@@ -1,0 +1,72 @@
+name: 🎯 Release Coordinator
+
+on:
+  # Trigger on successful CI completion
+  workflow_run:
+    workflows: ["🚀 GitPersona CI"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  # 🎯 Coordinate Release Process
+  coordinate-release:
+    name: 🎯 Coordinate Release Process
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 🔍 Check for New Commits
+      id: check
+      run: |
+        # Get latest tag
+        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+        echo "Latest tag: $LATEST_TAG"
+
+        # Check if there are new commits since last tag
+        NEW_COMMITS=$(git log ${LATEST_TAG}..HEAD --oneline | wc -l)
+        echo "New commits since last tag: $NEW_COMMITS"
+
+        if [ "$NEW_COMMITS" -gt 0 ]; then
+          echo "should_release=true" >> $GITHUB_OUTPUT
+          echo "✅ New commits found - release will be triggered"
+        else
+          echo "should_release=false" >> $GITHUB_OUTPUT
+          echo "ℹ️ No new commits - skipping release"
+        fi
+
+    - name: 🚀 Trigger Release Process
+      if: steps.check.outputs.should_release == 'true'
+      run: |
+        echo "🎯 Triggering release process..."
+        echo "📋 This will:"
+        echo "   1. Create a new version tag"
+        echo "   2. Build multi-platform binaries"
+        echo "   3. Publish GitHub release"
+        echo ""
+        echo "🔄 The release-tag.yml workflow will handle the rest automatically"
+
+    - name: 📊 Release Status
+      run: |
+        if [ "${{ steps.check.outputs.should_release }}" = "true" ]; then
+          echo "## 🎯 Release Coordination Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Status**: Release process triggered" >> $GITHUB_STEP_SUMMARY
+          echo "📋 **Next Steps**: The release-tag.yml workflow will create the tag" >> $GITHUB_STEP_SUMMARY
+          echo "🏗️ **Build**: release-build.yml will build binaries" >> $GITHUB_STEP_SUMMARY
+          echo "🚀 **Publish**: release-publish.yml will create the GitHub release" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "## 🎯 Release Coordination Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "ℹ️ **Status**: No release needed" >> $GITHUB_STEP_SUMMARY
+          echo "📝 **Reason**: No new commits since last tag" >> $GITHUB_STEP_SUMMARY
+        fi

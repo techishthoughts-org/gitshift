@@ -1,0 +1,96 @@
+name: 🏗️ Build Release Binaries
+
+on:
+  # Trigger when a tag is pushed
+  push:
+    tags:
+      - 'v*'
+
+env:
+  GO_VERSION: '1.23'
+  BINARY_NAME: gitpersona
+
+jobs:
+  # 🏗️ Build Binaries
+  build-binaries:
+    name: 🏗️ Build Release Binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: 🐹 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: 📋 Extract Version Info
+      id: version
+      run: |
+        # Extract version from tag
+        TAG_NAME=${GITHUB_REF#refs/tags/}
+        echo "Building release for tag: $TAG_NAME"
+        echo "version=$TAG_NAME" >> $GITHUB_OUTPUT
+
+        # Get previous tag for changelog
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${TAG_NAME}^ 2>/dev/null || echo "")
+        if [ -n "$PREVIOUS_TAG" ]; then
+          CHANGELOG=$(git log ${PREVIOUS_TAG}..${TAG_NAME} --pretty=format:"- %s (%h)" --reverse)
+        else
+          CHANGELOG=$(git log --pretty=format:"- %s (%h)" --reverse)
+        fi
+
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGELOG" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: 🏗️ Build Multi-Platform Binaries
+      run: |
+        VERSION=${{ steps.version.outputs.version }}
+        COMMIT=${GITHUB_SHA::8}
+        BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
+
+        mkdir -p dist
+
+        # Build for multiple platforms
+        platforms=("linux/amd64" "linux/arm64" "darwin/amd64" "darwin/arm64" "windows/amd64")
+
+        for platform in "${platforms[@]}"; do
+          IFS='/' read -ra PLATFORM_PARTS <<< "$platform"
+          GOOS=${PLATFORM_PARTS[0]}
+          GOARCH=${PLATFORM_PARTS[1]}
+
+          output_name="${BINARY_NAME}-${GOOS}-${GOARCH}"
+          if [ "$GOOS" = "windows" ]; then
+            output_name="${output_name}.exe"
+          fi
+
+          echo "Building for $GOOS/$GOARCH..."
+
+          CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
+            -ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME} -w -s" \
+            -o "dist/${output_name}" \
+            .
+        done
+
+        # Create checksums
+        cd dist
+        sha256sum * > checksums.txt
+        ls -la
+
+    - name: 📦 Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-binaries-${{ steps.version.outputs.version }}
+        path: dist/
+        retention-days: 30
+
+    - name: 🎊 Build Complete Notification
+      run: |
+        echo "🏗️ Successfully built binaries for ${{ steps.version.outputs.version }}"
+        echo "📦 Artifacts uploaded for release creation"

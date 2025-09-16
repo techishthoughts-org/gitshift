@@ -111,7 +111,7 @@ jobs:
           ---
 
           **Auto-generated on**: ${new Date().toISOString()}
-          **Triggered by**: ${{ github.event_name === 'schedule' ? 'Scheduled check' : 'Manual trigger' }}`;
+          **Triggered by**: ${{ github.event_name == 'schedule' && 'Scheduled check' || 'Manual trigger' }}`;
 
           await github.rest.issues.create({
             owner: context.repo.owner,
