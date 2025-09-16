@@ -353,3 +353,11 @@ type SSHAgentStatus struct {
 	KeyCount    int       `json:"key_count"`
 	LastUpdated time.Time `json:"last_updated"`
 }
+
+// ZshSecretsService handles zsh_secrets file operations
+type ZshSecretsService interface {
+	UpdateGitHubToken(ctx context.Context, token string) error
+	GetCurrentGitHubToken(ctx context.Context) (string, error)
+	ReloadZshSecrets(ctx context.Context) error
+	ValidateZshSecretsFile(ctx context.Context) error
+}

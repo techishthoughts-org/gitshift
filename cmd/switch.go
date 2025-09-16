@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/techishthoughts/GitPersona/internal/commands"
 	"github.com/techishthoughts/GitPersona/internal/errors"
+	"github.com/techishthoughts/GitPersona/internal/github"
 	"github.com/techishthoughts/GitPersona/internal/models"
 	"github.com/techishthoughts/GitPersona/internal/observability"
 	"github.com/techishthoughts/GitPersona/internal/services"
@@ -200,6 +201,13 @@ func (c *SwitchCommand) performAccountSwitch(ctx context.Context, configService 
 		return fmt.Errorf("failed to update Git configuration: %w", err)
 	}
 
+	// Update GitHub token in zsh_secrets
+	if err := c.updateGitHubTokenInZshSecrets(ctx, targetAccount); err != nil {
+		c.PrintWarning(ctx, "Failed to update GitHub token in zsh_secrets, but continuing with switch",
+			observability.F("error", err.Error()),
+		)
+	}
+
 	return nil
 }
 
@@ -351,6 +359,48 @@ func (c *SwitchCommand) updateGitConfig(ctx context.Context, account *models.Acc
 			return fmt.Errorf("failed to set SSH command: %w", err)
 		}
 		c.PrintSuccess(ctx, fmt.Sprintf("Updated Git SSH command: %s", sshCmd))
+	}
+
+	return nil
+}
+
+// updateGitHubTokenInZshSecrets updates the GITHUB_TOKEN in zsh_secrets file
+func (c *SwitchCommand) updateGitHubTokenInZshSecrets(ctx context.Context, account *models.Account) error {
+	container := c.GetContainer()
+	zshSecretsService := container.GetZshSecretsService()
+
+	if zshSecretsService == nil {
+		c.PrintInfo(ctx, "Zsh secrets service not available, skipping GitHub token update")
+		return nil
+	}
+
+	c.PrintInfo(ctx, "Updating GitHub token in zsh_secrets...",
+		observability.F("account", account.Alias),
+	)
+
+	// Get the current GitHub token from GitHub CLI
+	// For now, we'll use the existing GitHub client to get the token
+	githubClient := github.NewClient("")
+	token, err := githubClient.GetGitHubToken()
+	if err != nil {
+		return fmt.Errorf("failed to get GitHub token: %w", err)
+	}
+
+	// Update the token in zsh_secrets
+	if err := zshSecretsService.UpdateGitHubToken(ctx, token); err != nil {
+		return fmt.Errorf("failed to update GitHub token in zsh_secrets: %w", err)
+	}
+
+	c.PrintSuccess(ctx, "Updated GitHub token in zsh_secrets",
+		observability.F("account", account.Alias),
+	)
+
+	// Optionally reload the zsh_secrets file
+	if err := zshSecretsService.ReloadZshSecrets(ctx); err != nil {
+		c.PrintWarning(ctx, "Failed to reload zsh_secrets file",
+			observability.F("error", err.Error()),
+		)
+		// Don't fail the entire operation if reload fails
 	}
 
 	return nil

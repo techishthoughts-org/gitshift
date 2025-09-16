@@ -219,6 +219,12 @@ gitpersona switch personal --force
 gitpersona switch client --skip-validation
 ```
 
+The switch command automatically:
+- Updates Git configuration (user.name, user.email)
+- Configures SSH keys for the account
+- **Updates GITHUB_TOKEN in zsh_secrets file**
+- Validates SSH connection to GitHub
+
 ### **Automated GitHub Integration**
 
 ```bash
@@ -277,6 +283,26 @@ export GITPERSONA_DEBUG=true
 # Default SSH key directory
 export GITPERSONA_SSH_DIR="~/.ssh"
 ```
+
+### **Zsh Secrets Integration**
+
+GitPersona automatically manages your `GITHUB_TOKEN` in your `zsh_secrets` file when switching accounts:
+
+```bash
+# The switch command automatically updates your zsh_secrets file
+gitpersona switch work
+
+# This updates the GITHUB_TOKEN in ~/.zsh_secrets
+# export GITHUB_TOKEN="ghp_your_token_here"
+```
+
+**Supported zsh_secrets locations:**
+- `~/.zsh_secrets` (default)
+- `~/.config/zsh_secrets`
+- `~/.secrets/zsh_secrets`
+- `~/.zsh/secrets`
+
+The tool will automatically detect and use your existing zsh_secrets file, or create one at the default location if none exists.
 
 ---
 
