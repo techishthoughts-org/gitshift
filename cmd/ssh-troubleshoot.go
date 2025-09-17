@@ -99,6 +99,17 @@ func (c *SSHTroubleshootCommand) Run(ctx context.Context, args []string) error {
 	return c.runSSHDiagnostics(ctx, configService)
 }
 
+// Execute is the main entry point for the command
+func (c *SSHTroubleshootCommand) Execute(ctx context.Context, args []string) error {
+	// Validate arguments
+	if err := c.Validate(args); err != nil {
+		return err
+	}
+
+	// Execute the command logic
+	return c.Run(ctx, args)
+}
+
 // runSSHDiagnostics runs comprehensive SSH diagnostics
 func (c *SSHTroubleshootCommand) runSSHDiagnostics(ctx context.Context, configService services.ConfigurationService) error {
 	// 1. Check SSH agent status
@@ -134,7 +145,7 @@ func (c *SSHTroubleshootCommand) runSSHDiagnostics(ctx context.Context, configSe
 	}
 
 	// 7. Provide recommendations
-	c.provideRecommendations(ctx, configService)
+	_ = c.provideRecommendations(ctx, configService)
 
 	return nil
 }

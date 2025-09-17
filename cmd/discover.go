@@ -17,7 +17,6 @@ var discoverCmd = &cobra.Command{
 	Short: "Auto-discover existing Git accounts on your system",
 	Long: `Automatically discover and import existing Git accounts from:
 
-- Global ~/.gitconfig
 - Git config files in ~/.config/git/
 - SSH keys configured for GitHub
 - GitHub CLI (gh) authentication
@@ -107,8 +106,13 @@ Examples:
 			} else if dryRun {
 				fmt.Printf("   🔍 Would import (dry run mode)\n")
 			} else {
-				// Check if we can add as pending account
-				if account.Confidence >= 6 && account.GitHubUsername != "" {
+				// Check if we can add as pending account (more inclusive criteria)
+				hasUsefulInfo := account.Confidence >= 6 && (account.GitHubUsername != "" ||
+					account.SSHKeyPath != "" ||
+					account.Name != "" ||
+					account.Email != "")
+
+				if hasUsefulInfo {
 					// Create pending account for manual completion
 					missingFields := []string{}
 					if account.Name == "" {
@@ -117,10 +121,22 @@ Examples:
 					if account.Email == "" {
 						missingFields = append(missingFields, "email")
 					}
+					if account.GitHubUsername == "" {
+						missingFields = append(missingFields, "github_username")
+					}
+					if account.SSHKeyPath == "" {
+						missingFields = append(missingFields, "ssh_key")
+					}
 
 					partialData := make(map[string]string)
 					if account.SSHKeyPath != "" {
 						partialData["ssh_key_path"] = account.SSHKeyPath
+					}
+					if account.Name != "" {
+						partialData["name"] = account.Name
+					}
+					if account.Email != "" {
+						partialData["email"] = account.Email
 					}
 
 					pendingAccount := models.NewPendingAccount(
@@ -136,20 +152,85 @@ Examples:
 						fmt.Printf("   ❌ Failed to add as pending: %v\n", err)
 					} else {
 						fmt.Printf("   📋 Added to pending accounts (missing: %s)\n", strings.Join(missingFields, ", "))
-						fmt.Printf("   💡 Complete with: gitpersona complete %s --name \"Your Name\" --email \"your@email.com\"\n", account.Alias)
+
+						// Provide specific completion command based on what's missing
+						if account.GitHubUsername != "" {
+							fmt.Printf("   💡 Complete with: gitpersona complete %s", account.Alias)
+							if account.Name == "" {
+								fmt.Printf(" --name \"Your Name\"")
+							}
+							if account.Email == "" {
+								fmt.Printf(" --email \"your@email.com\"")
+							}
+							fmt.Println()
+						} else {
+							fmt.Printf("   💡 Complete with: gitpersona add-github USERNAME --alias %s", account.Alias)
+							if account.Name != "" {
+								fmt.Printf(" --name \"%s\"", account.Name)
+							} else {
+								fmt.Printf(" --name \"Your Name\"")
+							}
+							if account.Email != "" {
+								fmt.Printf(" --email \"%s\"", account.Email)
+							} else {
+								fmt.Printf(" --email \"your@email.com\"")
+							}
+							fmt.Println()
+						}
 					}
 				} else {
 					fmt.Printf("   ⏭️  Skipped: ")
+					reasons := []string{}
+					recommendations := []string{}
+
 					if account.Confidence < 6 {
-						fmt.Printf("low confidence (%d/10) ", account.Confidence)
+						reasons = append(reasons, fmt.Sprintf("low confidence (%d/10)", account.Confidence))
 					}
 					if account.Name == "" && account.Email == "" {
-						fmt.Printf("missing name and email ")
+						reasons = append(reasons, "missing name and email")
+						if account.GitHubUsername != "" {
+							recommendations = append(recommendations, fmt.Sprintf("gitpersona add-github %s --name \"Your Name\" --email \"your@email.com\"", account.GitHubUsername))
+						} else if account.Alias != "" {
+							recommendations = append(recommendations, fmt.Sprintf("gitpersona add %s --name \"Your Name\" --email \"your@email.com\"", account.Alias))
+						} else {
+							recommendations = append(recommendations, "--name \"Your Name\" --email \"your@email.com\"")
+						}
 					}
 					if account.GitHubUsername == "" && account.SSHKeyPath == "" {
-						fmt.Printf("missing GitHub username and SSH key")
+						reasons = append(reasons, "missing GitHub username and SSH key")
+						recommendations = append(recommendations, "gitpersona add-github USERNAME")
 					}
-					fmt.Println()
+
+					fmt.Printf("%s\n", strings.Join(reasons, ", "))
+
+					// Provide specific recommendations
+					if len(recommendations) > 0 {
+						fmt.Printf("   💡 To add this account:")
+						if account.GitHubUsername != "" {
+							// We have GitHub username, suggest completing with missing fields
+							fmt.Printf(" gitpersona add-github %s", account.GitHubUsername)
+							if len(recommendations) > 1 {
+								fmt.Printf(" %s", strings.Join(recommendations[1:], " "))
+							}
+						} else if account.Alias != "" && (account.Name != "" || account.Email != "") {
+							// We have alias and some info, suggest using the alias
+							fmt.Printf(" gitpersona add %s", account.Alias)
+							// Filter out the generic recommendation and use specific ones
+							specificRecommendations := []string{}
+							for _, rec := range recommendations {
+								if rec != "gitpersona add-github USERNAME" {
+									specificRecommendations = append(specificRecommendations, rec)
+								}
+							}
+							if len(specificRecommendations) > 0 {
+								fmt.Printf(" %s", strings.Join(specificRecommendations, " "))
+							}
+						} else {
+							// No GitHub username, suggest the general command
+							fmt.Printf(" %s", recommendations[0])
+						}
+						fmt.Println()
+					}
 				}
 			}
 
@@ -173,6 +254,16 @@ Examples:
 						}
 					}
 				}
+			}
+		}
+
+		// Check for pending accounts
+		if !dryRun {
+			pendingAccounts := configManager.ListPendingAccounts()
+			if len(pendingAccounts) > 0 {
+				fmt.Printf("\n📋 Found %d pending account(s) that need completion\n", len(pendingAccounts))
+				fmt.Println("💡 Use 'gitpersona pending' to see pending accounts")
+				fmt.Println("💡 Use 'gitpersona complete <alias>' to complete pending accounts")
 			}
 		}
 

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -156,10 +157,29 @@ func (c *SwitchCommand) validateAccountSSH(ctx context.Context, account *models.
 		return nil
 	}
 
-	// If no SSH key is configured, skip validation
+	// If no SSH key is configured, provide helpful guidance
 	if account.SSHKeyPath == "" {
-		c.PrintInfo(ctx, "No SSH key configured for account, skipping validation")
-		return nil
+		c.PrintWarning(ctx, "No SSH key configured for account",
+			observability.F("account", account.Alias),
+			observability.F("github_username", account.GitHubUsername),
+		)
+		c.PrintInfo(ctx, "💡 To fix this issue:")
+		c.PrintInfo(ctx, "  1. Generate SSH key: gitpersona add-github "+account.GitHubUsername+" --overwrite")
+		c.PrintInfo(ctx, "  2. Or add existing key: gitpersona config set --account "+account.Alias+" ssh_key_path /path/to/key")
+		c.PrintInfo(ctx, "  3. Then run: gitpersona switch "+account.Alias)
+		return fmt.Errorf("SSH key not configured for account %s", account.Alias)
+	}
+
+	// Check if SSH key file actually exists
+	if _, err := os.Stat(account.SSHKeyPath); os.IsNotExist(err) {
+		c.PrintError(ctx, "SSH key file not found",
+			observability.F("account", account.Alias),
+			observability.F("ssh_key_path", account.SSHKeyPath),
+		)
+		c.PrintInfo(ctx, "💡 To fix this issue:")
+		c.PrintInfo(ctx, "  1. Generate new SSH key: gitpersona add-github "+account.GitHubUsername+" --overwrite")
+		c.PrintInfo(ctx, "  2. Or update key path: gitpersona config set --account "+account.Alias+" ssh_key_path /correct/path/to/key")
+		return fmt.Errorf("SSH key file not found: %s", account.SSHKeyPath)
 	}
 
 	// Check for SSH key conflicts before validation
@@ -230,11 +250,11 @@ func (c *SwitchCommand) handleRepositoryNotFoundError(ctx context.Context, accou
 	// Generate SSH config suggestion
 	if account.SSHKeyPath != "" {
 		c.PrintInfo(ctx, "💡 Recommended SSH config:")
-		c.PrintInfo(ctx, fmt.Sprintf("   Host github.com"))
-		c.PrintInfo(ctx, fmt.Sprintf("     HostName github.com"))
-		c.PrintInfo(ctx, fmt.Sprintf("     User git"))
+		c.PrintInfo(ctx, "   Host github.com")
+		c.PrintInfo(ctx, "     HostName github.com")
+		c.PrintInfo(ctx, "     User git")
 		c.PrintInfo(ctx, fmt.Sprintf("     IdentityFile %s", account.SSHKeyPath))
-		c.PrintInfo(ctx, fmt.Sprintf("     IdentitiesOnly yes"))
+		c.PrintInfo(ctx, "     IdentitiesOnly yes")
 	}
 
 	return fmt.Errorf("SSH authentication failed - wrong key may be used: %w", err)

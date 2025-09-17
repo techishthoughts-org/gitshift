@@ -42,10 +42,10 @@ type DiscoveredAccount struct {
 func (d *AccountDiscovery) ScanExistingAccounts() ([]*DiscoveredAccount, error) {
 	var discovered []*DiscoveredAccount
 
-	// 1. Scan global Git configuration
-	if globalAccounts, err := d.scanGlobalGitConfig(); err == nil {
-		discovered = append(discovered, globalAccounts...)
-	}
+	// 1. Skip global Git configuration (can contain outdated/irrelevant data)
+	// if globalAccounts, err := d.scanGlobalGitConfig(); err == nil {
+	//	discovered = append(discovered, globalAccounts...)
+	// }
 
 	// 2. Scan Git config files in ~/.config/git/
 	if configAccounts, err := d.scanGitConfigFiles(); err == nil {
@@ -291,12 +291,16 @@ func (d *AccountDiscovery) scanGitHubCLI() ([]*DiscoveredAccount, error) {
 				// Try to enrich account with GitHub API data
 				enrichedAccount := d.enrichAccountFromGitHubAPI(username)
 
+				// Check if SSH key exists for this account
+				sshKeyPath := d.findOrGenerateSSHKey(username, enrichedAccount.Email)
+
 				currentAccount = &DiscoveredAccount{
 					Account: &models.Account{
 						Alias:          d.generateAlias("", username, "gh"),
 						Name:           enrichedAccount.Name,
 						Email:          enrichedAccount.Email,
 						GitHubUsername: username,
+						SSHKeyPath:     sshKeyPath,
 						Description:    "Found via GitHub CLI authentication",
 					},
 					Source:     "gh auth status",
@@ -605,4 +609,63 @@ func (d *AccountDiscovery) expandPath(path string) string {
 		return filepath.Join(d.homeDir, path[2:])
 	}
 	return path
+}
+
+// findOrGenerateSSHKey finds existing SSH key or generates a new one
+func (d *AccountDiscovery) findOrGenerateSSHKey(username, email string) string {
+	// Look for existing SSH keys that might match this account
+	sshDir := filepath.Join(d.homeDir, ".ssh")
+
+	// Common SSH key patterns to check
+	patterns := []string{
+		fmt.Sprintf("id_ed25519_%s", username),
+		fmt.Sprintf("id_rsa_%s", username),
+		fmt.Sprintf("id_ed25519"),
+		fmt.Sprintf("id_rsa"),
+	}
+
+	for _, pattern := range patterns {
+		keyPath := filepath.Join(sshDir, pattern)
+		if _, err := os.Stat(keyPath); err == nil {
+			// Key exists, return it
+			return keyPath
+		}
+	}
+
+	// No existing key found, generate a new one
+	fmt.Printf("🔑 No SSH key found for %s, generating new one...\n", username)
+
+	// Generate SSH key
+	keyPath := filepath.Join(sshDir, fmt.Sprintf("id_ed25519_%s", username))
+	cmd := exec.Command("ssh-keygen", "-t", "ed25519", "-C", email, "-f", keyPath, "-N", "")
+
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("⚠️  Failed to generate SSH key: %v\n", err)
+		return ""
+	}
+
+	fmt.Printf("✅ Generated SSH key: %s\n", keyPath)
+
+	// Try to add to GitHub if authenticated
+	if d.isGitHubCLIAuthenticated() {
+		fmt.Printf("🚀 Adding SSH key to GitHub account...\n")
+		addCmd := exec.Command("gh", "ssh-key", "add", keyPath+".pub", "--title", fmt.Sprintf("gitpersona-%s", username))
+		if err := addCmd.Run(); err != nil {
+			fmt.Printf("⚠️  Failed to add SSH key to GitHub: %v\n", err)
+			fmt.Printf("💡 Please add this key manually: https://github.com/settings/keys\n")
+		} else {
+			fmt.Printf("🎉 SSH key added to GitHub account!\n")
+		}
+	} else {
+		fmt.Printf("💡 Please add this SSH key to your GitHub account:\n")
+		fmt.Printf("   https://github.com/settings/keys\n")
+	}
+
+	return keyPath
+}
+
+// isGitHubCLIAuthenticated checks if GitHub CLI is authenticated
+func (d *AccountDiscovery) isGitHubCLIAuthenticated() bool {
+	cmd := exec.Command("gh", "auth", "status")
+	return cmd.Run() == nil
 }
