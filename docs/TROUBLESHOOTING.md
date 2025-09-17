@@ -133,21 +133,27 @@ gitpersona diagnose --ssh-only --verbose
 
 #### **Solutions**
 ```bash
-# 1. Check SSH key permissions
+# 1. Use GitPersona's comprehensive SSH troubleshooting
+gitpersona ssh-troubleshoot --verbose
+
+# 2. Auto-fix SSH issues
+gitpersona ssh-troubleshoot --auto-fix
+
+# 3. Check SSH key permissions
 ls -la ~/.ssh/id_ed25519_work
 # Should be: -rw------- (600)
 
-# 2. Fix permissions
+# 4. Fix permissions
 chmod 600 ~/.ssh/id_ed25519_work
 chmod 700 ~/.ssh
 
-# 3. Add key to SSH agent
+# 5. Add key to SSH agent
 ssh-add ~/.ssh/id_ed25519_work
 
-# 4. Test key with GitHub
+# 6. Test key with GitHub
 ssh -T git@github.com -i ~/.ssh/id_ed25519_work
 
-# 5. Verify key is added to GitHub account
+# 7. Verify key is added to GitHub account
 # Go to GitHub Settings > SSH and GPG keys
 ```
 
@@ -200,17 +206,59 @@ gitpersona diagnose --ssh-only --verbose
 
 #### **Solutions**
 ```bash
-# 1. Clear all keys from agent
+# 1. Use GitPersona's SSH troubleshooting for key conflicts
+gitpersona ssh-troubleshoot --verbose
+
+# 2. Auto-fix SSH key conflicts
+gitpersona ssh-troubleshoot --auto-fix
+
+# 3. Generate proper SSH configuration
+gitpersona ssh-config generate --apply
+
+# 4. Clear all keys from agent
 gitpersona ssh-agent --clear
 
-# 2. Load only the required key
+# 5. Load only the required key
 gitpersona ssh-agent --load ~/.ssh/id_ed25519_work
 
-# 3. Use SSH config with IdentitiesOnly
+# 6. Use SSH config with IdentitiesOnly
 echo "IdentitiesOnly yes" >> ~/.ssh/config
 
-# 4. Test with specific key
+# 7. Test with specific key
 ssh -T git@github.com -i ~/.ssh/id_ed25519_work
+```
+
+### **Issue: Repository Not Found (SSH Key Conflicts)**
+
+**Problem**: `Repository not found` error when you have access to the repository
+
+This is a common issue when multiple SSH keys are loaded in the SSH agent, causing GitHub to authenticate with the wrong key.
+
+#### **Diagnosis**
+```bash
+# 1. Use GitPersona's comprehensive SSH diagnostics
+gitpersona ssh-troubleshoot --verbose
+
+# 2. Check for SSH key conflicts
+gitpersona diagnose --ssh-only --verbose
+
+# 3. List loaded SSH keys
+ssh-add -l
+```
+
+#### **Solutions**
+```bash
+# 1. Auto-fix SSH key conflicts
+gitpersona ssh-troubleshoot --auto-fix
+
+# 2. Generate proper SSH configuration
+gitpersona ssh-config generate --apply
+
+# 3. Clean up SSH agent
+gitpersona ssh-agent --cleanup
+
+# 4. Test GitHub connectivity
+gitpersona ssh-troubleshoot --test-github
 ```
 
 ### **Issue: SSH Key Not Found**

@@ -20,6 +20,7 @@ go.work.sum
 coverage.out
 coverage.html
 coverage.xml
+coverage_*.out
 *.cover
 *.coverprofile
 test-results/
@@ -99,6 +100,7 @@ desktop.ini
 *.pid
 *.seed
 *.pid.lock
+checksums.txt
 
 # 🐳 Docker & Container
 .dockerignore
