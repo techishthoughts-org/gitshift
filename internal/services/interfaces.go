@@ -321,6 +321,8 @@ type SSHAgentService interface {
 	IsAgentRunning(ctx context.Context) (bool, error)
 	StartAgent(ctx context.Context) error
 	StopAgent(ctx context.Context) error
+	ForceRestartAgent(ctx context.Context) error
+	KillAllSSHAgents(ctx context.Context) error
 
 	// Key management
 	LoadKey(ctx context.Context, keyPath string) error
@@ -360,4 +362,13 @@ type ZshSecretsService interface {
 	GetCurrentGitHubToken(ctx context.Context) (string, error)
 	ReloadZshSecrets(ctx context.Context) error
 	ValidateZshSecretsFile(ctx context.Context) error
+}
+
+// ZshrcService handles .zshrc file operations
+type ZshrcService interface {
+	UpdateGitHubToken(ctx context.Context, token string) error
+	GetCurrentGitHubToken(ctx context.Context) (string, error)
+	ReloadZshrc(ctx context.Context) error
+	ValidateZshrcFile(ctx context.Context) error
+	AddGitPersonaSection(ctx context.Context) error
 }

@@ -516,6 +516,62 @@ func (s *RealSSHAgentService) SwitchToAccountWithCleanup(ctx context.Context, ke
 	return s.SwitchToAccount(ctx, keyPath)
 }
 
+// ForceRestartAgent kills all existing SSH agents and starts a fresh one
+func (s *RealSSHAgentService) ForceRestartAgent(ctx context.Context) error {
+	s.logger.Info(ctx, "force_restarting_ssh_agent")
+
+	// Kill all existing SSH agents
+	if err := s.KillAllSSHAgents(ctx); err != nil {
+		s.logger.Warn(ctx, "failed_to_kill_existing_agents",
+			observability.F("error", err.Error()),
+		)
+		// Continue with restart even if kill fails
+	}
+
+	// Clear any existing SSH_AUTH_SOCK environment variable
+	if err := os.Unsetenv("SSH_AUTH_SOCK"); err != nil {
+		s.logger.Warn(ctx, "failed_to_unset_ssh_auth_sock",
+			observability.F("error", err.Error()),
+		)
+	}
+
+	// Start a fresh SSH agent
+	if err := s.StartAgent(ctx); err != nil {
+		s.logger.Error(ctx, "failed_to_start_fresh_ssh_agent",
+			observability.F("error", err.Error()),
+		)
+		return fmt.Errorf("failed to start fresh SSH agent: %w", err)
+	}
+
+	s.logger.Info(ctx, "ssh_agent_force_restarted_successfully")
+	return nil
+}
+
+// KillAllSSHAgents kills all running SSH agent processes
+func (s *RealSSHAgentService) KillAllSSHAgents(ctx context.Context) error {
+	s.logger.Info(ctx, "killing_all_ssh_agents")
+
+	// Kill all ssh-agent processes
+	cmd := exec.Command("pkill", "-f", "ssh-agent")
+	if err := s.runner.Run(ctx, cmd.Path, cmd.Args[1:]...); err != nil {
+		s.logger.Warn(ctx, "failed_to_kill_ssh_agents",
+			observability.F("error", err.Error()),
+		)
+		// Don't return error as some agents might not exist
+	}
+
+	// Also try to kill any remaining SSH agent processes
+	cmd = exec.Command("killall", "ssh-agent")
+	if err := s.runner.Run(ctx, cmd.Path, cmd.Args[1:]...); err != nil {
+		s.logger.Debug(ctx, "no_ssh_agents_to_kill",
+			observability.F("error", err.Error()),
+		)
+	}
+
+	s.logger.Info(ctx, "all_ssh_agents_killed")
+	return nil
+}
+
 // ValidateSSHConnectionWithRetry validates SSH connection with retry mechanism
 func (s *RealSSHAgentService) ValidateSSHConnectionWithRetry(ctx context.Context, keyPath string) error {
 	maxRetries := 3

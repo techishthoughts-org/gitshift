@@ -300,9 +300,9 @@ func (c *SwitchCommand) performAccountSwitch(ctx context.Context, configService 
 		return fmt.Errorf("failed to update Git configuration: %w", err)
 	}
 
-	// Update GitHub token in zsh_secrets
-	if err := c.updateGitHubTokenInZshSecrets(ctx, targetAccount); err != nil {
-		c.PrintWarning(ctx, "Failed to update GitHub token in zsh_secrets, but continuing with switch",
+	// Update GitHub token in .zshrc
+	if err := c.updateGitHubTokenInZshrc(ctx, targetAccount); err != nil {
+		c.PrintWarning(ctx, "Failed to update GitHub token in .zshrc, but continuing with switch",
 			observability.F("error", err.Error()),
 		)
 	}
@@ -329,6 +329,13 @@ func (c *SwitchCommand) manageSSHAgent(ctx context.Context, account *models.Acco
 	c.PrintInfo(ctx, "Managing SSH agent for account",
 		observability.F("ssh_key", account.SSHKeyPath),
 	)
+
+	// Force restart SSH agent to avoid conflicts from multiple agents
+	if err := sshAgentService.ForceRestartAgent(ctx); err != nil {
+		c.PrintWarning(ctx, "Failed to restart SSH agent, but continuing with switch",
+			observability.F("error", err.Error()),
+		)
+	}
 
 	// Switch to the account's SSH key with socket cleanup (this will clear other keys and load only this one)
 	if err := sshAgentService.SwitchToAccountWithCleanup(ctx, account.SSHKeyPath); err != nil {
@@ -463,17 +470,17 @@ func (c *SwitchCommand) updateGitConfig(ctx context.Context, account *models.Acc
 	return nil
 }
 
-// updateGitHubTokenInZshSecrets updates the GITHUB_TOKEN in zsh_secrets file
-func (c *SwitchCommand) updateGitHubTokenInZshSecrets(ctx context.Context, account *models.Account) error {
+// updateGitHubTokenInZshrc updates the GITHUB_TOKEN in .zshrc file
+func (c *SwitchCommand) updateGitHubTokenInZshrc(ctx context.Context, account *models.Account) error {
 	container := c.GetContainer()
-	zshSecretsService := container.GetZshSecretsService()
+	zshrcService := container.GetZshrcService()
 
-	if zshSecretsService == nil {
-		c.PrintInfo(ctx, "Zsh secrets service not available, skipping GitHub token update")
+	if zshrcService == nil {
+		c.PrintInfo(ctx, "Zshrc service not available, skipping GitHub token update")
 		return nil
 	}
 
-	c.PrintInfo(ctx, "Updating GitHub token in zsh_secrets...",
+	c.PrintInfo(ctx, "Updating GitHub token in .zshrc...",
 		observability.F("account", account.Alias),
 	)
 
@@ -485,18 +492,26 @@ func (c *SwitchCommand) updateGitHubTokenInZshSecrets(ctx context.Context, accou
 		return fmt.Errorf("failed to get GitHub token: %w", err)
 	}
 
-	// Update the token in zsh_secrets
-	if err := zshSecretsService.UpdateGitHubToken(ctx, token); err != nil {
-		return fmt.Errorf("failed to update GitHub token in zsh_secrets: %w", err)
+	// Ensure GitPersona section exists in .zshrc
+	if err := zshrcService.AddGitPersonaSection(ctx); err != nil {
+		c.PrintWarning(ctx, "Failed to add GitPersona section to .zshrc",
+			observability.F("error", err.Error()),
+		)
+		// Continue anyway - the section might already exist
 	}
 
-	c.PrintSuccess(ctx, "Updated GitHub token in zsh_secrets",
+	// Update the token in .zshrc
+	if err := zshrcService.UpdateGitHubToken(ctx, token); err != nil {
+		return fmt.Errorf("failed to update GitHub token in .zshrc: %w", err)
+	}
+
+	c.PrintSuccess(ctx, "Updated GitHub token in .zshrc",
 		observability.F("account", account.Alias),
 	)
 
-	// Optionally reload the zsh_secrets file
-	if err := zshSecretsService.ReloadZshSecrets(ctx); err != nil {
-		c.PrintWarning(ctx, "Failed to reload zsh_secrets file",
+	// Optionally reload the .zshrc file
+	if err := zshrcService.ReloadZshrc(ctx); err != nil {
+		c.PrintWarning(ctx, "Failed to reload .zshrc file",
 			observability.F("error", err.Error()),
 		)
 		// Don't fail the entire operation if reload fails

@@ -23,6 +23,7 @@ type SimpleContainer struct {
 	healthService     services.HealthService
 	validationService services.ValidationService
 	zshSecretsService services.ZshSecretsService
+	zshrcService      services.ZshrcService
 
 	// Infrastructure
 	logger observability.Logger
@@ -179,6 +180,20 @@ func (c *SimpleContainer) SetZshSecretsService(service services.ZshSecretsServic
 	c.zshSecretsService = service
 }
 
+// GetZshrcService returns the zshrc service instance
+func (c *SimpleContainer) GetZshrcService() services.ZshrcService {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.zshrcService
+}
+
+// SetZshrcService sets the zshrc service instance
+func (c *SimpleContainer) SetZshrcService(service services.ZshrcService) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.zshrcService = service
+}
+
 // Initialize initializes all services
 func (c *SimpleContainer) Initialize(ctx context.Context) error {
 	logger := c.GetLogger()
@@ -209,6 +224,10 @@ func (c *SimpleContainer) Initialize(ctx context.Context) error {
 	// Initialize the zsh secrets service
 	zshSecretsService := services.NewZshSecretsService(logger, &runner)
 	c.SetZshSecretsService(zshSecretsService)
+
+	// Initialize the zshrc service
+	zshrcService := services.NewZshrcService(logger, &runner)
+	c.SetZshrcService(zshrcService)
 
 	// TODO: Initialize GitHub, Health, and Validation services as they are implemented
 	logger.Info(ctx, "simple_service_container_initialized")
