@@ -3,33 +3,36 @@ package services
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/techishthoughts/GitPersona/internal/execrunner"
 	"github.com/techishthoughts/GitPersona/internal/observability"
 )
 
-// GitHubTokenService handles GitHub token retrieval and management
-type GitHubTokenService struct {
+// RealGitHubTokenService handles GitHub token retrieval and management
+type RealGitHubTokenService struct {
 	logger observability.Logger
 	runner execrunner.CmdRunner
 }
 
 // NewGitHubTokenService creates a new GitHub token service
-func NewGitHubTokenService(logger observability.Logger, runner execrunner.CmdRunner) *GitHubTokenService {
+func NewGitHubTokenService(logger observability.Logger, runner execrunner.CmdRunner) GitHubTokenService {
 	if runner == nil {
 		runner = &execrunner.RealCmdRunner{}
 	}
 
-	return &GitHubTokenService{
+	return &RealGitHubTokenService{
 		logger: logger,
 		runner: runner,
 	}
 }
 
 // GetCurrentGitHubToken retrieves the current GitHub token from gh CLI
-func (s *GitHubTokenService) GetCurrentGitHubToken(ctx context.Context) (string, error) {
+func (s *RealGitHubTokenService) GetCurrentGitHubToken(ctx context.Context) (string, error) {
 	s.logger.Info(ctx, "retrieving_current_github_token")
 
 	// Check if GitHub CLI is available
@@ -59,7 +62,7 @@ func (s *GitHubTokenService) GetCurrentGitHubToken(ctx context.Context) (string,
 
 // GetTokenForAccount retrieves a GitHub token for a specific account
 // This is a placeholder for future multi-account token management
-func (s *GitHubTokenService) GetTokenForAccount(ctx context.Context, accountAlias string) (string, error) {
+func (s *RealGitHubTokenService) GetTokenForAccount(ctx context.Context, accountAlias string) (string, error) {
 	s.logger.Info(ctx, "retrieving_github_token_for_account",
 		observability.F("account", accountAlias),
 	)
@@ -70,23 +73,109 @@ func (s *GitHubTokenService) GetTokenForAccount(ctx context.Context, accountAlia
 }
 
 // ValidateToken validates that a GitHub token is working
-func (s *GitHubTokenService) ValidateToken(ctx context.Context, token string) error {
+func (s *RealGitHubTokenService) ValidateToken(ctx context.Context, token string) error {
 	s.logger.Info(ctx, "validating_github_token")
 
-	// Test the token by making a simple API call
-	// For now, we'll skip the validation since CombinedOutputWithEnv doesn't exist
-	// In a real implementation, you'd need to add this method to the CmdRunner interface
-	// or use a different approach to test the token
+	if token == "" {
+		return fmt.Errorf("token cannot be empty")
+	}
 
-	// TODO: Implement proper token validation with environment variables
-	_ = token // Suppress unused variable warning
+	// Test the token by making a GitHub API call
+	cmd := exec.Command("gh", "api", "user")
+	cmd.Env = append(os.Environ(), fmt.Sprintf("GITHUB_TOKEN=%s", token))
 
-	s.logger.Info(ctx, "github_token_validation_successful")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		s.logger.Error(ctx, "github_token_validation_failed",
+			observability.F("error", err.Error()),
+		)
+		return fmt.Errorf("token validation failed: %w", err)
+	}
+
+	// Parse response to ensure it's valid
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "login") {
+		s.logger.Error(ctx, "github_token_validation_invalid_response",
+			observability.F("response", outputStr),
+		)
+		return fmt.Errorf("invalid token response: missing user login")
+	}
+
+	// Extract and validate user info
+	user, err := parseGitHubUserJSON(outputStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse user data during validation: %w", err)
+	}
+
+	if user.Login == "" {
+		return fmt.Errorf("token validation failed: empty login")
+	}
+
+	s.logger.Info(ctx, "github_token_validation_successful",
+		observability.F("user_login", user.Login),
+	)
 	return nil
 }
 
+// ValidateTokenWithRetry validates a GitHub token with retry mechanism
+func (s *RealGitHubTokenService) ValidateTokenWithRetry(ctx context.Context, token string, maxRetries int) error {
+	s.logger.Info(ctx, "validating_github_token_with_retry",
+		observability.F("max_retries", maxRetries),
+	)
+
+	var lastErr error
+	for i := 0; i < maxRetries; i++ {
+		if err := s.ValidateToken(ctx, token); err == nil {
+			s.logger.Info(ctx, "github_token_validation_successful_after_retry",
+				observability.F("attempt", i+1),
+			)
+			return nil
+		} else {
+			lastErr = err
+			if i < maxRetries-1 {
+				s.logger.Warn(ctx, "github_token_validation_failed_retrying",
+					observability.F("attempt", i+1),
+					observability.F("error", err.Error()),
+				)
+				time.Sleep(time.Second * time.Duration(i+1)) // Exponential backoff
+			}
+		}
+	}
+
+	return fmt.Errorf("token validation failed after %d attempts: %w", maxRetries, lastErr)
+}
+
+// RefreshToken refreshes the current GitHub token
+func (s *RealGitHubTokenService) RefreshToken(ctx context.Context) (string, error) {
+	s.logger.Info(ctx, "refreshing_github_token")
+
+	// GitHub CLI doesn't support token refresh directly
+	// This is a placeholder for future enhancement
+	return s.GetCurrentGitHubToken(ctx)
+}
+
+// CacheToken caches a token for an account (placeholder implementation)
+func (s *RealGitHubTokenService) CacheToken(ctx context.Context, account, token string) error {
+	s.logger.Info(ctx, "caching_github_token",
+		observability.F("account", account),
+	)
+
+	// Placeholder implementation - would implement proper caching
+	return nil
+}
+
+// GetCachedToken retrieves a cached token for an account (placeholder implementation)
+func (s *RealGitHubTokenService) GetCachedToken(ctx context.Context, account string) (string, error) {
+	s.logger.Info(ctx, "retrieving_cached_github_token",
+		observability.F("account", account),
+	)
+
+	// Placeholder implementation - would implement proper cache retrieval
+	return s.GetCurrentGitHubToken(ctx)
+}
+
 // checkGitHubCLIAvailable checks if GitHub CLI is installed and available
-func (s *GitHubTokenService) checkGitHubCLIAvailable(ctx context.Context) error {
+func (s *RealGitHubTokenService) checkGitHubCLIAvailable(ctx context.Context) error {
 	_, err := s.runner.CombinedOutput(ctx, "gh", "--version")
 	if err != nil {
 		return fmt.Errorf("GitHub CLI (gh) is not installed or not in PATH")
@@ -95,7 +184,7 @@ func (s *GitHubTokenService) checkGitHubCLIAvailable(ctx context.Context) error 
 }
 
 // checkGitHubAuthentication checks if the user is authenticated with GitHub CLI
-func (s *GitHubTokenService) checkGitHubAuthentication(ctx context.Context) error {
+func (s *RealGitHubTokenService) checkGitHubAuthentication(ctx context.Context) error {
 	_, err := s.runner.CombinedOutput(ctx, "gh", "auth", "status")
 	if err != nil {
 		return fmt.Errorf("not authenticated with GitHub CLI - run 'gh auth login' first")
@@ -104,7 +193,7 @@ func (s *GitHubTokenService) checkGitHubAuthentication(ctx context.Context) erro
 }
 
 // GetAuthenticatedUser gets the currently authenticated user information
-func (s *GitHubTokenService) GetAuthenticatedUser(ctx context.Context) (*GitHubUser, error) {
+func (s *RealGitHubTokenService) GetAuthenticatedUser(ctx context.Context) (*GitHubUser, error) {
 	s.logger.Info(ctx, "getting_authenticated_user_info")
 
 	output, err := s.runner.CombinedOutput(ctx, "gh", "api", "user")

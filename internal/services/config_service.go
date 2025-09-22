@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	"github.com/techishthoughts/GitPersona/internal/config"
 	"github.com/techishthoughts/GitPersona/internal/models"
@@ -16,6 +18,7 @@ type RealConfigService struct {
 	configPath string
 	manager    *config.Manager
 	logger     observability.Logger
+	mutex      sync.RWMutex // For file locking
 }
 
 // NewRealConfigService creates a new real config service
@@ -44,19 +47,133 @@ func (s *RealConfigService) Load(ctx context.Context) error {
 }
 
 func (s *RealConfigService) Save(ctx context.Context) error {
-	s.logger.Info(ctx, "saving_configuration",
-		observability.F("config_path", s.configPath),
-	)
-
-	if err := s.manager.Save(); err != nil {
-		s.logger.Error(ctx, "failed_to_save_configuration",
-			observability.F("error", err.Error()),
+	return s.withFileLock(ctx, func() error {
+		s.logger.Info(ctx, "saving_configuration_with_lock",
+			observability.F("config_path", s.configPath),
 		)
+
+		if err := s.manager.Save(); err != nil {
+			s.logger.Error(ctx, "failed_to_save_configuration",
+				observability.F("error", err.Error()),
+			)
+			return err
+		}
+
+		s.logger.Info(ctx, "configuration_saved_successfully")
+		return nil
+	})
+}
+
+// withFileLock provides atomic file operations with locking
+func (s *RealConfigService) withFileLock(ctx context.Context, fn func() error) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	lockFile := filepath.Join(s.configPath, "config.lock")
+
+	// Create lock file with timeout
+	lockTimeout := time.Second * 30
+	lockStart := time.Now()
+
+	for {
+		lock, err := os.OpenFile(lockFile, os.O_CREATE|os.O_EXCL, 0600)
+		if err == nil {
+			// Got the lock
+			defer func() {
+				lock.Close()
+				os.Remove(lockFile)
+			}()
+
+			s.logger.Info(ctx, "acquired_config_file_lock",
+				observability.F("lock_file", lockFile),
+			)
+
+			return fn()
+		}
+
+		// Check timeout
+		if time.Since(lockStart) > lockTimeout {
+			s.logger.Error(ctx, "config_file_lock_timeout",
+				observability.F("timeout", lockTimeout.String()),
+			)
+			return fmt.Errorf("config file is locked by another process (timeout after %v)", lockTimeout)
+		}
+
+		// Wait and retry
+		time.Sleep(time.Millisecond * 100)
+	}
+}
+
+// SaveAtomic saves configuration atomically with rollback capability
+func (s *RealConfigService) SaveAtomic(ctx context.Context, updateFn func() error) error {
+	return s.withFileLock(ctx, func() error {
+		s.logger.Info(ctx, "performing_atomic_config_save")
+
+		// Create backup of current config
+		backupPath := filepath.Join(s.configPath, fmt.Sprintf("config.backup.%d", time.Now().UnixNano()))
+		configPath := filepath.Join(s.configPath, "config.yaml")
+
+		if _, err := os.Stat(configPath); err == nil {
+			if err := s.copyFile(configPath, backupPath); err != nil {
+				s.logger.Warn(ctx, "failed_to_create_config_backup",
+					observability.F("error", err.Error()),
+				)
+				// Continue without backup
+			}
+		}
+
+		// Perform the update
+		if err := updateFn(); err != nil {
+			// Rollback
+			if _, err := os.Stat(backupPath); err == nil {
+				if rollbackErr := s.copyFile(backupPath, configPath); rollbackErr != nil {
+					s.logger.Error(ctx, "config_rollback_failed",
+						observability.F("error", rollbackErr.Error()),
+					)
+				}
+				os.Remove(backupPath)
+			}
+			return fmt.Errorf("atomic config save failed: %w", err)
+		}
+
+		// Save the configuration
+		if err := s.manager.Save(); err != nil {
+			// Rollback
+			if _, err := os.Stat(backupPath); err == nil {
+				if rollbackErr := s.copyFile(backupPath, configPath); rollbackErr != nil {
+					s.logger.Error(ctx, "config_rollback_failed",
+						observability.F("error", rollbackErr.Error()),
+					)
+				}
+			}
+			os.Remove(backupPath)
+			return fmt.Errorf("failed to save config during atomic operation: %w", err)
+		}
+
+		// Clean up backup
+		os.Remove(backupPath)
+
+		s.logger.Info(ctx, "atomic_config_save_completed")
+		return nil
+	})
+}
+
+// copyFile copies a file from src to dst
+func (s *RealConfigService) copyFile(src, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
 		return err
 	}
+	defer srcFile.Close()
 
-	s.logger.Info(ctx, "configuration_saved_successfully")
-	return nil
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	_, err = dstFile.ReadFrom(srcFile)
+	return err
 }
 
 func (s *RealConfigService) Reload(ctx context.Context) error {

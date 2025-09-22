@@ -14,16 +14,17 @@ type SimpleContainer struct {
 	mu sync.RWMutex
 
 	// Core services typed to useful interfaces for safer access
-	configService     services.ConfigurationService
-	accountService    services.AccountService
-	sshService        services.SSHService
-	sshAgentService   services.SSHAgentService
-	gitService        services.GitConfigManager
-	githubService     services.GitHubService
-	healthService     services.HealthService
-	validationService services.ValidationService
-	zshSecretsService services.ZshSecretsService
-	zshrcService      services.ZshrcService
+	configService      services.ConfigurationService
+	accountService     services.AccountService
+	sshService         services.SSHService
+	sshAgentService    services.SSHAgentService
+	gitService         services.GitConfigManager
+	githubService      services.GitHubService
+	githubTokenService services.GitHubTokenService
+	healthService      services.HealthService
+	validationService  services.ValidationService
+	zshSecretsService  services.ZshSecretsService
+	zshrcService       services.ZshrcService
 
 	// Infrastructure
 	logger observability.Logger
@@ -138,6 +139,20 @@ func (c *SimpleContainer) SetGitHubService(service services.GitHubService) {
 	c.githubService = service
 }
 
+// GetGitHubTokenService returns the GitHub token service instance
+func (c *SimpleContainer) GetGitHubTokenService() services.GitHubTokenService {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.githubTokenService
+}
+
+// SetGitHubTokenService sets the GitHub token service instance
+func (c *SimpleContainer) SetGitHubTokenService(service services.GitHubTokenService) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.githubTokenService = service
+}
+
 // GetHealthService returns the health service instance
 func (c *SimpleContainer) GetHealthService() services.HealthService {
 	c.mu.RLock()
@@ -228,6 +243,10 @@ func (c *SimpleContainer) Initialize(ctx context.Context) error {
 	// Initialize the zshrc service
 	zshrcService := services.NewZshrcService(logger, &runner)
 	c.SetZshrcService(zshrcService)
+
+	// Initialize the GitHub token service
+	githubTokenService := services.NewGitHubTokenService(logger, &runner)
+	c.SetGitHubTokenService(githubTokenService)
 
 	// TODO: Initialize GitHub, Health, and Validation services as they are implemented
 	logger.Info(ctx, "simple_service_container_initialized")

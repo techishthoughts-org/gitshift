@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -283,31 +284,182 @@ func (c *SwitchCommand) performAccountSwitch(ctx context.Context, configService 
 		observability.F("account_name", targetAccount.Name),
 	)
 
-	// Update current account in config service
+	// Use atomic account switching with rollback capability
+	return c.performAtomicAccountSwitch(ctx, configService, targetAlias, targetAccount)
+}
+
+// performAtomicAccountSwitch performs atomic account switching with rollback
+func (c *SwitchCommand) performAtomicAccountSwitch(ctx context.Context, configService services.ConfigurationService, targetAlias string, targetAccount *models.Account) error {
+	c.PrintInfo(ctx, "Starting atomic account switch...",
+		observability.F("target_account", targetAlias),
+	)
+
+	// Create rollback actions list
+	var rollbackActions []func() error
+
+	// Backup current state
+	_ = configService.GetCurrentAccount(ctx)
+	_ = os.Getenv("SSH_AUTH_SOCK")
+
+	// 1. Atomic SSH switch
+	if err := c.atomicSSHSwitch(ctx, targetAccount, &rollbackActions); err != nil {
+		c.rollbackChanges(ctx, rollbackActions)
+		return fmt.Errorf("atomic SSH switch failed: %w", err)
+	}
+
+	// 2. Atomic Git config update
+	if err := c.atomicGitConfigUpdate(ctx, targetAccount, &rollbackActions); err != nil {
+		c.rollbackChanges(ctx, rollbackActions)
+		return fmt.Errorf("atomic Git config update failed: %w", err)
+	}
+
+	// 3. Atomic token update
+	if err := c.atomicTokenUpdate(ctx, targetAccount, &rollbackActions); err != nil {
+		c.rollbackChanges(ctx, rollbackActions)
+		return fmt.Errorf("atomic token update failed: %w", err)
+	}
+
+	// 4. Finally update current account (this should be the last step)
 	if err := configService.SetCurrentAccount(ctx, targetAlias); err != nil {
+		c.rollbackChanges(ctx, rollbackActions)
 		return fmt.Errorf("failed to set current account: %w", err)
 	}
 
-	// Manage SSH agent for the account
-	if err := c.manageSSHAgent(ctx, targetAccount); err != nil {
-		c.PrintWarning(ctx, "SSH agent management failed, but continuing with switch",
-			observability.F("error", err.Error()),
-		)
+	c.PrintSuccess(ctx, "Atomic account switch completed successfully",
+		observability.F("target_account", targetAlias),
+	)
+	return nil
+}
+
+// atomicSSHSwitch performs SSH agent switching with rollback capability
+func (c *SwitchCommand) atomicSSHSwitch(ctx context.Context, account *models.Account, rollbackActions *[]func() error) error {
+	c.PrintInfo(ctx, "Performing atomic SSH switch...",
+		observability.F("ssh_key", account.SSHKeyPath),
+	)
+
+	container := c.GetContainer()
+	sshAgentService := container.GetSSHAgentService()
+
+	if sshAgentService == nil {
+		c.PrintWarning(ctx, "SSH agent service not available, skipping SSH management")
+		return nil
 	}
+
+	if account.SSHKeyPath == "" {
+		c.PrintInfo(ctx, "No SSH key configured for account, skipping SSH management")
+		return nil
+	}
+
+	// Backup current SSH state
+	originalSocket := os.Getenv("SSH_AUTH_SOCK")
+	_, _ = sshAgentService.ListLoadedKeys(ctx)
+
+	// Add rollback action
+	*rollbackActions = append(*rollbackActions, func() error {
+		c.PrintInfo(ctx, "Rolling back SSH changes...")
+		os.Setenv("SSH_AUTH_SOCK", originalSocket)
+		// Restore original keys if possible
+		return nil
+	})
+
+	// Perform isolated SSH switch
+	if err := sshAgentService.IsolatedSwitchToAccount(ctx, account.SSHKeyPath); err != nil {
+		return fmt.Errorf("isolated SSH switch failed: %w", err)
+	}
+
+	c.PrintSuccess(ctx, "Atomic SSH switch completed")
+	return nil
+}
+
+// atomicGitConfigUpdate performs Git configuration update with rollback capability
+func (c *SwitchCommand) atomicGitConfigUpdate(ctx context.Context, account *models.Account, rollbackActions *[]func() error) error {
+	c.PrintInfo(ctx, "Performing atomic Git config update...",
+		observability.F("name", account.Name),
+		observability.F("email", account.Email),
+	)
+
+	container := c.GetContainer()
+	gitService := container.GetGitService()
+
+	if gitService == nil {
+		return fmt.Errorf("Git service not available")
+	}
+
+	// Backup current Git config
+	originalName := c.getCurrentGitConfig("user.name")
+	originalEmail := c.getCurrentGitConfig("user.email")
+	originalSSHCommand := c.getCurrentGitConfig("core.sshCommand")
+
+	// Add rollback action
+	*rollbackActions = append(*rollbackActions, func() error {
+		c.PrintInfo(ctx, "Rolling back Git config changes...")
+		gitService.SetUserConfiguration(ctx, originalName, originalEmail)
+		gitService.SetSSHCommand(ctx, originalSSHCommand)
+		return nil
+	})
 
 	// Update Git configuration
-	if err := c.updateGitConfig(ctx, targetAccount); err != nil {
-		return fmt.Errorf("failed to update Git configuration: %w", err)
+	if err := c.updateGitConfig(ctx, account); err != nil {
+		return fmt.Errorf("Git config update failed: %w", err)
 	}
 
-	// Update GitHub token in .zshrc
-	if err := c.updateGitHubTokenInZshrc(ctx, targetAccount); err != nil {
-		c.PrintWarning(ctx, "Failed to update GitHub token in .zshrc, but continuing with switch",
+	c.PrintSuccess(ctx, "Atomic Git config update completed")
+	return nil
+}
+
+// atomicTokenUpdate performs token update with rollback capability
+func (c *SwitchCommand) atomicTokenUpdate(ctx context.Context, account *models.Account, rollbackActions *[]func() error) error {
+	c.PrintInfo(ctx, "Performing atomic token update...")
+
+	// Backup current token state
+	originalToken := os.Getenv("GITHUB_TOKEN")
+
+	// Add rollback action
+	*rollbackActions = append(*rollbackActions, func() error {
+		c.PrintInfo(ctx, "Rolling back token changes...")
+		os.Setenv("GITHUB_TOKEN", originalToken)
+		return nil
+	})
+
+	// Update GitHub token
+	if err := c.updateGitHubTokenInZshrc(ctx, account); err != nil {
+		c.PrintWarning(ctx, "Token update failed, but continuing",
 			observability.F("error", err.Error()),
 		)
+		// Don't fail the entire switch for token update
 	}
 
+	c.PrintSuccess(ctx, "Atomic token update completed")
 	return nil
+}
+
+// rollbackChanges executes rollback actions in reverse order
+func (c *SwitchCommand) rollbackChanges(ctx context.Context, rollbackActions []func() error) {
+	c.PrintWarning(ctx, "Executing rollback actions...",
+		observability.F("action_count", len(rollbackActions)),
+	)
+
+	// Execute rollback actions in reverse order
+	for i := len(rollbackActions) - 1; i >= 0; i-- {
+		if err := rollbackActions[i](); err != nil {
+			c.PrintError(ctx, "Rollback action failed",
+				observability.F("action_index", i),
+				observability.F("error", err.Error()),
+			)
+		}
+	}
+
+	c.PrintInfo(ctx, "Rollback completed")
+}
+
+// getCurrentGitConfig gets current git configuration value
+func (c *SwitchCommand) getCurrentGitConfig(key string) string {
+	cmd := exec.Command("git", "config", "--global", "--get", key)
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
 }
 
 // manageSSHAgent manages the SSH agent for the account

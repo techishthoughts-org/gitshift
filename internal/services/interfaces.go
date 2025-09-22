@@ -334,6 +334,7 @@ type SSHAgentService interface {
 	SwitchToAccount(ctx context.Context, keyPath string) error
 	SwitchToAccountWithCleanup(ctx context.Context, keyPath string) error
 	IsolateAccount(ctx context.Context, keyPath string) error
+	IsolatedSwitchToAccount(ctx context.Context, keyPath string) error
 
 	// Socket cleanup operations
 	CleanupSSHSockets(ctx context.Context) error
@@ -371,4 +372,15 @@ type ZshrcService interface {
 	ReloadZshrc(ctx context.Context) error
 	ValidateZshrcFile(ctx context.Context) error
 	AddGitPersonaSection(ctx context.Context) error
+}
+
+// GitHubTokenService handles GitHub token operations
+type GitHubTokenService interface {
+	GetCurrentGitHubToken(ctx context.Context) (string, error)
+	GetTokenForAccount(ctx context.Context, account string) (string, error)
+	ValidateToken(ctx context.Context, token string) error
+	ValidateTokenWithRetry(ctx context.Context, token string, retries int) error
+	RefreshToken(ctx context.Context) (string, error)
+	CacheToken(ctx context.Context, account, token string) error
+	GetCachedToken(ctx context.Context, account string) (string, error)
 }

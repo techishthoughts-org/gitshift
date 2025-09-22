@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -659,6 +660,7 @@ func (s *RealSSHAgentService) ensureSSHSocketDirectories(ctx context.Context) er
 		filepath.Join(homeDir, ".ssh", "socket"),
 		filepath.Join(homeDir, ".ssh", "sockets"),
 		filepath.Join(homeDir, ".ssh", "control"),
+		filepath.Join(homeDir, ".ssh", "gitpersona"), // Isolated agent directory
 	}
 
 	// Ensure each socket directory exists
@@ -676,5 +678,139 @@ func (s *RealSSHAgentService) ensureSSHSocketDirectories(ctx context.Context) er
 	}
 
 	s.logger.Info(ctx, "ssh_socket_directories_ensured")
+	return nil
+}
+
+// IsolatedSwitchToAccount creates an isolated SSH agent for this account
+func (s *RealSSHAgentService) IsolatedSwitchToAccount(ctx context.Context, keyPath string) error {
+	s.logger.Info(ctx, "creating_isolated_ssh_agent",
+		observability.F("key_path", keyPath),
+	)
+
+	// 1. Create isolated SSH agent
+	agentSocket, agentPID, err := s.createIsolatedAgent(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create isolated agent: %w", err)
+	}
+
+	// 2. Set SSH_AUTH_SOCK for this process only
+	originalSocket := os.Getenv("SSH_AUTH_SOCK")
+	os.Setenv("SSH_AUTH_SOCK", agentSocket)
+
+	// 3. Load only the target key
+	if err := s.LoadKey(ctx, keyPath); err != nil {
+		// Rollback: restore original socket and cleanup
+		os.Setenv("SSH_AUTH_SOCK", originalSocket)
+		s.cleanupIsolatedAgent(ctx, agentSocket, agentPID)
+		return fmt.Errorf("failed to load key in isolated agent: %w", err)
+	}
+
+	// 4. Validate the isolation worked
+	if err := s.validateIsolatedAgent(ctx, keyPath); err != nil {
+		os.Setenv("SSH_AUTH_SOCK", originalSocket)
+		s.cleanupIsolatedAgent(ctx, agentSocket, agentPID)
+		return fmt.Errorf("isolated agent validation failed: %w", err)
+	}
+
+	s.logger.Info(ctx, "isolated_ssh_agent_created_successfully",
+		observability.F("socket", agentSocket),
+		observability.F("pid", agentPID),
+	)
+	return nil
+}
+
+// createIsolatedAgent creates an SSH agent with a unique socket path
+func (s *RealSSHAgentService) createIsolatedAgent(ctx context.Context) (string, int, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	// Create unique socket path for this process
+	socketPath := filepath.Join(homeDir, ".ssh", "gitpersona", fmt.Sprintf("agent-%d-%d", os.Getpid(), time.Now().UnixNano()))
+
+	// Ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(socketPath), 0700); err != nil {
+		return "", 0, fmt.Errorf("failed to create agent directory: %w", err)
+	}
+
+	// Start SSH agent with specific socket
+	cmd := exec.Command("ssh-agent", "-a", socketPath)
+	output, err := s.runner.CombinedOutput(ctx, cmd.Path, cmd.Args[1:]...)
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to start isolated SSH agent: %w", err)
+	}
+
+	// Parse agent output to get PID
+	var agentPID int
+	outputStr := string(output)
+	lines := strings.Split(outputStr, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "SSH_AGENT_PID=") {
+			pidStr := strings.TrimPrefix(line, "SSH_AGENT_PID=")
+			pidStr = strings.TrimSuffix(pidStr, ";")
+			if pid, err := strconv.Atoi(pidStr); err == nil {
+				agentPID = pid
+			}
+			break
+		}
+	}
+
+	s.logger.Info(ctx, "isolated_ssh_agent_started",
+		observability.F("socket", socketPath),
+		observability.F("pid", agentPID),
+	)
+
+	return socketPath, agentPID, nil
+}
+
+// validateIsolatedAgent validates that the isolated agent has only the expected key
+func (s *RealSSHAgentService) validateIsolatedAgent(ctx context.Context, expectedKeyPath string) error {
+	keys, err := s.ListLoadedKeys(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list keys in isolated agent: %w", err)
+	}
+
+	if len(keys) != 1 {
+		return fmt.Errorf("isolated agent should have exactly 1 key, found %d", len(keys))
+	}
+
+	// Validate the key is the expected one
+	if !strings.Contains(keys[0], expectedKeyPath) {
+		return fmt.Errorf("isolated agent has unexpected key: %s", keys[0])
+	}
+
+	s.logger.Info(ctx, "isolated_agent_validation_passed",
+		observability.F("key_path", expectedKeyPath),
+	)
+	return nil
+}
+
+// cleanupIsolatedAgent cleans up an isolated SSH agent
+func (s *RealSSHAgentService) cleanupIsolatedAgent(ctx context.Context, socketPath string, agentPID int) error {
+	s.logger.Info(ctx, "cleaning_up_isolated_agent",
+		observability.F("socket", socketPath),
+		observability.F("pid", agentPID),
+	)
+
+	// Kill the specific agent process
+	if agentPID > 0 {
+		cmd := exec.Command("kill", fmt.Sprintf("%d", agentPID))
+		if err := s.runner.Run(ctx, cmd.Path, cmd.Args[1:]...); err != nil {
+			s.logger.Warn(ctx, "failed_to_kill_isolated_agent",
+				observability.F("pid", agentPID),
+				observability.F("error", err.Error()),
+			)
+		}
+	}
+
+	// Remove socket file
+	if err := os.Remove(socketPath); err != nil {
+		s.logger.Warn(ctx, "failed_to_remove_agent_socket",
+			observability.F("socket", socketPath),
+			observability.F("error", err.Error()),
+		)
+	}
+
 	return nil
 }
