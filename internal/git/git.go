@@ -11,11 +11,22 @@ import (
 )
 
 // Manager handles Git configuration operations
-type Manager struct{}
+type Manager struct {
+	useSSH bool
+}
 
 // NewManager creates a new Git manager
 func NewManager() *Manager {
-	return &Manager{}
+	return &Manager{
+		useSSH: false, // Default to HTTPS for reliability
+	}
+}
+
+// NewSSHManager creates a Git manager configured to use SSH
+func NewSSHManager() *Manager {
+	return &Manager{
+		useSSH: true,
+	}
 }
 
 // IsGitRepo checks if the current directory is a Git repository
@@ -214,4 +225,178 @@ func (m *Manager) GetCurrentBranch() (string, error) {
 	}
 
 	return strings.TrimSpace(string(output)), nil
+}
+
+// SetRemoteURL sets the remote URL for the current repository
+func (m *Manager) SetRemoteURL(remoteName, repoURL string) error {
+	// Ensure we have the right protocol
+	finalURL := m.normalizeURL(repoURL)
+
+	cmd := exec.Command("git", "remote", "set-url", remoteName, finalURL)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to set remote URL: %w\nOutput: %s", err, string(output))
+	}
+
+	return nil
+}
+
+// normalizeURL ensures the URL uses the appropriate protocol
+func (m *Manager) normalizeURL(url string) string {
+	// Extract the repo path from any format
+	var repoPath string
+
+	if strings.HasPrefix(url, "git@github.com:") {
+		// SSH format: git@github.com:user/repo.git
+		repoPath = strings.TrimPrefix(url, "git@github.com:")
+	} else if strings.HasPrefix(url, "https://github.com/") {
+		// HTTPS format: https://github.com/user/repo.git
+		repoPath = strings.TrimPrefix(url, "https://github.com/")
+	} else {
+		// Unknown format, return as-is
+		return url
+	}
+
+	// Remove .git suffix if present
+	repoPath = strings.TrimSuffix(repoPath, ".git")
+
+	// Return in the appropriate format
+	if m.useSSH {
+		return fmt.Sprintf("git@github.com:%s.git", repoPath)
+	} else {
+		return fmt.Sprintf("https://github.com/%s.git", repoPath)
+	}
+}
+
+// GetCurrentRemoteURL gets the current remote URL
+func (m *Manager) GetCurrentRemoteURL(remoteName string) (string, error) {
+	cmd := exec.Command("git", "remote", "get-url", remoteName)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get remote URL: %w", err)
+	}
+
+	return strings.TrimSpace(string(output)), nil
+}
+
+// IsGitRepository checks if the current directory is a git repository
+func (m *Manager) IsGitRepository() bool {
+	cmd := exec.Command("git", "rev-parse", "--git-dir")
+	err := cmd.Run()
+	return err == nil
+}
+
+// TestGitOperation tests if git operations work correctly
+func (m *Manager) TestGitOperation() error {
+	if !m.IsGitRepository() {
+		return fmt.Errorf("not in a git repository")
+	}
+
+	// Test basic git operation
+	cmd := exec.Command("git", "status", "--porcelain")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git status failed: %w\nOutput: %s", err, string(output))
+	}
+
+	return nil
+}
+
+// SafeFetch performs a safe git fetch operation
+func (m *Manager) SafeFetch(remoteName string) error {
+	if !m.IsGitRepository() {
+		return fmt.Errorf("not in a git repository")
+	}
+
+	// Use HTTPS for fetch to avoid SSH issues
+	originalURL, err := m.GetCurrentRemoteURL(remoteName)
+	if err != nil {
+		return err
+	}
+
+	// Temporarily switch to HTTPS if using SSH
+	httpsURL := m.convertToHTTPS(originalURL)
+	if httpsURL != originalURL {
+		// Switch to HTTPS
+		if err := m.SetRemoteURL(remoteName, httpsURL); err != nil {
+			return fmt.Errorf("failed to switch to HTTPS: %w", err)
+		}
+
+		// Restore original URL after fetch
+		defer func() {
+			_ = m.SetRemoteURL(remoteName, originalURL)
+		}()
+	}
+
+	cmd := exec.Command("git", "fetch", remoteName)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git fetch failed: %w\nOutput: %s", err, string(output))
+	}
+
+	return nil
+}
+
+// convertToHTTPS converts any GitHub URL to HTTPS format
+func (m *Manager) convertToHTTPS(url string) string {
+	if strings.HasPrefix(url, "git@github.com:") {
+		repoPath := strings.TrimPrefix(url, "git@github.com:")
+		repoPath = strings.TrimSuffix(repoPath, ".git")
+		return fmt.Sprintf("https://github.com/%s.git", repoPath)
+	}
+	return url
+}
+
+// SetUserConfig sets the git user configuration
+func (m *Manager) SetUserConfig(name, email string) error {
+	if name != "" {
+		cmd := exec.Command("git", "config", "--global", "user.name", name)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to set git user.name: %w", err)
+		}
+	}
+
+	if email != "" {
+		cmd := exec.Command("git", "config", "--global", "user.email", email)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to set git user.email: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// GetUserConfig gets the current git user configuration
+func (m *Manager) GetUserConfig() (name, email string, err error) {
+	nameCmd := exec.Command("git", "config", "--global", "user.name")
+	nameOutput, nameErr := nameCmd.Output()
+	if nameErr == nil {
+		name = strings.TrimSpace(string(nameOutput))
+	}
+
+	emailCmd := exec.Command("git", "config", "--global", "user.email")
+	emailOutput, emailErr := emailCmd.Output()
+	if emailErr == nil {
+		email = strings.TrimSpace(string(emailOutput))
+	}
+
+	if nameErr != nil && emailErr != nil {
+		return "", "", fmt.Errorf("failed to get git config: name=%v, email=%v", nameErr, emailErr)
+	}
+
+	return name, email, nil
+}
+
+// ClearSSHConfig removes problematic SSH configurations
+func (m *Manager) ClearSSHConfig() error {
+	// Remove global SSH command
+	exec.Command("git", "config", "--global", "--unset", "core.sshcommand").Run()
+
+	// Remove local SSH command
+	exec.Command("git", "config", "--local", "--unset", "core.sshcommand").Run()
+
+	// Remove any GIT_SSH_COMMAND environment variable
+	os.Unsetenv("GIT_SSH_COMMAND")
+
+	return nil
 }

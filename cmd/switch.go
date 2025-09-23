@@ -1,692 +1,301 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/GitPersona/internal/commands"
-	"github.com/techishthoughts/GitPersona/internal/errors"
-	"github.com/techishthoughts/GitPersona/internal/github"
+	"github.com/techishthoughts/GitPersona/internal/config"
 	"github.com/techishthoughts/GitPersona/internal/models"
-	"github.com/techishthoughts/GitPersona/internal/observability"
-	"github.com/techishthoughts/GitPersona/internal/services"
+	"github.com/techishthoughts/GitPersona/internal/ssh"
 )
 
-// SwitchCommand handles account switching with proper validation and logging
-type SwitchCommand struct {
-	*commands.BaseCommand
+// switchCmd represents the switch command
+var switchCmd = &cobra.Command{
+	Use:   "switch [account-alias]",
+	Short: "🔄 Switch to a different GitHub account",
+	Long: `Switch to a different GitHub account with comprehensive configuration.
 
-	// Command-specific flags
-	validateOnly   bool
-	skipValidation bool
-	force          bool
+This command will:
+- Switch SSH configuration and keys
+- Update Git user.name and user.email
+- Update GitHub token environment
+- Test the connection
+
+Examples:
+  gitpersona switch thukabjj
+  gitpersona switch costaar7 --force
+  gitpersona switch personal --validate-only`,
+	Aliases: []string{"s", "use"},
+	Args:    cobra.ExactArgs(1),
+	RunE:    runSwitchCommand,
 }
 
-// NewSwitchCommand creates a new switch command
-func NewSwitchCommand() *SwitchCommand {
-	cmd := &SwitchCommand{
-		BaseCommand: commands.NewBaseCommand(
-			"switch",
-			"🔄 Switch to a different GitHub account",
-			"switch [alias]",
-		).WithExamples(
-			"gitpersona switch personal",
-			"gitpersona switch work --validate-only",
-			"gitpersona switch personal --force",
-		).WithFlags(
-			commands.Flag{Name: "validate", Short: "V", Type: "bool", Default: false, Description: "Only validate current account without switching"},
-			commands.Flag{Name: "skip-validation", Short: "s", Type: "bool", Default: false, Description: "Skip SSH validation (not recommended)"},
-			commands.Flag{Name: "force", Short: "f", Type: "bool", Default: false, Description: "Force switch even if validation fails"},
-		),
+// runSwitchCommand executes the switch command
+func runSwitchCommand(cmd *cobra.Command, args []string) error {
+	accountAlias := args[0]
+
+	// Get flags
+	validateOnly, _ := cmd.Flags().GetBool("validate")
+	force, _ := cmd.Flags().GetBool("force")
+
+	// Load GitPersona configuration
+	configManager := config.NewManager()
+	if err := configManager.Load(); err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	return cmd
-}
-
-// CreateCobraCommand creates the Cobra command
-func (c *SwitchCommand) CreateCobraCommand() *cobra.Command {
-	cmd := c.BaseCommand.CreateCobraCommand()
-
-	// Override the RunE to use our command structure
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		// Get flag values
-		c.validateOnly = c.GetFlagBool(cmd, "validate")
-		c.skipValidation = c.GetFlagBool(cmd, "skip-validation")
-		c.force = c.GetFlagBool(cmd, "force")
-
-		ctx := context.Background()
-		return c.Execute(ctx, args)
+	// Handle validate-only mode
+	if validateOnly {
+		return validateAccount(configManager, accountAlias)
 	}
 
-	return cmd
-}
-
-// Validate validates the command arguments
-func (c *SwitchCommand) Validate(args []string) error {
-	if c.validateOnly {
-		// No arguments needed for validation-only mode
-		return nil
+	// Find the account
+	accounts := configManager.ListAccounts()
+	var targetAccount *models.Account
+	for _, account := range accounts {
+		if account.Alias == accountAlias {
+			targetAccount = account
+			break
+		}
 	}
 
-	if len(args) == 0 {
-		return errors.New(errors.ErrCodeMissingRequired, "account alias is required").
-			WithContext("field", "alias")
+	if targetAccount == nil {
+		return fmt.Errorf("account '%s' not found", accountAlias)
 	}
 
-	if len(args) > 1 {
-		return errors.New(errors.ErrCodeInvalidInput, "too many arguments").
-			WithContext("expected", 1).
-			WithContext("provided", len(args))
-	}
+	fmt.Printf("🔄 Switching to account '%s'...\n", accountAlias)
+	fmt.Printf("   Name: %s\n", targetAccount.Name)
+	fmt.Printf("   Email: %s\n", targetAccount.Email)
 
-	return nil
-}
-
-// loadConfiguration loads the configuration using the config service
-func (c *SwitchCommand) loadConfiguration(ctx context.Context, configService services.ConfigurationService) error {
-	if configService == nil {
-		return fmt.Errorf("config service not available")
-	}
-	return configService.Load(ctx)
-}
-
-// getAccount retrieves an account using the config service
-func (c *SwitchCommand) getAccount(ctx context.Context, configService services.ConfigurationService, alias string) (*models.Account, error) {
-	if configService == nil {
-		return nil, errors.New(errors.ErrCodeInternal, "config service not available")
-	}
-
-	return configService.GetAccount(ctx, alias)
-}
-
-// validateCurrentAccount validates the current account without switching
-func (c *SwitchCommand) validateCurrentAccount(ctx context.Context, configService services.ConfigurationService) error {
-	if configService == nil {
-		return errors.New(errors.ErrCodeInternal, "config service not available")
-	}
-
-	currentAlias := configService.GetCurrentAccount(ctx)
-	if currentAlias == "" {
-		c.PrintWarning(ctx, "No current account set")
-		return nil
-	}
-
-	// Get account details
-	account, err := configService.GetAccount(ctx, currentAlias)
-	if err != nil {
-		c.PrintWarning(ctx, "Could not retrieve current account details",
-			observability.F("account", currentAlias),
-			observability.F("error", err.Error()),
-		)
-		return nil
-	}
-
-	// Display current account information
-	c.PrintInfo(ctx, fmt.Sprintf("Current account: %s", currentAlias),
-		observability.F("account", currentAlias),
-		observability.F("name", account.Name),
-		observability.F("email", account.Email),
-	)
-
-	// Validate SSH configuration
-	if err := c.validateAccountSSH(ctx, account); err != nil {
-		c.PrintWarning(ctx, "SSH validation failed for current account",
-			observability.F("account", currentAlias),
-			observability.F("error", err.Error()),
-		)
+	// 1. Switch SSH configuration if SSH key is configured
+	if targetAccount.SSHKeyPath != "" {
+		if _, err := os.Stat(targetAccount.SSHKeyPath); err != nil {
+			if force {
+				fmt.Printf("⚠️  SSH key not found at %s, skipping SSH switch (--force enabled)\n", targetAccount.SSHKeyPath)
+			} else {
+				return fmt.Errorf("SSH key not found at %s: %w", targetAccount.SSHKeyPath, err)
+			}
+		} else {
+			fmt.Printf("🔑 Switching SSH configuration...\n")
+			sshManager := ssh.NewManager()
+			if err := sshManager.SwitchToAccount(accountAlias, targetAccount.SSHKeyPath); err != nil {
+				if force {
+					fmt.Printf("⚠️  SSH switch failed: %v (continuing due to --force)\n", err)
+				} else {
+					return fmt.Errorf("SSH switch failed: %w", err)
+				}
+			} else {
+				fmt.Printf("✅ SSH configuration updated\n")
+			}
+		}
 	} else {
-		c.PrintSuccess(ctx, "SSH validation passed for current account",
-			observability.F("account", currentAlias),
-		)
+		fmt.Printf("ℹ️  No SSH key configured for this account\n")
 	}
 
-	return nil
-}
-
-// validateAccountSSH validates the SSH configuration for an account
-func (c *SwitchCommand) validateAccountSSH(ctx context.Context, account *models.Account) error {
-	// Get SSH agent service from container
-	container := c.GetContainer()
-	sshAgentService := container.GetSSHAgentService()
-
-	if sshAgentService == nil {
-		c.PrintWarning(ctx, "SSH agent service not available, skipping validation")
-		return nil
-	}
-
-	// If no SSH key is configured, provide helpful guidance
-	if account.SSHKeyPath == "" {
-		c.PrintWarning(ctx, "No SSH key configured for account",
-			observability.F("account", account.Alias),
-			observability.F("github_username", account.GitHubUsername),
-		)
-		c.PrintInfo(ctx, "💡 To fix this issue:")
-		c.PrintInfo(ctx, "  1. Generate SSH key: gitpersona add-github "+account.GitHubUsername+" --overwrite")
-		c.PrintInfo(ctx, "  2. Or add existing key: gitpersona config set --account "+account.Alias+" ssh_key_path /path/to/key")
-		c.PrintInfo(ctx, "  3. Then run: gitpersona switch "+account.Alias)
-		return fmt.Errorf("SSH key not configured for account %s", account.Alias)
-	}
-
-	// Check if SSH key file actually exists
-	if _, err := os.Stat(account.SSHKeyPath); os.IsNotExist(err) {
-		c.PrintError(ctx, "SSH key file not found",
-			observability.F("account", account.Alias),
-			observability.F("ssh_key_path", account.SSHKeyPath),
-		)
-		c.PrintInfo(ctx, "💡 To fix this issue:")
-		c.PrintInfo(ctx, "  1. Generate new SSH key: gitpersona add-github "+account.GitHubUsername+" --overwrite")
-		c.PrintInfo(ctx, "  2. Or update key path: gitpersona config set --account "+account.Alias+" ssh_key_path /correct/path/to/key")
-		return fmt.Errorf("SSH key file not found: %s", account.SSHKeyPath)
-	}
-
-	// Check for SSH key conflicts before validation
-	if err := c.checkSSHKeyConflicts(ctx, account); err != nil {
-		c.PrintWarning(ctx, "SSH key conflicts detected",
-			observability.F("error", err.Error()),
-		)
-		c.PrintInfo(ctx, "💡 Consider running: gitpersona ssh-agent --cleanup")
-	}
-
-	// Use the ValidateSSHConnectionWithRetry method from SSH agent service
-	c.PrintInfo(ctx, "Validating SSH connection with retry mechanism...",
-		observability.F("ssh_key", account.SSHKeyPath),
-	)
-
-	if err := sshAgentService.ValidateSSHConnectionWithRetry(ctx, account.SSHKeyPath); err != nil {
-		// Provide specific error messages for common SSH issues
-		if strings.Contains(err.Error(), "Repository not found") {
-			return c.handleRepositoryNotFoundError(ctx, account, err)
+	// 2. Update Git configuration
+	fmt.Printf("🔧 Updating Git configuration...\n")
+	if err := updateGitConfig(targetAccount); err != nil {
+		if force {
+			fmt.Printf("⚠️  Git config update failed: %v (continuing due to --force)\n", err)
+		} else {
+			return fmt.Errorf("failed to update Git configuration: %w", err)
 		}
-		if strings.Contains(err.Error(), "Permission denied") {
-			return c.handlePermissionDeniedError(ctx, account, err)
-		}
-		return fmt.Errorf("SSH validation failed: %w", err)
+	} else {
+		fmt.Printf("✅ Git configuration updated\n")
 	}
 
-	c.PrintSuccess(ctx, "SSH validation successful",
-		observability.F("ssh_key", account.SSHKeyPath),
-	)
-	return nil
-}
-
-// checkSSHKeyConflicts checks for potential SSH key conflicts
-func (c *SwitchCommand) checkSSHKeyConflicts(ctx context.Context, account *models.Account) error {
-	// Check if SSH agent has multiple keys loaded
-	container := c.GetContainer()
-	sshAgentService := container.GetSSHAgentService()
-
-	if service, ok := sshAgentService.(interface {
-		ListLoadedKeys(ctx context.Context) ([]string, error)
-	}); ok {
-		keys, err := service.ListLoadedKeys(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to check loaded keys: %w", err)
-		}
-
-		if len(keys) > 1 {
-			return fmt.Errorf("SSH agent has %d keys loaded, which may cause authentication conflicts", len(keys))
-		}
-	}
-
-	return nil
-}
-
-// handleRepositoryNotFoundError provides specific guidance for repository not found errors
-func (c *SwitchCommand) handleRepositoryNotFoundError(ctx context.Context, account *models.Account, err error) error {
-	c.PrintError(ctx, "Repository not found - this usually indicates SSH key authentication issues",
-		observability.F("account", account.Alias),
-		observability.F("ssh_key", account.SSHKeyPath),
-	)
-
-	c.PrintInfo(ctx, "🔍 Troubleshooting steps:")
-	c.PrintInfo(ctx, "  1. Verify the SSH key is associated with the correct GitHub account")
-	c.PrintInfo(ctx, "  2. Check if multiple SSH keys are loaded in the agent")
-	c.PrintInfo(ctx, "  3. Ensure your SSH config uses IdentitiesOnly=yes")
-	c.PrintInfo(ctx, "  4. Try: gitpersona ssh-agent --cleanup")
-
-	// Generate SSH config suggestion
-	if account.SSHKeyPath != "" {
-		c.PrintInfo(ctx, "💡 Recommended SSH config:")
-		c.PrintInfo(ctx, "   Host github.com")
-		c.PrintInfo(ctx, "     HostName github.com")
-		c.PrintInfo(ctx, "     User git")
-		c.PrintInfo(ctx, fmt.Sprintf("     IdentityFile %s", account.SSHKeyPath))
-		c.PrintInfo(ctx, "     IdentitiesOnly yes")
-	}
-
-	return fmt.Errorf("SSH authentication failed - wrong key may be used: %w", err)
-}
-
-// handlePermissionDeniedError provides specific guidance for permission denied errors
-func (c *SwitchCommand) handlePermissionDeniedError(ctx context.Context, account *models.Account, err error) error {
-	c.PrintError(ctx, "Permission denied - SSH key may not be properly configured",
-		observability.F("account", account.Alias),
-		observability.F("ssh_key", account.SSHKeyPath),
-	)
-
-	c.PrintInfo(ctx, "🔍 Troubleshooting steps:")
-	c.PrintInfo(ctx, "  1. Verify the public key is added to your GitHub account")
-	c.PrintInfo(ctx, "  2. Check SSH key permissions: chmod 600 "+account.SSHKeyPath)
-	c.PrintInfo(ctx, "  3. Test SSH connection: ssh -T git@github.com -i "+account.SSHKeyPath)
-	c.PrintInfo(ctx, "  4. Ensure the key is not password-protected or remove passphrase")
-
-	return fmt.Errorf("SSH permission denied: %w", err)
-}
-
-// performAccountSwitch performs the actual account switch
-func (c *SwitchCommand) performAccountSwitch(ctx context.Context, configService services.ConfigurationService, targetAlias string, targetAccount *models.Account) error {
-	c.GetLogger().Info(ctx, "performing_account_switch",
-		observability.F("target_account", targetAlias),
-		observability.F("account_name", targetAccount.Name),
-	)
-
-	// Use atomic account switching with rollback capability
-	return c.performAtomicAccountSwitch(ctx, configService, targetAlias, targetAccount)
-}
-
-// performAtomicAccountSwitch performs atomic account switching with rollback
-func (c *SwitchCommand) performAtomicAccountSwitch(ctx context.Context, configService services.ConfigurationService, targetAlias string, targetAccount *models.Account) error {
-	c.PrintInfo(ctx, "Starting atomic account switch...",
-		observability.F("target_account", targetAlias),
-	)
-
-	// Create rollback actions list
-	var rollbackActions []func() error
-
-	// Backup current state
-	_ = configService.GetCurrentAccount(ctx)
-	_ = os.Getenv("SSH_AUTH_SOCK")
-
-	// 1. Atomic SSH switch
-	if err := c.atomicSSHSwitch(ctx, targetAccount, &rollbackActions); err != nil {
-		c.rollbackChanges(ctx, rollbackActions)
-		return fmt.Errorf("atomic SSH switch failed: %w", err)
-	}
-
-	// 2. Atomic Git config update
-	if err := c.atomicGitConfigUpdate(ctx, targetAccount, &rollbackActions); err != nil {
-		c.rollbackChanges(ctx, rollbackActions)
-		return fmt.Errorf("atomic Git config update failed: %w", err)
-	}
-
-	// 3. Atomic token update
-	if err := c.atomicTokenUpdate(ctx, targetAccount, &rollbackActions); err != nil {
-		c.rollbackChanges(ctx, rollbackActions)
-		return fmt.Errorf("atomic token update failed: %w", err)
-	}
-
-	// 4. Finally update current account (this should be the last step)
-	if err := configService.SetCurrentAccount(ctx, targetAlias); err != nil {
-		c.rollbackChanges(ctx, rollbackActions)
+	// 3. Update current account in GitPersona config
+	fmt.Printf("📝 Updating GitPersona configuration...\n")
+	if err := configManager.SetCurrentAccount(accountAlias); err != nil {
 		return fmt.Errorf("failed to set current account: %w", err)
 	}
-
-	c.PrintSuccess(ctx, "Atomic account switch completed successfully",
-		observability.F("target_account", targetAlias),
-	)
-	return nil
-}
-
-// atomicSSHSwitch performs SSH agent switching with rollback capability
-func (c *SwitchCommand) atomicSSHSwitch(ctx context.Context, account *models.Account, rollbackActions *[]func() error) error {
-	c.PrintInfo(ctx, "Performing atomic SSH switch...",
-		observability.F("ssh_key", account.SSHKeyPath),
-	)
-
-	container := c.GetContainer()
-	sshAgentService := container.GetSSHAgentService()
-
-	if sshAgentService == nil {
-		c.PrintWarning(ctx, "SSH agent service not available, skipping SSH management")
-		return nil
+	if err := configManager.Save(); err != nil {
+		return fmt.Errorf("failed to save configuration: %w", err)
 	}
+	fmt.Printf("✅ GitPersona configuration updated\n")
 
-	if account.SSHKeyPath == "" {
-		c.PrintInfo(ctx, "No SSH key configured for account, skipping SSH management")
-		return nil
-	}
-
-	// Backup current SSH state
-	originalSocket := os.Getenv("SSH_AUTH_SOCK")
-	_, _ = sshAgentService.ListLoadedKeys(ctx)
-
-	// Add rollback action
-	*rollbackActions = append(*rollbackActions, func() error {
-		c.PrintInfo(ctx, "Rolling back SSH changes...")
-		_ = os.Setenv("SSH_AUTH_SOCK", originalSocket)
-		// Restore original keys if possible
-		return nil
-	})
-
-	// Perform isolated SSH switch
-	if err := sshAgentService.IsolatedSwitchToAccount(ctx, account.SSHKeyPath); err != nil {
-		return fmt.Errorf("isolated SSH switch failed: %w", err)
-	}
-
-	c.PrintSuccess(ctx, "Atomic SSH switch completed")
-	return nil
-}
-
-// atomicGitConfigUpdate performs Git configuration update with rollback capability
-func (c *SwitchCommand) atomicGitConfigUpdate(ctx context.Context, account *models.Account, rollbackActions *[]func() error) error {
-	c.PrintInfo(ctx, "Performing atomic Git config update...",
-		observability.F("name", account.Name),
-		observability.F("email", account.Email),
-	)
-
-	container := c.GetContainer()
-	gitService := container.GetGitService()
-
-	if gitService == nil {
-		return fmt.Errorf("Git service not available")
-	}
-
-	// Backup current Git config
-	originalName := c.getCurrentGitConfig("user.name")
-	originalEmail := c.getCurrentGitConfig("user.email")
-	originalSSHCommand := c.getCurrentGitConfig("core.sshCommand")
-
-	// Add rollback action
-	*rollbackActions = append(*rollbackActions, func() error {
-		c.PrintInfo(ctx, "Rolling back Git config changes...")
-		if err := gitService.SetUserConfiguration(ctx, originalName, originalEmail); err != nil {
-			c.PrintError(ctx, fmt.Sprintf("Failed to rollback Git user config: %v", err))
+	// 4. Update GitHub token if using GitHub CLI
+	fmt.Printf("🔐 Switching GitHub CLI authentication...\n")
+	if err := switchGitHubCLI(accountAlias); err != nil {
+		if force {
+			fmt.Printf("⚠️  GitHub CLI switch failed: %v (continuing due to --force)\n", err)
+		} else {
+			fmt.Printf("⚠️  GitHub CLI switch failed: %v\n", err)
+			fmt.Printf("   You may need to authenticate manually: gh auth login\n")
 		}
-		if err := gitService.SetSSHCommand(ctx, originalSSHCommand); err != nil {
-			c.PrintError(ctx, fmt.Sprintf("Failed to rollback SSH command: %v", err))
-		}
-		return nil
-	})
-
-	// Update Git configuration
-	if err := c.updateGitConfig(ctx, account); err != nil {
-		return fmt.Errorf("Git config update failed: %w", err)
+	} else {
+		fmt.Printf("✅ GitHub CLI authentication updated\n")
 	}
 
-	c.PrintSuccess(ctx, "Atomic Git config update completed")
-	return nil
-}
-
-// atomicTokenUpdate performs token update with rollback capability
-func (c *SwitchCommand) atomicTokenUpdate(ctx context.Context, account *models.Account, rollbackActions *[]func() error) error {
-	c.PrintInfo(ctx, "Performing atomic token update...")
-
-	// Backup current token state
-	originalToken := os.Getenv("GITHUB_TOKEN")
-
-	// Add rollback action
-	*rollbackActions = append(*rollbackActions, func() error {
-		c.PrintInfo(ctx, "Rolling back token changes...")
-		_ = os.Setenv("GITHUB_TOKEN", originalToken)
-		return nil
-	})
-
-	// Update GitHub token
-	if err := c.updateGitHubTokenInZshrc(ctx, account); err != nil {
-		c.PrintWarning(ctx, "Token update failed, but continuing",
-			observability.F("error", err.Error()),
-		)
-		// Don't fail the entire switch for token update
-	}
-
-	c.PrintSuccess(ctx, "Atomic token update completed")
-	return nil
-}
-
-// rollbackChanges executes rollback actions in reverse order
-func (c *SwitchCommand) rollbackChanges(ctx context.Context, rollbackActions []func() error) {
-	c.PrintWarning(ctx, "Executing rollback actions...",
-		observability.F("action_count", len(rollbackActions)),
-	)
-
-	// Execute rollback actions in reverse order
-	for i := len(rollbackActions) - 1; i >= 0; i-- {
-		if err := rollbackActions[i](); err != nil {
-			c.PrintError(ctx, "Rollback action failed",
-				observability.F("action_index", i),
-				observability.F("error", err.Error()),
-			)
+	// 5. Test the setup (unless forcing)
+	if !force {
+		fmt.Printf("🧪 Testing configuration...\n")
+		if err := testConfiguration(targetAccount); err != nil {
+			fmt.Printf("⚠️  Configuration test failed: %v\n", err)
+			fmt.Printf("   The switch completed but there may be issues\n")
+		} else {
+			fmt.Printf("✅ Configuration test passed\n")
 		}
 	}
 
-	c.PrintInfo(ctx, "Rollback completed")
+	fmt.Printf("\n🎉 Successfully switched to account '%s'!\n", accountAlias)
+	fmt.Printf("   You can now use Git with the %s account configuration\n", accountAlias)
+
+	return nil
 }
 
-// getCurrentGitConfig gets current git configuration value
-func (c *SwitchCommand) getCurrentGitConfig(key string) string {
-	cmd := exec.Command("git", "config", "--global", "--get", key)
-	output, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(output))
-}
-
-// Implement the Run method that was missing
-func (c *SwitchCommand) Run(ctx context.Context, args []string) error {
-	container := c.GetContainer()
-
-	// Get required services
-	configService := container.GetConfigService()
-	if configService == nil {
-		return errors.New(errors.ErrCodeInternal, "config service not available")
+// validateAccount validates an account configuration
+func validateAccount(configManager *config.Manager, accountAlias string) error {
+	accounts := configManager.ListAccounts()
+	var targetAccount *models.Account
+	for _, account := range accounts {
+		if account.Alias == accountAlias {
+			targetAccount = account
+			break
+		}
 	}
 
-	// Load configuration
-	if err := c.loadConfiguration(ctx, configService); err != nil {
-		return errors.ConfigLoadFailed(err, map[string]interface{}{
-			"command": "switch",
-		})
+	if targetAccount == nil {
+		return fmt.Errorf("account '%s' not found", accountAlias)
 	}
 
-	if c.validateOnly {
-		return c.validateCurrentAccount(ctx, configService)
+	fmt.Printf("🔍 Validating account '%s'...\n", accountAlias)
+
+	issues := 0
+
+	// Check basic configuration
+	if targetAccount.Name == "" {
+		fmt.Printf("❌ Missing display name\n")
+		issues++
+	} else {
+		fmt.Printf("✅ Display name: %s\n", targetAccount.Name)
 	}
 
-	// Get target account
-	targetAlias := args[0]
-	targetAccount, err := c.getAccount(ctx, configService, targetAlias)
-	if err != nil {
-		return errors.AccountNotFound(targetAlias, map[string]interface{}{
-			"command": "switch",
-		})
+	if targetAccount.Email == "" {
+		fmt.Printf("❌ Missing email address\n")
+		issues++
+	} else {
+		fmt.Printf("✅ Email: %s\n", targetAccount.Email)
 	}
 
-	// Validate account SSH configuration
-	if !c.skipValidation {
-		if err := c.validateAccountSSH(ctx, targetAccount); err != nil {
-			if c.force {
-				c.PrintWarning(ctx, "SSH validation failed, but forcing switch due to --force flag",
-					observability.F("account", targetAlias),
-					observability.F("error", err.Error()),
-				)
-				c.PrintInfo(ctx, "⚠️  Warning: Proceeding with switch despite validation failure")
+	// Check SSH key
+	if targetAccount.SSHKeyPath == "" {
+		fmt.Printf("⚠️  No SSH key configured\n")
+	} else {
+		if _, err := os.Stat(targetAccount.SSHKeyPath); err != nil {
+			fmt.Printf("❌ SSH key not found: %s\n", targetAccount.SSHKeyPath)
+			issues++
+		} else {
+			fmt.Printf("✅ SSH key found: %s\n", targetAccount.SSHKeyPath)
+
+			// Test SSH connection
+			sshManager := ssh.NewManager()
+			if err := sshManager.TestConnection(); err != nil {
+				fmt.Printf("⚠️  SSH connection test failed: %v\n", err)
 			} else {
-				c.PrintError(ctx, "SSH validation failed. Use --force to bypass validation",
-					observability.F("account", targetAlias),
-					observability.F("error", err.Error()),
-				)
-				return errors.SSHValidationFailed(err, map[string]interface{}{
-					"account": targetAlias,
-					"command": "switch",
-				})
+				fmt.Printf("✅ SSH connection test passed\n")
 			}
 		}
 	}
 
-	// Perform the account switch
-	if err := c.performAccountSwitch(ctx, configService, targetAlias, targetAccount); err != nil {
-		return errors.Wrap(err, errors.ErrCodeAccountSwitchFailed, "failed to switch account").
-			WithContext("account", targetAlias)
-	}
-
-	// Validate switch success
-	if err := c.validateSwitchSuccess(ctx, configService, targetAlias); err != nil {
-		return errors.Wrap(err, errors.ErrCodeAccountSwitchFailed, "switch completed but validation failed").
-			WithContext("account", targetAlias)
-	}
-
-	// Success
-	c.PrintSuccess(ctx, fmt.Sprintf("Successfully switched to account '%s'", targetAlias),
-		observability.F("account", targetAlias),
-		observability.F("name", targetAccount.Name),
-		observability.F("email", targetAccount.Email),
-	)
-
-	return nil
-}
-
-// updateGitConfig updates the Git configuration for the account
-func (c *SwitchCommand) updateGitConfig(ctx context.Context, account *models.Account) error {
-	container := c.GetContainer()
-	gitService := container.GetGitService()
-
-	if gitService == nil {
-		return fmt.Errorf("git service not available")
-	}
-
-	// Set user configuration
-	if account.Name != "" || account.Email != "" {
-		if err := gitService.SetUserConfiguration(ctx, account.Name, account.Email); err != nil {
-			return fmt.Errorf("failed to set user configuration: %w", err)
-		}
-		c.PrintSuccess(ctx, fmt.Sprintf("Updated Git user configuration: %s <%s>", account.Name, account.Email))
-	}
-
-	// Set SSH command
-	if account.SSHKeyPath != "" {
-		sshCmd := fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes", account.SSHKeyPath)
-		if err := gitService.SetSSHCommand(ctx, sshCmd); err != nil {
-			return fmt.Errorf("failed to set SSH command: %w", err)
-		}
-		c.PrintSuccess(ctx, fmt.Sprintf("Updated Git SSH command: %s", sshCmd))
+	if issues == 0 {
+		fmt.Printf("\n✅ Account '%s' is valid and ready to use!\n", accountAlias)
+	} else {
+		fmt.Printf("\n❌ Account '%s' has %d issue(s) that need to be resolved\n", accountAlias, issues)
+		return fmt.Errorf("account validation failed")
 	}
 
 	return nil
 }
 
-// updateGitHubTokenInZshrc updates the GITHUB_TOKEN in .zshrc file
-func (c *SwitchCommand) updateGitHubTokenInZshrc(ctx context.Context, account *models.Account) error {
-	container := c.GetContainer()
-	zshrcService := container.GetZshrcService()
-
-	if zshrcService == nil {
-		c.PrintInfo(ctx, "Zshrc service not available, skipping GitHub token update")
-		return nil
+// updateGitConfig updates the Git user configuration
+func updateGitConfig(account *models.Account) error {
+	// Set user name
+	if account.Name != "" {
+		cmd := exec.Command("git", "config", "--global", "user.name", account.Name)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to set git user.name: %w", err)
+		}
 	}
 
-	c.PrintInfo(ctx, "Updating GitHub token in .zshrc...",
-		observability.F("account", account.Alias),
-	)
+	// Set user email
+	if account.Email != "" {
+		cmd := exec.Command("git", "config", "--global", "user.email", account.Email)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to set git user.email: %w", err)
+		}
+	}
 
-	// Get the current GitHub token from GitHub CLI
-	// For now, we'll use the existing GitHub client to get the token
-	githubClient := github.NewClient("")
-	token, err := githubClient.GetGitHubToken()
+	return nil
+}
+
+// switchGitHubCLI switches the GitHub CLI authentication
+func switchGitHubCLI(accountAlias string) error {
+	// Check if gh CLI is available
+	if _, err := exec.LookPath("gh"); err != nil {
+		return fmt.Errorf("GitHub CLI not found")
+	}
+
+	// Try to switch to the account
+	cmd := exec.Command("gh", "auth", "switch", "--user", accountAlias)
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to get GitHub token: %w", err)
-	}
-
-	// Ensure GitPersona section exists in .zshrc
-	if err := zshrcService.AddGitPersonaSection(ctx); err != nil {
-		c.PrintWarning(ctx, "Failed to add GitPersona section to .zshrc",
-			observability.F("error", err.Error()),
-		)
-		// Continue anyway - the section might already exist
-	}
-
-	// Update the token in .zshrc
-	if err := zshrcService.UpdateGitHubToken(ctx, token); err != nil {
-		return fmt.Errorf("failed to update GitHub token in .zshrc: %w", err)
-	}
-
-	c.PrintSuccess(ctx, "Updated GitHub token in .zshrc",
-		observability.F("account", account.Alias),
-	)
-
-	// Optionally reload the .zshrc file
-	if err := zshrcService.ReloadZshrc(ctx); err != nil {
-		c.PrintWarning(ctx, "Failed to reload .zshrc file",
-			observability.F("error", err.Error()),
-		)
-		// Don't fail the entire operation if reload fails
+		// If the account doesn't exist in gh auth, that's OK
+		if strings.Contains(string(output), "not found") {
+			return fmt.Errorf("account '%s' not found in GitHub CLI - run 'gh auth login' to add it", accountAlias)
+		}
+		return fmt.Errorf("gh auth switch failed: %w\nOutput: %s", err, string(output))
 	}
 
 	return nil
 }
 
-// validateSwitchSuccess validates that the switch was successful
-func (c *SwitchCommand) validateSwitchSuccess(ctx context.Context, configService services.ConfigurationService, targetAlias string) error {
-	logger := c.GetLogger()
+// testConfiguration tests the current configuration
+func testConfiguration(account *models.Account) error {
+	// Test Git configuration
+	nameCmd := exec.Command("git", "config", "--global", "user.name")
+	nameOutput, err := nameCmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to get git user.name: %w", err)
+	}
 
-	logger.Info(ctx, "validating_switch_success",
-		observability.F("target_account", targetAlias),
-	)
+	emailCmd := exec.Command("git", "config", "--global", "user.email")
+	emailOutput, err := emailCmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to get git user.email: %w", err)
+	}
 
-	// Verify the current account was set correctly
-	currentAccount := configService.GetCurrentAccount(ctx)
-	if currentAccount != targetAlias {
-		return fmt.Errorf("account switch verification failed: expected %s, got %s", targetAlias, currentAccount)
+	gitName := strings.TrimSpace(string(nameOutput))
+	gitEmail := strings.TrimSpace(string(emailOutput))
+
+	if account.Name != "" && gitName != account.Name {
+		return fmt.Errorf("git user.name mismatch: expected '%s', got '%s'", account.Name, gitName)
+	}
+
+	if account.Email != "" && gitEmail != account.Email {
+		return fmt.Errorf("git user.email mismatch: expected '%s', got '%s'", account.Email, gitEmail)
+	}
+
+	// Test SSH if key is configured
+	if account.SSHKeyPath != "" {
+		if _, err := os.Stat(account.SSHKeyPath); err == nil {
+			sshManager := ssh.NewManager()
+			if err := sshManager.TestConnection(); err != nil {
+				return fmt.Errorf("SSH connection test failed: %w", err)
+			}
+		}
 	}
 
 	return nil
 }
-
-// Switch command for integration
-var (
-	switchCmd = &cobra.Command{
-		Use:     "switch [alias]",
-		Aliases: []string{"s", "use"},
-		Short:   "🔄 Switch to a different GitHub account",
-		Long: `🔄 Switch to a Different GitHub Account
-
-This command switches your active GitHub account and validates the SSH configuration
-to ensure everything works correctly before making the switch.
-
-The command will:
-1. Validate SSH configuration for the target account
-2. Test GitHub authentication
-3. Update Git configuration
-4. Verify the switch was successful
-
-Examples:
-  gitpersona switch personal     # Switch to personal account
-  gitpersona switch work         # Switch to work account
-  gitpersona switch --validate   # Validate current account without switching`,
-		Args: cobra.MaximumNArgs(1),
-		RunE: runSwitch,
-	}
-)
 
 func init() {
-	// Add flags to the command
-	switchCmd.Flags().BoolP("validate", "V", false, "Only validate current account without switching")
-	switchCmd.Flags().BoolP("skip-validation", "s", false, "Skip SSH validation (not recommended)")
+	switchCmd.Flags().BoolP("validate", "V", false, "Only validate the account without switching")
 	switchCmd.Flags().BoolP("force", "f", false, "Force switch even if validation fails")
+	switchCmd.Flags().BoolP("skip-validation", "s", false, "Skip SSH validation (not recommended)")
 
 	rootCmd.AddCommand(switchCmd)
-}
-
-// runSwitch runs the switch command using the service-oriented approach
-func runSwitch(cmd *cobra.Command, args []string) error {
-	// Create a new switch command instance
-	switchCmd := NewSwitchCommand()
-
-	// Get flag values and set them
-	switchCmd.validateOnly, _ = cmd.Flags().GetBool("validate")
-	switchCmd.skipValidation, _ = cmd.Flags().GetBool("skip-validation")
-	switchCmd.force, _ = cmd.Flags().GetBool("force")
-
-	// Validate arguments
-	if err := switchCmd.Validate(args); err != nil {
-		return err
-	}
-
-	// Execute using the service-oriented implementation
-	ctx := context.Background()
-	return switchCmd.Run(ctx, args)
 }

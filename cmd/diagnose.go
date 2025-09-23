@@ -3,12 +3,14 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/techishthoughts/GitPersona/internal/commands"
+	"github.com/techishthoughts/GitPersona/internal/config"
 	"github.com/techishthoughts/GitPersona/internal/container"
 	"github.com/techishthoughts/GitPersona/internal/errors"
 	"github.com/techishthoughts/GitPersona/internal/observability"
@@ -708,8 +710,369 @@ func execCommand(ctx context.Context, name string, args ...string) ([]byte, erro
 	return cmd.CombinedOutput()
 }
 
+// Simple command execution without context
+func execCommandSimple(name string, args ...string) ([]byte, error) {
+	cmd := exec.Command(name, args...)
+	return cmd.CombinedOutput()
+}
+
+// Simple diagnose command using traditional Cobra pattern
+var diagnoseCmd = &cobra.Command{
+	Use:   "diagnose",
+	Short: "🔍 Comprehensive system diagnostics and issue detection",
+	Long: `Diagnose GitPersona configuration and detect potential issues.
+
+This command performs comprehensive diagnostics on:
+- Account configurations and validity
+- SSH key setup and authentication
+- Git configuration and integration
+- GitHub connectivity and permissions
+
+Examples:
+  gitpersona diagnose
+  gitpersona diagnose --fix
+  gitpersona diagnose --verbose
+  gitpersona diagnose --accounts-only
+  gitpersona diagnose --ssh-only`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Get flag values
+		verbose, _ := cmd.Flags().GetBool("verbose")
+		fix, _ := cmd.Flags().GetBool("fix")
+		accountsOnly, _ := cmd.Flags().GetBool("accounts-only")
+		sshOnly, _ := cmd.Flags().GetBool("ssh-only")
+		gitOnly, _ := cmd.Flags().GetBool("git-only")
+		includeSystem, _ := cmd.Flags().GetBool("include-system")
+
+		return runDiagnose(verbose, fix, accountsOnly, sshOnly, gitOnly, includeSystem)
+	},
+}
+
+// runDiagnose executes the diagnose logic
+func runDiagnose(verbose, fix, accountsOnly, sshOnly, gitOnly, includeSystem bool) error {
+	fmt.Println("🔍 GitPersona Diagnostics")
+	fmt.Println("=" + strings.Repeat("=", 50))
+
+	issues := 0
+	warnings := 0
+
+	// Basic system checks
+	if !accountsOnly && !sshOnly && !gitOnly {
+		fmt.Println("\n📊 System Health:")
+
+		// Check Git installation
+		if _, err := execCommandSimple("git", "--version"); err != nil {
+			fmt.Println("  ❌ Git: Not found or not accessible")
+			issues++
+		} else {
+			fmt.Println("  ✅ Git: Available")
+		}
+
+		// Check SSH
+		if _, err := execCommandSimple("ssh", "-V"); err != nil {
+			fmt.Println("  ❌ SSH: Not found or not accessible")
+			issues++
+		} else {
+			fmt.Println("  ✅ SSH: Available")
+		}
+
+		// Check GitHub CLI
+		if _, err := execCommandSimple("gh", "--version"); err != nil {
+			fmt.Println("  ⚠️  GitHub CLI: Not found (recommended for enhanced integration)")
+			warnings++
+		} else {
+			fmt.Println("  ✅ GitHub CLI: Available")
+		}
+	}
+
+	// SSH diagnostics
+	if !accountsOnly && !gitOnly {
+		fmt.Println("\n🔐 SSH Configuration:")
+
+		// Check SSH agent
+		if _, err := execCommandSimple("ssh-add", "-l"); err != nil {
+			fmt.Println("  ⚠️  SSH Agent: No keys loaded or agent not running")
+			warnings++
+		} else {
+			// Count loaded keys
+			out, _ := execCommandSimple("ssh-add", "-l")
+			keyCount := len(strings.Split(strings.TrimSpace(string(out)), "\n"))
+			if keyCount > 5 {
+				fmt.Printf("  ⚠️  SSH Agent: %d keys loaded (too many - may cause conflicts)\n", keyCount)
+				warnings++
+			} else {
+				fmt.Printf("  ✅ SSH Agent: %d keys loaded\n", keyCount)
+			}
+		}
+
+		// Check SSH config
+		sshConfigPath := fmt.Sprintf("%s/.ssh/config", homeDir())
+		if _, err := os.Stat(sshConfigPath); err != nil {
+			fmt.Println("  ⚠️  SSH Config: No ~/.ssh/config file found")
+			warnings++
+		} else {
+			fmt.Println("  ✅ SSH Config: ~/.ssh/config exists")
+		}
+	}
+
+	// Account diagnostics
+	if !sshOnly && !gitOnly {
+		fmt.Println("\n👤 Account Configuration:")
+
+		configManager := config.NewManager()
+		if err := configManager.Load(); err != nil {
+			fmt.Printf("  ❌ Config Load: Failed to load configuration: %v\n", err)
+			issues++
+		} else {
+			accounts := configManager.ListAccounts()
+			if len(accounts) == 0 {
+				fmt.Println("  ⚠️  Accounts: No accounts configured")
+				warnings++
+			} else {
+				fmt.Printf("  ✅ Accounts: %d configured\n", len(accounts))
+
+				// Validate each account
+				for _, account := range accounts {
+					if account.Name == "" || account.Email == "" {
+						fmt.Printf("    ⚠️  %s: Missing name or email\n", account.Alias)
+						warnings++
+					} else if account.SSHKeyPath == "" {
+						fmt.Printf("    ⚠️  %s: No SSH key configured\n", account.Alias)
+						warnings++
+					} else {
+						fmt.Printf("    ✅ %s: Properly configured\n", account.Alias)
+					}
+				}
+			}
+		}
+	}
+
+	// Git diagnostics
+	if !accountsOnly && !sshOnly {
+		fmt.Println("\n🔧 Git Configuration:")
+
+		// Check global Git config
+		if name, err := execCommandSimple("git", "config", "--global", "user.name"); err != nil || len(strings.TrimSpace(string(name))) == 0 {
+			fmt.Println("  ⚠️  Global Name: Not set")
+			warnings++
+		} else {
+			fmt.Printf("  ✅ Global Name: %s\n", strings.TrimSpace(string(name)))
+		}
+
+		if email, err := execCommandSimple("git", "config", "--global", "user.email"); err != nil || len(strings.TrimSpace(string(email))) == 0 {
+			fmt.Println("  ⚠️  Global Email: Not set")
+			warnings++
+		} else {
+			fmt.Printf("  ✅ Global Email: %s\n", strings.TrimSpace(string(email)))
+		}
+
+		// Check current repository if we're in one
+		if _, err := execCommandSimple("git", "rev-parse", "--git-dir"); err == nil {
+			fmt.Println("  ✅ Current Directory: Git repository detected")
+
+			// Check remote URL
+			if remote, err := execCommandSimple("git", "remote", "get-url", "origin"); err == nil {
+				remoteStr := strings.TrimSpace(string(remote))
+				if strings.Contains(remoteStr, "github.com") {
+					fmt.Printf("  ✅ Remote: %s\n", remoteStr)
+				} else {
+					fmt.Printf("  ⚠️  Remote: %s (not GitHub)\n", remoteStr)
+					warnings++
+				}
+			}
+		}
+	}
+
+	// Summary
+	fmt.Println("\n" + strings.Repeat("=", 52))
+
+	if issues == 0 && warnings == 0 {
+		fmt.Println("🟢 Overall Health: EXCELLENT")
+		fmt.Println("All systems functioning properly!")
+	} else if issues == 0 && warnings <= 2 {
+		fmt.Println("🟡 Overall Health: GOOD")
+		fmt.Printf("Found %d warning(s) - minor issues detected\n", warnings)
+	} else if issues <= 1 && warnings <= 5 {
+		fmt.Println("🟠 Overall Health: FAIR")
+		fmt.Printf("Found %d issue(s) and %d warning(s)\n", issues, warnings)
+	} else {
+		fmt.Println("🔴 Overall Health: POOR")
+		fmt.Printf("Found %d issue(s) and %d warning(s)\n", issues, warnings)
+	}
+
+	if fix && (issues > 0 || warnings > 0) {
+		fmt.Println("\n🔧 Applying automatic fixes...")
+		fixedCount := applyAutoFixes(verbose)
+		fmt.Printf("✅ Applied %d automatic fixes\n", fixedCount)
+	} else if issues > 0 || warnings > 0 {
+		fmt.Println("\n💡 Run 'gitpersona diagnose --fix' to automatically resolve fixable issues")
+	}
+
+	return nil
+}
+
+// applyAutoFixes automatically fixes common issues
+func applyAutoFixes(verbose bool) int {
+	fixedCount := 0
+
+	fmt.Println("\n🔧 Auto-Fix Operations:")
+
+	// Fix 1: Clear SSH agent if too many keys loaded
+	if out, err := execCommandSimple("ssh-add", "-l"); err == nil {
+		keyCount := len(strings.Split(strings.TrimSpace(string(out)), "\n"))
+		if keyCount > 5 {
+			if verbose {
+				fmt.Printf("  🧹 Clearing SSH agent (%d keys loaded)...\n", keyCount)
+			}
+			if _, err := execCommandSimple("ssh-add", "-D"); err == nil {
+				fmt.Println("  ✅ SSH agent cleared")
+				fixedCount++
+			} else {
+				fmt.Println("  ❌ Failed to clear SSH agent")
+			}
+		}
+	}
+
+	// Fix 2: Clear problematic Git SSH configurations
+	if verbose {
+		fmt.Println("  🧹 Clearing problematic Git SSH configurations...")
+	}
+	gitSSHFixed := false
+	if _, err := execCommandSimple("git", "config", "--global", "--unset", "core.sshcommand"); err == nil {
+		gitSSHFixed = true
+	}
+	if _, err := execCommandSimple("git", "config", "--local", "--unset", "core.sshcommand"); err == nil {
+		gitSSHFixed = true
+	}
+	os.Unsetenv("GIT_SSH_COMMAND")
+	if gitSSHFixed {
+		fmt.Println("  ✅ Git SSH configuration cleared")
+		fixedCount++
+	}
+
+	// Fix 3: Set missing Git configuration from first valid account
+	configManager := config.NewManager()
+	if err := configManager.Load(); err == nil {
+		accounts := configManager.ListAccounts()
+		for _, account := range accounts {
+			if account.Name != "" && account.Email != "" {
+				// Check if global config is missing
+				name, nameErr := execCommandSimple("git", "config", "--global", "user.name")
+				email, emailErr := execCommandSimple("git", "config", "--global", "user.email")
+
+				needNameFix := nameErr != nil || len(strings.TrimSpace(string(name))) == 0
+				needEmailFix := emailErr != nil || len(strings.TrimSpace(string(email))) == 0
+
+				if needNameFix || needEmailFix {
+					if verbose {
+						fmt.Printf("  🔧 Setting Git config from account '%s'...\n", account.Alias)
+					}
+					if needNameFix {
+						if _, err := execCommandSimple("git", "config", "--global", "user.name", account.Name); err == nil {
+							fmt.Printf("  ✅ Set Git user.name: %s\n", account.Name)
+							fixedCount++
+						}
+					}
+					if needEmailFix {
+						if _, err := execCommandSimple("git", "config", "--global", "user.email", account.Email); err == nil {
+							fmt.Printf("  ✅ Set Git user.email: %s\n", account.Email)
+							fixedCount++
+						}
+					}
+				}
+				break // Use first valid account
+			}
+		}
+
+		// Fix 3b: Fix incomplete account configurations
+		for _, account := range accounts {
+			if account.Name == "" || account.Email == "" {
+				if verbose {
+					fmt.Printf("  🔧 Fixing incomplete account '%s'...\n", account.Alias)
+				}
+				// Try to get the missing info from git config if available
+				gitName, _ := execCommandSimple("git", "config", "--global", "user.name")
+				gitEmail, _ := execCommandSimple("git", "config", "--global", "user.email")
+
+				updated := false
+				if account.Name == "" && len(strings.TrimSpace(string(gitName))) > 0 {
+					account.Name = strings.TrimSpace(string(gitName))
+					updated = true
+					fmt.Printf("  ✅ Set account name: %s\n", account.Name)
+				}
+				if account.Email == "" && len(strings.TrimSpace(string(gitEmail))) > 0 {
+					account.Email = strings.TrimSpace(string(gitEmail))
+					updated = true
+					fmt.Printf("  ✅ Set account email: %s\n", account.Email)
+				}
+				if updated {
+					// Update account in config by removing and re-adding
+					if err := configManager.RemoveAccount(account.Alias); err == nil {
+						if err := configManager.AddAccount(account); err == nil {
+							if err := configManager.Save(); err == nil {
+								fixedCount++
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Fix 4: Ensure SSH config directory exists
+	sshDir := fmt.Sprintf("%s/.ssh", homeDir())
+	if _, err := os.Stat(sshDir); os.IsNotExist(err) {
+		if verbose {
+			fmt.Println("  📁 Creating SSH directory...")
+		}
+		if err := os.MkdirAll(sshDir, 0700); err == nil {
+			fmt.Println("  ✅ Created ~/.ssh directory")
+			fixedCount++
+		}
+	}
+
+	// Fix 5: Load SSH key for current account if available
+	if configManager := config.NewManager(); configManager.Load() == nil {
+		currentAccount, _ := configManager.GetCurrentAccount()
+		if currentAccount != nil && currentAccount.SSHKeyPath != "" {
+			if _, err := os.Stat(currentAccount.SSHKeyPath); err == nil {
+				// Check if key is already loaded
+				if out, err := execCommandSimple("ssh-add", "-l"); err != nil || !strings.Contains(string(out), currentAccount.SSHKeyPath) {
+					if verbose {
+						fmt.Printf("  🔑 Loading SSH key for current account '%s'...\n", currentAccount.Alias)
+					}
+					if _, err := execCommandSimple("ssh-add", currentAccount.SSHKeyPath); err == nil {
+						fmt.Printf("  ✅ Loaded SSH key: %s\n", currentAccount.SSHKeyPath)
+						fixedCount++
+					}
+				}
+			}
+		}
+	}
+
+	if fixedCount == 0 {
+		fmt.Println("  ℹ️  No fixable issues found")
+	}
+
+	return fixedCount
+}
+
+// Helper function to get home directory
+func homeDir() string {
+	if home := os.Getenv("HOME"); home != "" {
+		return home
+	}
+	return "~"
+}
+
 // Register the command
 func init() {
-	diagnoseCmd := NewDiagnoseCommand().CreateCobraCommand()
+	diagnoseCmd.Flags().BoolP("fix", "f", false, "Automatically fix issues where possible")
+	diagnoseCmd.Flags().BoolP("accounts-only", "a", false, "Only diagnose account configurations")
+	diagnoseCmd.Flags().BoolP("ssh-only", "s", false, "Only diagnose SSH configurations")
+	diagnoseCmd.Flags().BoolP("git-only", "g", false, "Only diagnose Git configurations")
+	diagnoseCmd.Flags().BoolP("include-system", "S", false, "Include system-level diagnostics")
+	diagnoseCmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
+	diagnoseCmd.Flags().BoolP("json", "j", false, "Output in JSON format")
+
 	rootCmd.AddCommand(diagnoseCmd)
 }

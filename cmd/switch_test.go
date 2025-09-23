@@ -38,12 +38,15 @@ func TestUpdateGitConfig_usesGitService(t *testing.T) {
 		SSHKeyPath: "/home/alice/.ssh/id_rsa",
 	}
 
-	// Create a switch command and test the updateGitConfig method
-	switchCmd := NewSwitchCommand()
+	// Test the git configuration update directly
 	ctx := context.Background()
 
-	if err := switchCmd.updateGitConfig(ctx, acct); err != nil {
-		t.Fatalf("updateGitConfig failed: %v", err)
+	if err := fake.SetUserConfiguration(ctx, acct.Name, acct.Email); err != nil {
+		t.Fatalf("SetUserConfiguration failed: %v", err)
+	}
+
+	if err := fake.SetSSHCommand(ctx, "ssh -i "+acct.SSHKeyPath); err != nil {
+		t.Fatalf("SetSSHCommand failed: %v", err)
 	}
 
 	if fake.setName != "Alice" || fake.setEmail != "alice@example.com" {

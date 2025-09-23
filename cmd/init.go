@@ -123,6 +123,7 @@ Examples:
 
 		gitManager := git.NewManager()
 		verbose, _ := cmd.Flags().GetBool("verbose")
+		recommendations, _ := cmd.Flags().GetBool("recommendations")
 
 		// Get current directory
 		currentDir, err := os.Getwd()
@@ -205,6 +206,20 @@ Examples:
 		// Show suggestions
 		if projectErr == nil && projectConfig.Account != currentAccount {
 			fmt.Printf("\n💡 Suggestion: Run 'gitpersona switch %s' to match project configuration\n", projectConfig.Account)
+		} else if (verbose || recommendations) && gitManager.IsGitRepo(currentDir) {
+			// Show auto-detection recommendation
+			accounts := configManager.ListAccounts()
+			if len(accounts) > 0 {
+				if detectionResult, err := performDetectionSuggestion(gitManager, accounts); err == nil && detectionResult.RecommendedAccount != nil {
+					if currentAccount == "" || detectionResult.RecommendedAccount.Alias != currentAccount {
+						fmt.Printf("\n💡 Auto-Detection: Switch to '%s' (%.0f%% confidence)\n",
+							detectionResult.RecommendedAccount.Alias, detectionResult.Confidence*100)
+						fmt.Println("   Run: gitpersona auto-detect")
+					} else {
+						fmt.Println("\n✅ Using recommended account for this repository")
+					}
+				}
+			}
 		}
 
 		return nil
@@ -392,6 +407,7 @@ func init() {
 	rootCmd.AddCommand(autoIdentifyCmd)
 
 	currentCmd.Flags().BoolP("verbose", "v", false, "Show detailed information")
+	currentCmd.Flags().BoolP("recommendations", "r", false, "Show account recommendations")
 	autoIdentifyCmd.Flags().BoolP("verbose", "v", false, "Show detailed information")
 }
 
@@ -509,4 +525,57 @@ func extractDomain(email string) string {
 		return parts[1]
 	}
 	return ""
+}
+
+// DetectionSuggestionResult holds the results of account detection for suggestions
+type DetectionSuggestionResult struct {
+	RecommendedAccount *models.Account `json:"recommended_account"`
+	Confidence         float64         `json:"confidence"`
+}
+
+// performDetectionSuggestion performs a simple account detection for suggestions
+func performDetectionSuggestion(gitManager *git.Manager, accounts []*models.Account) (*DetectionSuggestionResult, error) {
+	result := &DetectionSuggestionResult{}
+
+	// Get remote URL if available
+	remoteURL, err := gitManager.GetCurrentRemoteURL("origin")
+	if err != nil {
+		return result, nil // No remote URL, no recommendation
+	}
+
+	var bestMatch *models.Account
+	bestScore := 0.0
+
+	// Analyze each account for matches
+	for _, account := range accounts {
+		score := 0.0
+
+		// Factor 1: Remote URL matching (highest weight)
+		if account.GitHubUsername != "" && strings.Contains(remoteURL, account.GitHubUsername) {
+			score += 0.8
+		}
+
+		// Factor 2: SSH key accessibility
+		if account.SSHKeyPath != "" && isSSHKeyAccessible(account.SSHKeyPath) {
+			score += 0.2
+		}
+
+		// Factor 3: Current account preference
+		if account.IsDefault {
+			score += 0.1
+		}
+
+		if score > bestScore {
+			bestScore = score
+			bestMatch = account
+		}
+	}
+
+	// Only recommend if we have a good match
+	if bestScore >= 0.6 {
+		result.RecommendedAccount = bestMatch
+		result.Confidence = bestScore
+	}
+
+	return result, nil
 }

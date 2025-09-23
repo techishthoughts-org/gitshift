@@ -3,9 +3,12 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/techishthoughts/GitPersona/internal/config"
+	"github.com/techishthoughts/GitPersona/internal/git"
 	"github.com/techishthoughts/GitPersona/internal/models"
 )
 
@@ -21,7 +24,9 @@ for different projects by creating a .gitpersona.yaml file in the project root.
 Examples:
   gitpersona project set work
   gitpersona project show
-  gitpersona project remove`,
+  gitpersona project remove
+  gitpersona project list
+  gitpersona project detect`,
 }
 
 // projectSetCmd sets the account for the current project
@@ -183,11 +188,161 @@ Examples:
 	},
 }
 
+// projectListCmd lists all configured projects
+var projectListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all configured projects",
+	Long: `List all projects that have GitPersona configurations.
+
+This command scans for .gitpersona.yaml files and shows all configured projects.
+
+Examples:
+  gitpersona project list
+  gitpersona project list --path ~/dev`,
+	Aliases: []string{"ls"},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		scanPath, _ := cmd.Flags().GetString("path")
+		if scanPath == "" {
+			scanPath = "."
+		}
+
+		fmt.Printf("📁 Scanning for configured projects in: %s\n", scanPath)
+
+		projects, err := findConfiguredProjects(scanPath)
+		if err != nil {
+			return fmt.Errorf("failed to scan for projects: %w", err)
+		}
+
+		if len(projects) == 0 {
+			fmt.Println("   No configured projects found")
+			fmt.Println("\n💡 Use 'gitpersona project-wizard --scan' to configure projects")
+			return nil
+		}
+
+		fmt.Printf("📈 Found %d configured projects:\n\n", len(projects))
+
+		configManager := config.NewManager()
+		if err := configManager.Load(); err != nil {
+			return fmt.Errorf("failed to load configuration: %w", err)
+		}
+
+		for _, project := range projects {
+			projectConfig, err := configManager.LoadProjectConfig(project.Path)
+			if err != nil {
+				fmt.Printf("❌ %s - Failed to load config\n", project.Name)
+				continue
+			}
+
+			account, err := configManager.GetAccount(projectConfig.Account)
+			if err != nil {
+				fmt.Printf("⚠️  %s - Account '%s' not found\n", project.Name, projectConfig.Account)
+				continue
+			}
+
+			fmt.Printf("✅ %s\n", project.Name)
+			fmt.Printf("   Account: %s (%s)\n", account.Alias, account.Email)
+			fmt.Printf("   Path: %s\n", project.Path)
+			fmt.Printf("   Configured: %s\n\n", formatTime(projectConfig.CreatedAt))
+		}
+
+		return nil
+	},
+}
+
+// projectDetectCmd detects the best account for current project
+var projectDetectCmd = &cobra.Command{
+	Use:   "detect",
+	Short: "Detect the best account for the current project",
+	Long: `Analyze the current project and recommend the best GitHub account.
+
+This command performs the same analysis as auto-detect but only shows
+recommendations without making changes.
+
+Examples:
+  gitpersona project detect
+  gitpersona project detect --verbose`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		verbose, _ := cmd.Flags().GetBool("verbose")
+
+		configManager := config.NewManager()
+		if err := configManager.Load(); err != nil {
+			return fmt.Errorf("failed to load configuration: %w", err)
+		}
+
+		accounts := configManager.ListAccounts()
+		if len(accounts) == 0 {
+			fmt.Println("❌ No accounts configured")
+			return nil
+		}
+
+		gitManager := git.NewManager()
+		if !gitManager.IsGitRepository() {
+			fmt.Println("❌ Not in a Git repository")
+			return nil
+		}
+
+		detectionResult, err := performDetection(gitManager, accounts, verbose)
+		if err != nil {
+			return fmt.Errorf("detection failed: %w", err)
+		}
+
+		displayDetectionResults(detectionResult, verbose)
+
+		if detectionResult.RecommendedAccount != nil {
+			fmt.Printf("\n💡 To configure this project:\n")
+			fmt.Printf("   gitpersona project set %s\n", detectionResult.RecommendedAccount.Alias)
+		}
+
+		return nil
+	},
+}
+
+// ProjectInfo represents a configured project
+type ProjectInfo struct {
+	Name string
+	Path string
+}
+
+// findConfiguredProjects finds all projects with .gitpersona.yaml files
+func findConfiguredProjects(rootDir string) ([]ProjectInfo, error) {
+	var projects []ProjectInfo
+
+	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // Skip directories we can't read
+		}
+
+		if !info.IsDir() && info.Name() == ".gitpersona.yaml" {
+			projectDir := filepath.Dir(path)
+			projectName := filepath.Base(projectDir)
+			projects = append(projects, ProjectInfo{
+				Name: projectName,
+				Path: projectDir,
+			})
+		}
+
+		// Skip hidden directories and common build/cache directories
+		if info.IsDir() && (strings.HasPrefix(info.Name(), ".") && info.Name() != "." ||
+			info.Name() == "node_modules" || info.Name() == "vendor" ||
+			info.Name() == "target" || info.Name() == "build") {
+			return filepath.SkipDir
+		}
+
+		return nil
+	})
+
+	return projects, err
+}
+
 func init() {
 	rootCmd.AddCommand(projectCmd)
 	projectCmd.AddCommand(projectSetCmd)
 	projectCmd.AddCommand(projectShowCmd)
 	projectCmd.AddCommand(projectRemoveCmd)
+	projectCmd.AddCommand(projectListCmd)
+	projectCmd.AddCommand(projectDetectCmd)
 
 	projectRemoveCmd.Flags().BoolP("force", "f", false, "Force removal without confirmation")
+	projectListCmd.Flags().String("path", ".", "Path to scan for configured projects")
+	projectDetectCmd.Flags().BoolP("verbose", "v", false, "Show detailed analysis")
 }
