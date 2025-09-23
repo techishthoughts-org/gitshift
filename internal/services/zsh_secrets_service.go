@@ -150,22 +150,24 @@ func (s *RealZshSecretsService) writeSecretsFile(path string, content string) er
 
 // updateTokenInContent updates or adds the GITHUB_TOKEN in the file content
 func (s *RealZshSecretsService) updateTokenInContent(content, token string) string {
-	// Pattern to match GITHUB_TOKEN export line
+	// Pattern to match GITHUB_TOKEN export line (including GitPersona managed ones)
 	pattern := regexp.MustCompile(`(?m)^\s*export\s+GITHUB_TOKEN\s*=\s*["']?[^"'\n]*["']?\s*$`)
 
-	// New token line
-	newLine := fmt.Sprintf("export GITHUB_TOKEN=\"%s\"", token)
+	// New token lines with GitPersona integration
+	newLines := fmt.Sprintf(`# GitPersona managed GitHub token - do not edit manually
+export GITHUB_TOKEN="%s"
+export GITHUB_PERSONAL_ACCESS_TOKEN="%s"`, token, token)
 
 	// Check if GITHUB_TOKEN already exists
 	if pattern.MatchString(content) {
-		// Replace existing line
-		updated := pattern.ReplaceAllString(content, newLine)
+		// Replace existing line with GitPersona managed block
+		updated := pattern.ReplaceAllString(content, newLines)
 		return updated
 	}
 
-	// Add new line at the end
+	// Add new lines at the end
 	if content == "" {
-		return newLine + "\n"
+		return newLines + "\n"
 	}
 
 	// Ensure content ends with newline
@@ -173,7 +175,7 @@ func (s *RealZshSecretsService) updateTokenInContent(content, token string) stri
 		content += "\n"
 	}
 
-	return content + newLine + "\n"
+	return content + newLines + "\n"
 }
 
 // extractTokenFromContent extracts the GITHUB_TOKEN value from file content

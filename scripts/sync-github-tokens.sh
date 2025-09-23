@@ -151,10 +151,24 @@ get_current_account() {
 # Get GitHub token for current account
 get_github_token() {
     local token
+    local current_account
+
+    # Try to get token from GitPersona first
+    current_account=$(get_current_account)
+    token=$(gitpersona github-token get "$current_account" --export 2>/dev/null | grep "export GITHUB_TOKEN" | sed 's/export GITHUB_TOKEN="//' | sed 's/"$//' || echo "")
+
+    if [[ -n "$token" ]]; then
+        echo "$token"
+        return 0
+    fi
+
+    # Fallback to GitHub CLI
+    log_info "No GitPersona token found, falling back to GitHub CLI..."
     token=$(gh auth token 2>/dev/null || echo "")
 
     if [[ -z "$token" ]]; then
-        log_error "Failed to get GitHub token from CLI"
+        log_error "Failed to get GitHub token from GitPersona or CLI"
+        log_info "Run 'gitpersona github-token set' to store a token"
         exit 1
     fi
 

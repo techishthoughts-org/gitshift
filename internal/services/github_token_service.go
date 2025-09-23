@@ -15,8 +15,9 @@ import (
 
 // RealGitHubTokenService handles GitHub token retrieval and management
 type RealGitHubTokenService struct {
-	logger observability.Logger
-	runner execrunner.CmdRunner
+	logger       observability.Logger
+	runner       execrunner.CmdRunner
+	tokenStorage TokenStorageService
 }
 
 // NewGitHubTokenService creates a new GitHub token service
@@ -25,16 +26,46 @@ func NewGitHubTokenService(logger observability.Logger, runner execrunner.CmdRun
 		runner = &execrunner.RealCmdRunner{}
 	}
 
+	// Initialize token storage
+	tokenStorage, err := NewTokenStorageService(logger)
+	if err != nil {
+		logger.Error(context.Background(), "failed_to_initialize_token_storage",
+			observability.F("error", err.Error()),
+		)
+		// Fall back to CLI-based service
+		tokenStorage = nil
+	}
+
 	return &RealGitHubTokenService{
-		logger: logger,
-		runner: runner,
+		logger:       logger,
+		runner:       runner,
+		tokenStorage: tokenStorage,
 	}
 }
 
-// GetCurrentGitHubToken retrieves the current GitHub token from gh CLI
+// GetCurrentGitHubToken retrieves the current GitHub token
 func (s *RealGitHubTokenService) GetCurrentGitHubToken(ctx context.Context) (string, error) {
 	s.logger.Info(ctx, "retrieving_current_github_token")
 
+	// Try to get token from storage first
+	if s.tokenStorage != nil {
+		// Get current account from config
+		// This is a simplified implementation - you'd need to inject config manager
+		// For now, try to get the "default" token
+		token, err := s.tokenStorage.GetToken(ctx, "default")
+		if err == nil {
+			s.logger.Info(ctx, "retrieved_token_from_storage")
+			return token, nil
+		}
+		s.logger.Info(ctx, "no_token_in_storage_falling_back_to_cli")
+	}
+
+	// Fallback to GitHub CLI
+	return s.getTokenFromCLI(ctx)
+}
+
+// getTokenFromCLI retrieves token from GitHub CLI (fallback method)
+func (s *RealGitHubTokenService) getTokenFromCLI(ctx context.Context) (string, error) {
 	// Check if GitHub CLI is available
 	if err := s.checkGitHubCLIAvailable(ctx); err != nil {
 		return "", fmt.Errorf("GitHub CLI not available: %w", err)
@@ -56,19 +87,31 @@ func (s *RealGitHubTokenService) GetCurrentGitHubToken(ctx context.Context) (str
 		return "", fmt.Errorf("received empty token from GitHub CLI")
 	}
 
-	s.logger.Info(ctx, "successfully_retrieved_github_token")
+	s.logger.Info(ctx, "successfully_retrieved_github_token_from_cli")
 	return token, nil
 }
 
 // GetTokenForAccount retrieves a GitHub token for a specific account
-// This is a placeholder for future multi-account token management
 func (s *RealGitHubTokenService) GetTokenForAccount(ctx context.Context, accountAlias string) (string, error) {
 	s.logger.Info(ctx, "retrieving_github_token_for_account",
 		observability.F("account", accountAlias),
 	)
 
-	// For now, we only support the current authenticated user
-	// In the future, this could be extended to support multiple GitHub accounts
+	// Try to get token from storage
+	if s.tokenStorage != nil {
+		token, err := s.tokenStorage.GetToken(ctx, accountAlias)
+		if err == nil {
+			s.logger.Info(ctx, "retrieved_account_token_from_storage",
+				observability.F("account", accountAlias),
+			)
+			return token, nil
+		}
+	}
+
+	// Fallback to current token if account-specific token not found
+	s.logger.Info(ctx, "account_token_not_found_using_current_token",
+		observability.F("account", accountAlias),
+	)
 	return s.GetCurrentGitHubToken(ctx)
 }
 
@@ -154,24 +197,32 @@ func (s *RealGitHubTokenService) RefreshToken(ctx context.Context) (string, erro
 	return s.GetCurrentGitHubToken(ctx)
 }
 
-// CacheToken caches a token for an account (placeholder implementation)
+// CacheToken caches a token for an account
 func (s *RealGitHubTokenService) CacheToken(ctx context.Context, account, token string) error {
 	s.logger.Info(ctx, "caching_github_token",
 		observability.F("account", account),
 	)
 
-	// Placeholder implementation - would implement proper caching
-	return nil
+	if s.tokenStorage == nil {
+		s.logger.Warn(ctx, "no_token_storage_available_for_caching")
+		return fmt.Errorf("token storage not available")
+	}
+
+	return s.tokenStorage.StoreToken(ctx, account, token)
 }
 
-// GetCachedToken retrieves a cached token for an account (placeholder implementation)
+// GetCachedToken retrieves a cached token for an account
 func (s *RealGitHubTokenService) GetCachedToken(ctx context.Context, account string) (string, error) {
 	s.logger.Info(ctx, "retrieving_cached_github_token",
 		observability.F("account", account),
 	)
 
-	// Placeholder implementation - would implement proper cache retrieval
-	return s.GetCurrentGitHubToken(ctx)
+	if s.tokenStorage == nil {
+		s.logger.Warn(ctx, "no_token_storage_available_for_retrieval")
+		return s.GetCurrentGitHubToken(ctx)
+	}
+
+	return s.tokenStorage.GetToken(ctx, account)
 }
 
 // checkGitHubCLIAvailable checks if GitHub CLI is installed and available
