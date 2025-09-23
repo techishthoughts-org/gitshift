@@ -357,7 +357,7 @@ func (c *SwitchCommand) atomicSSHSwitch(ctx context.Context, account *models.Acc
 	// Add rollback action
 	*rollbackActions = append(*rollbackActions, func() error {
 		c.PrintInfo(ctx, "Rolling back SSH changes...")
-		os.Setenv("SSH_AUTH_SOCK", originalSocket)
+		_ = os.Setenv("SSH_AUTH_SOCK", originalSocket)
 		// Restore original keys if possible
 		return nil
 	})
@@ -393,8 +393,12 @@ func (c *SwitchCommand) atomicGitConfigUpdate(ctx context.Context, account *mode
 	// Add rollback action
 	*rollbackActions = append(*rollbackActions, func() error {
 		c.PrintInfo(ctx, "Rolling back Git config changes...")
-		gitService.SetUserConfiguration(ctx, originalName, originalEmail)
-		gitService.SetSSHCommand(ctx, originalSSHCommand)
+		if err := gitService.SetUserConfiguration(ctx, originalName, originalEmail); err != nil {
+			c.PrintError(ctx, fmt.Sprintf("Failed to rollback Git user config: %v", err))
+		}
+		if err := gitService.SetSSHCommand(ctx, originalSSHCommand); err != nil {
+			c.PrintError(ctx, fmt.Sprintf("Failed to rollback SSH command: %v", err))
+		}
 		return nil
 	})
 
@@ -417,7 +421,7 @@ func (c *SwitchCommand) atomicTokenUpdate(ctx context.Context, account *models.A
 	// Add rollback action
 	*rollbackActions = append(*rollbackActions, func() error {
 		c.PrintInfo(ctx, "Rolling back token changes...")
-		os.Setenv("GITHUB_TOKEN", originalToken)
+		_ = os.Setenv("GITHUB_TOKEN", originalToken)
 		return nil
 	})
 
@@ -460,63 +464,6 @@ func (c *SwitchCommand) getCurrentGitConfig(key string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(output))
-}
-
-// manageSSHAgent manages the SSH agent for the account
-func (c *SwitchCommand) manageSSHAgent(ctx context.Context, account *models.Account) error {
-	container := c.GetContainer()
-	sshAgentService := container.GetSSHAgentService()
-
-	if sshAgentService == nil {
-		c.PrintWarning(ctx, "SSH agent service not available, skipping SSH agent management")
-		return nil
-	}
-
-	// If no SSH key is configured, skip SSH agent management
-	if account.SSHKeyPath == "" {
-		c.PrintInfo(ctx, "No SSH key configured for account, skipping SSH agent management")
-		return nil
-	}
-
-	c.PrintInfo(ctx, "Managing SSH agent for account",
-		observability.F("ssh_key", account.SSHKeyPath),
-	)
-
-	// Force restart SSH agent to avoid conflicts from multiple agents
-	if err := sshAgentService.ForceRestartAgent(ctx); err != nil {
-		c.PrintWarning(ctx, "Failed to restart SSH agent, but continuing with switch",
-			observability.F("error", err.Error()),
-		)
-	}
-
-	// Switch to the account's SSH key with socket cleanup (this will clear other keys and load only this one)
-	if err := sshAgentService.SwitchToAccountWithCleanup(ctx, account.SSHKeyPath); err != nil {
-		c.PrintWarning(ctx, "SSH agent switch encountered an issue",
-			observability.F("error", err.Error()),
-			observability.F("ssh_key", account.SSHKeyPath),
-		)
-
-		// Provide helpful error message based on error type
-		if strings.Contains(err.Error(), "socket") {
-			c.PrintInfo(ctx, "💡 Try running: gitpersona ssh-agent --cleanup")
-		} else if strings.Contains(err.Error(), "permission") {
-			c.PrintInfo(ctx, "💡 Check SSH key permissions: chmod 600 "+account.SSHKeyPath)
-		} else if strings.Contains(err.Error(), "not found") {
-			c.PrintInfo(ctx, "💡 SSH key file not found: "+account.SSHKeyPath)
-		}
-
-		// Don't fail the entire switch - SSH agent issues shouldn't block the account switch
-		c.PrintInfo(ctx, "Continuing with account switch despite SSH agent issue")
-		return nil
-	}
-
-	// Note: SSH validation is now handled in validateAccountSSH before the switch
-
-	c.PrintSuccess(ctx, "SSH agent configured for account",
-		observability.F("ssh_key", account.SSHKeyPath),
-	)
-
-	return nil
 }
 
 // Implement the Run method that was missing

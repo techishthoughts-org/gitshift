@@ -99,7 +99,7 @@ func TestAccountDiscovery_scanGitConfigFiles(t *testing.T) {
 		t.Errorf("scanGitConfigFiles should not return error for non-existent directory: %v", err)
 	}
 	// Note: The method returns nil for non-existent directory, not empty slice
-	if accounts != nil && len(accounts) != 0 {
+	if len(accounts) != 0 {
 		t.Errorf("Expected nil or 0 accounts for non-existent directory, got %d", len(accounts))
 	}
 
@@ -239,6 +239,7 @@ func TestAccountDiscovery_enrichAccountFromGitHubAPI(t *testing.T) {
 	account := discovery.enrichAccountFromGitHubAPI("testuser")
 	if account == nil {
 		t.Error("enrichAccountFromGitHubAPI should return non-nil account")
+		return
 	}
 	// Should return empty account when gh is not available
 	if account.Name != "" || account.Email != "" {

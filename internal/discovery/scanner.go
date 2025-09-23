@@ -620,8 +620,8 @@ func (d *AccountDiscovery) findOrGenerateSSHKey(username, email string) string {
 	patterns := []string{
 		fmt.Sprintf("id_ed25519_%s", username),
 		fmt.Sprintf("id_rsa_%s", username),
-		fmt.Sprintf("id_ed25519"),
-		fmt.Sprintf("id_rsa"),
+		"id_ed25519",
+		"id_rsa",
 	}
 
 	for _, pattern := range patterns {

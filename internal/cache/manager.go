@@ -62,7 +62,7 @@ func NewCacheManager(logger observability.Logger, cacheDir string) *CacheManager
 	}
 
 	// Ensure cache directory exists
-	os.MkdirAll(cacheDir, 0755)
+	_ = os.MkdirAll(cacheDir, 0755)
 
 	cm := &CacheManager{
 		logger:     logger,
@@ -168,7 +168,10 @@ func (cm *CacheManager) Delete(ctx context.Context, key string) {
 
 	// Remove from disk if exists
 	diskPath := filepath.Join(cm.cacheDir, fmt.Sprintf("%s.json", key))
-	os.Remove(diskPath)
+	if err := os.Remove(diskPath); err != nil {
+		// Log: Failed to remove disk file
+		_ = err
+	}
 }
 
 // Clear removes all entries from cache
@@ -184,8 +187,8 @@ func (cm *CacheManager) Clear(ctx context.Context) {
 	)
 
 	// Clear disk cache
-	os.RemoveAll(cm.cacheDir)
-	os.MkdirAll(cm.cacheDir, 0755)
+	_ = os.RemoveAll(cm.cacheDir)
+	_ = os.MkdirAll(cm.cacheDir, 0755)
 }
 
 // GetStats returns cache statistics
@@ -314,7 +317,7 @@ func (cm *CacheManager) evictLRU() {
 
 	// Find the entry with the oldest last access time
 	var oldestKey string
-	var oldestTime time.Time = time.Now()
+	oldestTime := time.Now()
 
 	for key, entry := range cm.entries {
 		if entry.LastAccess.Before(oldestTime) {
@@ -398,7 +401,10 @@ func (cm *CacheManager) loadFromDisk() {
 					loadedCount++
 				} else {
 					// Remove expired file
-					os.Remove(filePath)
+					if err := os.Remove(filePath); err != nil {
+						// Log: Failed to remove cache file
+						_ = err
+					}
 				}
 			}
 		}
@@ -483,10 +489,13 @@ func (cm *CacheManager) PrefetchAccounts(ctx context.Context, accounts []string)
 				"loaded_at": time.Now(),
 			}
 
-			cm.Set(ctx, cacheKey, accountData, &CacheOptions{
+			if err := cm.Set(ctx, cacheKey, accountData, &CacheOptions{
 				TTL:  60 * time.Minute,
 				Tags: []string{"account", account},
-			})
+			}); err != nil {
+				// Log: Failed to set cache
+				_ = err
+			}
 		}
 	}
 

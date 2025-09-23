@@ -90,7 +90,7 @@ func NewTelemetryCollector(logger observability.Logger, dataDir string, enabled,
 	}
 
 	// Ensure data directory exists
-	os.MkdirAll(dataDir, 0755)
+	_ = os.MkdirAll(dataDir, 0755)
 
 	sessionID := fmt.Sprintf("session-%d", time.Now().UnixNano())
 

@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"sync"
 
 	"github.com/spf13/cobra"
 )
@@ -16,6 +17,7 @@ type CommandCategory struct {
 // CommandRegistry manages all command categories
 type CommandRegistry struct {
 	categories map[string]*CommandCategory
+	mu         sync.RWMutex
 }
 
 // NewCommandRegistry creates a new command registry
@@ -27,6 +29,9 @@ func NewCommandRegistry() *CommandRegistry {
 
 // RegisterCategory adds a new command category
 func (r *CommandRegistry) RegisterCategory(name, description string) *CommandCategory {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	category := &CommandCategory{
 		Name:        name,
 		Description: description,
@@ -38,6 +43,9 @@ func (r *CommandRegistry) RegisterCategory(name, description string) *CommandCat
 
 // AddCommand adds a command to a category
 func (r *CommandRegistry) AddCommand(categoryName string, cmd Command) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if category, exists := r.categories[categoryName]; exists {
 		category.Commands = append(category.Commands, cmd)
 	}
@@ -45,11 +53,17 @@ func (r *CommandRegistry) AddCommand(categoryName string, cmd Command) {
 
 // GetCategory returns a command category by name
 func (r *CommandRegistry) GetCategory(name string) *CommandCategory {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	return r.categories[name]
 }
 
 // CreateCobraCommands creates all Cobra commands organized by category
 func (r *CommandRegistry) CreateCobraCommands(rootCmd *cobra.Command) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	for _, category := range r.categories {
 		// Create a parent command for the category if it has multiple commands
 		if len(category.Commands) > 1 {

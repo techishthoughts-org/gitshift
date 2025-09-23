@@ -157,7 +157,8 @@ func TestGetContext(t *testing.T) {
 	}
 
 	// Test custom context
-	customCtx := context.WithValue(context.Background(), "test", "value")
+	type testContextKey string
+	customCtx := context.WithValue(context.Background(), testContextKey("test"), "value")
 	cmd.SetContext(customCtx)
 
 	retrievedCtx := cmd.GetContext()
@@ -168,7 +169,8 @@ func TestGetContext(t *testing.T) {
 
 func TestSetContext(t *testing.T) {
 	cmd := NewBaseCommand("test", "Test command", "test [args]")
-	customCtx := context.WithValue(context.Background(), "test", "value")
+	type testContextKey string
+	customCtx := context.WithValue(context.Background(), testContextKey("test"), "value")
 
 	cmd.SetContext(customCtx)
 
@@ -282,7 +284,8 @@ func TestRun(t *testing.T) {
 
 func TestWrapError(t *testing.T) {
 	cmd := NewBaseCommand("test", "Test command", "test [args]")
-	cmd.SetContext(context.WithValue(context.Background(), "args", []string{"arg1"}))
+	type argsContextKey string
+	cmd.SetContext(context.WithValue(context.Background(), argsContextKey("args"), []string{"arg1"}))
 
 	t.Run("nil error", func(t *testing.T) {
 		err := cmd.wrapError(nil, "test_code")
@@ -441,7 +444,9 @@ func TestGetFlagBool(t *testing.T) {
 	}
 
 	// Test set value
-	cobraCmd.Flags().Set("debug", "true")
+	if err := cobraCmd.Flags().Set("debug", "true"); err != nil {
+		t.Fatalf("Failed to set flag: %v", err)
+	}
 	value = cmd.GetFlagBool(cobraCmd, "debug")
 	if value != true {
 		t.Errorf("Expected true, got %v", value)
@@ -460,7 +465,9 @@ func TestGetFlagString(t *testing.T) {
 	}
 
 	// Test set value
-	cobraCmd.Flags().Set("output", "test.txt")
+	if err := cobraCmd.Flags().Set("output", "test.txt"); err != nil {
+		t.Fatalf("Failed to set flag: %v", err)
+	}
 	value = cmd.GetFlagString(cobraCmd, "output")
 	if value != "test.txt" {
 		t.Errorf("Expected 'test.txt', got '%s'", value)
@@ -479,7 +486,9 @@ func TestGetFlagInt(t *testing.T) {
 	}
 
 	// Test set value
-	cobraCmd.Flags().Set("count", "5")
+	if err := cobraCmd.Flags().Set("count", "5"); err != nil {
+		t.Fatalf("Failed to set flag: %v", err)
+	}
 	value = cmd.GetFlagInt(cobraCmd, "count")
 	if value != 5 {
 		t.Errorf("Expected 5, got %d", value)
@@ -491,7 +500,9 @@ func TestRequireArgs(t *testing.T) {
 
 	t.Run("sufficient arguments", func(t *testing.T) {
 		cobraCmd := &cobra.Command{}
-		cobraCmd.Flags().Parse([]string{"arg1", "arg2"})
+		if err := cobraCmd.Flags().Parse([]string{"arg1", "arg2"}); err != nil {
+			t.Fatalf("Failed to parse flags: %v", err)
+		}
 
 		err := cmd.RequireArgs(cobraCmd, 1, 2)
 		if err != nil {
@@ -501,7 +512,9 @@ func TestRequireArgs(t *testing.T) {
 
 	t.Run("insufficient arguments", func(t *testing.T) {
 		cobraCmd := &cobra.Command{}
-		cobraCmd.Flags().Parse([]string{"arg1"})
+		if err := cobraCmd.Flags().Parse([]string{"arg1"}); err != nil {
+			t.Fatalf("Failed to parse flags: %v", err)
+		}
 
 		err := cmd.RequireArgs(cobraCmd, 2, 0)
 		if err == nil {
@@ -511,7 +524,9 @@ func TestRequireArgs(t *testing.T) {
 
 	t.Run("too many arguments", func(t *testing.T) {
 		cobraCmd := &cobra.Command{}
-		cobraCmd.Flags().Parse([]string{"arg1", "arg2", "arg3"})
+		if err := cobraCmd.Flags().Parse([]string{"arg1", "arg2", "arg3"}); err != nil {
+			t.Fatalf("Failed to parse flags: %v", err)
+		}
 
 		err := cmd.RequireArgs(cobraCmd, 1, 2)
 		if err == nil {

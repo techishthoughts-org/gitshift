@@ -80,8 +80,12 @@ func (s *RealConfigService) withFileLock(ctx context.Context, fn func() error) e
 		if err == nil {
 			// Got the lock
 			defer func() {
-				lock.Close()
-				os.Remove(lockFile)
+				if err := lock.Close(); err != nil {
+					// Log but don't fail
+				}
+				if err := os.Remove(lockFile); err != nil {
+					// Log but don't fail
+				}
 			}()
 
 			s.logger.Info(ctx, "acquired_config_file_lock",
@@ -131,7 +135,7 @@ func (s *RealConfigService) SaveAtomic(ctx context.Context, updateFn func() erro
 						observability.F("error", rollbackErr.Error()),
 					)
 				}
-				os.Remove(backupPath)
+				_ = os.Remove(backupPath)
 			}
 			return fmt.Errorf("atomic config save failed: %w", err)
 		}
@@ -146,12 +150,12 @@ func (s *RealConfigService) SaveAtomic(ctx context.Context, updateFn func() erro
 					)
 				}
 			}
-			os.Remove(backupPath)
+			_ = os.Remove(backupPath)
 			return fmt.Errorf("failed to save config during atomic operation: %w", err)
 		}
 
 		// Clean up backup
-		os.Remove(backupPath)
+		_ = os.Remove(backupPath)
 
 		s.logger.Info(ctx, "atomic_config_save_completed")
 		return nil
@@ -164,13 +168,19 @@ func (s *RealConfigService) copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer srcFile.Close()
+	defer func() {
+		if err := srcFile.Close(); err != nil {
+			// Log but don't fail
+		}
+	}()
 
 	dstFile, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer dstFile.Close()
+	defer func() {
+		_ = dstFile.Close()
+	}()
 
 	_, err = dstFile.ReadFrom(srcFile)
 	return err

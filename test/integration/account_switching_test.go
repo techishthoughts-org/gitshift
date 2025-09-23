@@ -201,7 +201,7 @@ func setupTestEnvironment(t *testing.T) string {
 
 // cleanupTestEnvironment cleans up the test environment
 func cleanupTestEnvironment(testDir string) {
-	os.RemoveAll(testDir)
+	_ = os.RemoveAll(testDir)
 }
 
 // createTestSSHKeys creates test SSH keys for testing

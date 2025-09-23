@@ -372,7 +372,10 @@ func (d *SSHConflictDetector) detectDeadAgents(ctx context.Context) []SSHConflic
 		}
 	case <-time.After(5 * time.Second):
 		// Kill the command if it's hanging
-		cmd.Process.Kill()
+		if err := cmd.Process.Kill(); err != nil {
+			// Log: Process might already be dead
+			_ = err
+		}
 		conflicts = append(conflicts, SSHConflict{
 			Type:        ConflictAgentDead,
 			Severity:    "error",

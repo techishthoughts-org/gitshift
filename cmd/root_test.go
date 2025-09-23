@@ -267,7 +267,9 @@ func TestRootCommandFlagsValidation(t *testing.T) {
 
 	// Add a required flag
 	cmd.Flags().String("required", "", "Required flag")
-	cmd.MarkFlagRequired("required")
+	if err := cmd.MarkFlagRequired("required"); err != nil {
+		t.Fatalf("Failed to mark flag as required: %v", err)
+	}
 
 	// Test with missing required flag
 	// Note: ValidateArgs doesn't validate flags, it only validates arguments
@@ -278,7 +280,9 @@ func TestRootCommandFlagsValidation(t *testing.T) {
 	}
 
 	// Test with required flag set
-	cmd.Flags().Set("required", "value")
+	if err := cmd.Flags().Set("required", "value"); err != nil {
+		t.Fatalf("Failed to set flag: %v", err)
+	}
 	err = cmd.ValidateArgs([]string{})
 	if err != nil {
 		t.Errorf("Expected no error with required flag set, got %v", err)
@@ -287,8 +291,12 @@ func TestRootCommandFlagsValidation(t *testing.T) {
 
 func TestRootCommandEnvironment(t *testing.T) {
 	// Test that root command works with environment variables
-	os.Setenv("TEST_VAR", "test_value")
-	defer os.Unsetenv("TEST_VAR")
+	_ = os.Setenv("TEST_VAR", "test_value")
+	defer func() {
+		if err := os.Unsetenv("TEST_VAR"); err != nil {
+			t.Logf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	// Test that environment variables can be accessed
 	value := os.Getenv("TEST_VAR")
@@ -309,7 +317,11 @@ func TestRootCommandWorkingDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to change directory: %v", err)
 	}
-	defer os.Chdir(originalDir)
+	defer func() {
+		if err := os.Chdir(originalDir); err != nil {
+			t.Logf("Failed to change directory back: %v", err)
+		}
+	}()
 
 	cmd := &cobra.Command{
 		Use: "test",

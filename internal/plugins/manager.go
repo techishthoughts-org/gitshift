@@ -105,10 +105,11 @@ type PluginManifest struct {
 
 // PluginRegistry manages plugin discovery and installation
 type PluginRegistry struct {
-	registryURL string
-	localCache  string
-	plugins     map[string]*RegistryPlugin
-	mutex       sync.RWMutex
+	// TODO: Implement plugin registry functionality
+	// registryURL string
+	// localCache  string
+	// plugins     map[string]*RegistryPlugin
+	// mutex       sync.RWMutex
 }
 
 // RegistryPlugin represents a plugin in the registry
@@ -136,7 +137,7 @@ func NewPluginManager(logger observability.Logger, pluginsDir string) *PluginMan
 	}
 
 	// Ensure plugins directory exists
-	os.MkdirAll(pluginsDir, 0755)
+	_ = os.MkdirAll(pluginsDir, 0755)
 
 	return &PluginManager{
 		logger:      logger,

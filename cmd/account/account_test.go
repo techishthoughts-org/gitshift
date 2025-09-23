@@ -97,6 +97,7 @@ func TestAccountCommandInheritance(t *testing.T) {
 	cobraCmd := cmd.CreateCobraCommand()
 	if cobraCmd == nil {
 		t.Error("CreateCobraCommand should work on AccountCommand")
+		return
 	}
 
 	if cobraCmd.Use != "test [args]" {
@@ -106,7 +107,7 @@ func TestAccountCommandInheritance(t *testing.T) {
 
 func TestAccountCommandWithExamples(t *testing.T) {
 	cmd := NewAccountCommand("test", "Test command", "test [args]")
-	cmd.BaseCommand = cmd.BaseCommand.WithExamples("test arg1", "test arg2 --flag")
+	cmd.BaseCommand = cmd.WithExamples("test arg1", "test arg2 --flag")
 
 	examples := cmd.Examples()
 	if len(examples) != 2 {

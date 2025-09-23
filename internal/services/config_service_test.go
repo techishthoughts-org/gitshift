@@ -99,7 +99,7 @@ func TestRealConfigService_Save(t *testing.T) {
 		SSHKeyPath:     "/home/testuser/.ssh/id_ed25519",
 		GitHubUsername: "testuser",
 	}
-	service.manager.AddAccount(account)
+	_ = service.manager.AddAccount(account)
 
 	err := service.Save(ctx)
 	if err != nil {
@@ -248,7 +248,7 @@ func TestRealConfigService_GetAccount(t *testing.T) {
 		SSHKeyPath:     "/home/testuser/.ssh/id_ed25519",
 		GitHubUsername: "testuser",
 	}
-	service.manager.AddAccount(testAccount)
+	_ = service.manager.AddAccount(testAccount)
 
 	account, err = service.GetAccount(ctx, "testuser")
 	if err != nil {
@@ -256,6 +256,7 @@ func TestRealConfigService_GetAccount(t *testing.T) {
 	}
 	if account == nil {
 		t.Error("GetAccount should return account for existing user")
+		return
 	}
 	if account.Alias != "testuser" {
 		t.Errorf("Expected alias 'testuser', got '%s'", account.Alias)
@@ -313,7 +314,7 @@ func TestRealConfigService_DeleteAccount(t *testing.T) {
 		SSHKeyPath:     "/home/testuser/.ssh/id_ed25519",
 		GitHubUsername: "testuser",
 	}
-	service.manager.AddAccount(account)
+	_ = service.manager.AddAccount(account)
 
 	err = service.DeleteAccount(ctx, "testuser")
 	if err != nil {
@@ -335,7 +336,7 @@ func TestRealConfigService_ListAccounts(t *testing.T) {
 	service := NewRealConfigService(configPath, logger)
 
 	// Clear any existing accounts first
-	service.manager.ClearAllAccounts()
+	_ = service.manager.ClearAllAccounts()
 
 	// Test with no accounts
 	accounts, err := service.ListAccounts(ctx)
@@ -362,8 +363,8 @@ func TestRealConfigService_ListAccounts(t *testing.T) {
 		GitHubUsername: "user2",
 	}
 
-	service.manager.AddAccount(account1)
-	service.manager.AddAccount(account2)
+	_ = service.manager.AddAccount(account1)
+	_ = service.manager.AddAccount(account2)
 
 	accounts, err = service.ListAccounts(ctx)
 	if err != nil {
@@ -389,7 +390,7 @@ func TestRealConfigService_SetCurrentAccount(t *testing.T) {
 		SSHKeyPath:     "/home/testuser3/.ssh/id_ed25519",
 		GitHubUsername: "testuser3",
 	}
-	service.manager.AddAccount(account)
+	_ = service.manager.AddAccount(account)
 
 	// Test setting current account
 	err := service.SetCurrentAccount(ctx, "testuser3")
@@ -415,7 +416,7 @@ func TestRealConfigService_GetCurrentAccount(t *testing.T) {
 	service := NewRealConfigService(configPath, logger)
 
 	// Clear any existing accounts first
-	service.manager.ClearAllAccounts()
+	_ = service.manager.ClearAllAccounts()
 
 	// Test getting current account when none is set
 	account := service.GetCurrentAccount(ctx)
@@ -431,8 +432,8 @@ func TestRealConfigService_GetCurrentAccount(t *testing.T) {
 		SSHKeyPath:     "/home/testuser4/.ssh/id_ed25519",
 		GitHubUsername: "testuser4",
 	}
-	service.manager.AddAccount(testAccount)
-	service.manager.SetCurrentAccount("testuser4")
+	_ = service.manager.AddAccount(testAccount)
+	_ = service.manager.SetCurrentAccount("testuser4")
 
 	account = service.GetCurrentAccount(ctx)
 	if account != "testuser4" {
@@ -448,7 +449,7 @@ func TestRealConfigService_CheckForConflicts(t *testing.T) {
 	service := NewRealConfigService(configPath, logger)
 
 	// Clear any existing accounts first
-	service.manager.ClearAllAccounts()
+	_ = service.manager.ClearAllAccounts()
 
 	// Test with no conflicts
 	conflicts, err := service.CheckForConflicts(ctx)
@@ -467,7 +468,7 @@ func TestRealConfigService_CheckForConflicts(t *testing.T) {
 		SSHKeyPath:     "/home/existinguser/.ssh/id_ed25519",
 		GitHubUsername: "existinguser",
 	}
-	service.manager.AddAccount(existingAccount)
+	_ = service.manager.AddAccount(existingAccount)
 
 	// Add another account with the same email
 	duplicateEmailAccount := &models.Account{
@@ -477,7 +478,7 @@ func TestRealConfigService_CheckForConflicts(t *testing.T) {
 		SSHKeyPath:     "/home/duplicateuser/.ssh/id_ed25519",
 		GitHubUsername: "duplicateuser",
 	}
-	service.manager.AddAccount(duplicateEmailAccount)
+	_ = service.manager.AddAccount(duplicateEmailAccount)
 
 	conflicts, err = service.CheckForConflicts(ctx)
 	if err != nil {
@@ -495,7 +496,7 @@ func TestRealConfigService_CheckForConflicts(t *testing.T) {
 		SSHKeyPath:     "/home/existinguser/.ssh/id_ed25519", // Same SSH key
 		GitHubUsername: "conflictuser",
 	}
-	service.manager.AddAccount(conflictAccount)
+	_ = service.manager.AddAccount(conflictAccount)
 
 	conflicts, err = service.CheckForConflicts(ctx)
 	if err != nil {
@@ -521,7 +522,7 @@ func TestRealConfigService_ValidateConfiguration(t *testing.T) {
 		SSHKeyPath:     "/home/testuser/.ssh/id_ed25519",
 		GitHubUsername: "testuser",
 	}
-	service.manager.AddAccount(account)
+	_ = service.manager.AddAccount(account)
 
 	err := service.ValidateConfiguration(ctx)
 	if err != nil {
@@ -530,7 +531,7 @@ func TestRealConfigService_ValidateConfiguration(t *testing.T) {
 
 	// Test with invalid configuration (no current account)
 	// Clear all accounts to simulate no current account
-	service.manager.ClearAllAccounts()
+	_ = service.manager.ClearAllAccounts()
 	err = service.ValidateConfiguration(ctx)
 	if err != nil {
 		t.Errorf("ValidateConfiguration should not return error for empty config: %v", err)

@@ -1,71 +1,113 @@
 # GitPersona Makefile
 
-# Variables
+.PHONY: build test clean lint fmt vet install dev deps coverage benchmark help
+
+# Build variables
 BINARY_NAME=gitpersona
-VERSION?=v0.1.0
+VERSION=$(shell git describe --tags --always --dirty)
+LDFLAGS=-ldflags "-X main.version=$(VERSION)"
 
-# Go build flags
-LDFLAGS=-ldflags "-X main.Version=${VERSION} -w -s"
+# Default target
+all: build
 
-.PHONY: help build test clean install uninstall dev release
+## Build the binary
+build:
+	@echo "Building $(BINARY_NAME)..."
+	go build $(LDFLAGS) -o $(BINARY_NAME) .
 
-help: ## Show this help message
-	@echo "GitPersona - Available commands:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+## Install the binary to $GOPATH/bin
+install:
+	@echo "Installing $(BINARY_NAME)..."
+	go install $(LDFLAGS) .
 
-build: ## Build the binary
-	@echo "🏗️  Building GitPersona..."
-	go build ${LDFLAGS} -o ${BINARY_NAME} .
-	@echo "✅ Build complete: ${BINARY_NAME}"
+## Run tests
+test:
+	@echo "Running tests..."
+	go test -race ./...
 
-test: ## Run tests
-	@echo "🧪 Running tests..."
-	go test -v -timeout 5m ./...
-
-test-coverage: ## Run tests with coverage
-	@echo "🧪 Running tests with coverage..."
-	go test -v -timeout 5m -coverprofile=coverage.out ./...
+## Run tests with coverage
+coverage:
+	@echo "Running tests with coverage..."
+	go test -race -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
-	@echo "📊 Coverage report generated: coverage.html"
+	@echo "Coverage report generated: coverage.html"
 
-clean: ## Clean build artifacts
-	@echo "🧹 Cleaning build artifacts..."
-	rm -f ${BINARY_NAME}
-	rm -f coverage.out coverage.html
-	@echo "✅ Clean complete"
+## Run benchmarks
+benchmark:
+	@echo "Running benchmarks..."
+	go test -bench=. -benchmem ./...
 
-install: build ## Install to system
-	@echo "📦 Installing GitPersona..."
-	cp ${BINARY_NAME} ~/.local/bin/
-	@echo "✅ Installed to ~/.local/bin/${BINARY_NAME}"
+## Run linting
+lint:
+	@echo "Running linter..."
+	golangci-lint run
 
-uninstall: ## Uninstall from system
-	@echo "🗑️  Uninstalling GitPersona..."
-	rm -f ~/.local/bin/${BINARY_NAME}
-	@echo "✅ Uninstalled from ~/.local/bin/${BINARY_NAME}"
+## Format code
+fmt:
+	@echo "Formatting code..."
+	go fmt ./...
+
+## Run go vet
+vet:
+	@echo "Running go vet..."
+	go vet ./...
+
+## Download dependencies
+deps:
+	@echo "Downloading dependencies..."
+	go mod download
+	go mod tidy
+
+## Development build with debug info
+dev:
+	@echo "Building development version..."
+	go build -gcflags="all=-N -l" -o $(BINARY_NAME)-dev .
+
+## Clean build artifacts
+clean:
+	@echo "Cleaning..."
+	go clean
+	rm -f $(BINARY_NAME) $(BINARY_NAME)-dev coverage.out coverage.html
+
+## Run full CI pipeline locally
+ci: deps fmt vet lint test coverage
+
+## Show help
+help:
+	@echo "Available targets:"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+# Security scanning
+.PHONY: security
+security:
+	@echo "Running security scan..."
+	gosec ./...
+
+# Docker targets
+.PHONY: docker-build docker-run
+docker-build:
+	@echo "Building Docker image..."
+	docker build -t $(BINARY_NAME):$(VERSION) .
+
+docker-run:
+	@echo "Running Docker container..."
+	docker run --rm -it $(BINARY_NAME):$(VERSION)
+
+# Release targets
+.PHONY: release-build
+release-build:
+	@echo "Building release binaries..."
+	@mkdir -p dist
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-linux-amd64 .
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-amd64 .
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-arm64 .
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-windows-amd64.exe .
 
 # Development helpers
-fmt: ## Format Go code
-	@echo "🎨 Formatting Go code..."
-	gofmt -s -w .
-	@echo "✅ Code formatted"
-
-vet: ## Run go vet
-	@echo "🔧 Running go vet..."
-	go vet ./...
-	@echo "✅ Go vet complete"
-
-deps: ## Download and verify dependencies
-	@echo "📦 Downloading dependencies..."
-	go mod download
-	go mod verify
-	@echo "✅ Dependencies ready"
-
-# Quick development workflow
-dev: deps fmt vet test build ## Full development workflow
-	@echo "🚀 Development workflow complete!"
-
-# Release helpers
-release: clean test build ## Prepare release build
-	@echo "🎉 Release build ready: ${BINARY_NAME}"
-	@echo "Version: ${VERSION}"
+.PHONY: watch
+watch:
+	@echo "Watching for changes..."
+	while true; do \
+		inotifywait -r -e modify --include="\.go$$" .; \
+		make build; \
+	done

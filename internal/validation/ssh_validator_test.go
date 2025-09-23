@@ -592,9 +592,8 @@ func TestValidationResultStructure(t *testing.T) {
 		ConfigIssues:    []SSHConfigIssue{},
 	}
 
-	if result == nil {
-		t.Fatal("Failed to create ValidationResult")
-	}
+	// ValidationResult is a struct literal, it cannot be nil
+	// This check is removed as it's always false
 
 	// Test that all fields are accessible
 	_ = result.IsValid

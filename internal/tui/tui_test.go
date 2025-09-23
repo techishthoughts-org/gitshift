@@ -9,11 +9,17 @@ import (
 )
 
 func TestRun(t *testing.T) {
+	// Skip TUI tests in CI/non-TTY environments
+	if testing.Short() {
+		t.Skip("Skipping TUI test in short mode")
+	}
+
 	// Test that Run function exists and can be called
 	// Note: This will likely fail in test environment due to terminal requirements
 	err := Run()
-	if err == nil {
-		t.Log("TUI Run completed successfully (unexpected in test environment)")
+	if err != nil {
+		// Expected to fail in test environment
+		t.Logf("TUI Run failed as expected in test environment: %v", err)
 	}
 }
 
@@ -33,6 +39,12 @@ func TestSelectAccount(t *testing.T) {
 		t.Error("SelectAccount should return error for nil accounts")
 	}
 
+	// Skip interactive tests in CI/non-TTY environments
+	if testing.Short() {
+		t.Skip("Skipping interactive TUI test in short mode")
+		return
+	}
+
 	// Test with valid accounts
 	accounts := []*models.Account{
 		models.NewAccount("test1", "Test User 1", "test1@example.com", "/path/to/key1"),
@@ -41,8 +53,8 @@ func TestSelectAccount(t *testing.T) {
 
 	// Note: This will likely fail in test environment due to terminal requirements
 	_, err = SelectAccount(accounts, "test1")
-	if err == nil {
-		t.Log("SelectAccount completed successfully (unexpected in test environment)")
+	if err != nil {
+		t.Logf("SelectAccount failed as expected in test environment: %v", err)
 	}
 }
 
@@ -316,7 +328,7 @@ func TestModel_ErrorHandling(t *testing.T) {
 		tea.KeyMsg{Type: tea.KeyUp},
 		tea.KeyMsg{Type: tea.KeyDown},
 		tea.WindowSizeMsg{Width: 80, Height: 24},
-		tea.MouseMsg{Type: tea.MouseLeft},
+		tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft},
 	}
 
 	for _, msg := range messages {

@@ -342,7 +342,11 @@ func TestSSHKeyPathExpansion(t *testing.T) {
 		testKeyPath := filepath.Join(homeDir, "test_key")
 		err = os.WriteFile(testKeyPath, []byte("test key"), 0600)
 		if err == nil {
-			defer os.Remove(testKeyPath)
+			defer func() {
+				if err := os.Remove(testKeyPath); err != nil {
+					t.Logf("Failed to remove test key: %v", err)
+				}
+			}()
 
 			cmd := manager.GenerateSSHCommand("~/test_key")
 			expected := "ssh -i " + testKeyPath + " -o IdentitiesOnly=yes"
@@ -358,7 +362,11 @@ func TestSSHKeyPathExpansion(t *testing.T) {
 		testKeyPath := filepath.Join(homeDir, "test_key_validate")
 		err = os.WriteFile(testKeyPath, []byte("test key"), 0600)
 		if err == nil {
-			defer os.Remove(testKeyPath)
+			defer func() {
+				if err := os.Remove(testKeyPath); err != nil {
+					t.Logf("Failed to remove test key: %v", err)
+				}
+			}()
 
 			err = manager.ValidateSSHKey("~/test_key_validate")
 			if err != nil {

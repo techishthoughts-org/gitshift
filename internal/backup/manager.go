@@ -81,7 +81,7 @@ func NewBackupManager(logger observability.Logger, backupDir string) *BackupMana
 	}
 
 	// Ensure backup directory exists
-	os.MkdirAll(backupDir, 0755)
+	_ = os.MkdirAll(backupDir, 0755)
 
 	return &BackupManager{
 		logger:      logger,
@@ -472,7 +472,12 @@ func (bm *BackupManager) copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+	defer func() {
+		if err := sourceFile.Close(); err != nil {
+			// Log: Failed to close source file
+			_ = err
+		}
+	}()
 
 	// Ensure destination directory exists
 	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
@@ -483,7 +488,12 @@ func (bm *BackupManager) copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
+	defer func() {
+		if err := destFile.Close(); err != nil {
+			// Log: Failed to close dest file
+			_ = err
+		}
+	}()
 
 	_, err = destFile.ReadFrom(sourceFile)
 	return err
@@ -521,7 +531,9 @@ func (bm *BackupManager) calculateFileChecksum(filePath string) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
@@ -548,7 +560,9 @@ func (bm *BackupManager) calculateBackupChecksum(backupPath string) (string, err
 			if err != nil {
 				return err
 			}
-			defer file.Close()
+			defer func() {
+				_ = file.Close()
+			}()
 
 			if _, err := io.Copy(hash, file); err != nil {
 				return err

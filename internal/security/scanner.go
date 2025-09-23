@@ -750,7 +750,7 @@ func (ss *SecurityScanner) generateScanID() string {
 
 func (ss *SecurityScanner) generateFindingID() string {
 	bytes := make([]byte, 8)
-	rand.Read(bytes)
+	_, _ = rand.Read(bytes)
 	return hex.EncodeToString(bytes)
 }
 

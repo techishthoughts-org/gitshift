@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -121,11 +122,12 @@ func (se *ScriptExtension) Cleanup(ctx context.Context) error {
 
 // WebhookExtension handles webhook-based extensions
 type WebhookExtension struct {
-	endpoint string
-	secret   string
-	timeout  time.Duration
-	headers  map[string]string
-	logger   observability.Logger
+	// TODO: Implement webhook extension functionality
+	// endpoint string
+	// secret   string
+	// timeout  time.Duration
+	// headers  map[string]string
+	// logger   observability.Logger
 }
 
 // NewExtensionManager creates a new extension manager
@@ -576,7 +578,7 @@ func (em *ExtensionManager) isPathWhitelisted(path string) bool {
 			continue
 		}
 
-		if filepath.HasPrefix(absPath, absWhitelistDir) {
+		if strings.HasPrefix(absPath, absWhitelistDir+string(filepath.Separator)) || absPath == absWhitelistDir {
 			return true
 		}
 	}

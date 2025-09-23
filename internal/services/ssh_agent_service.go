@@ -695,20 +695,20 @@ func (s *RealSSHAgentService) IsolatedSwitchToAccount(ctx context.Context, keyPa
 
 	// 2. Set SSH_AUTH_SOCK for this process only
 	originalSocket := os.Getenv("SSH_AUTH_SOCK")
-	os.Setenv("SSH_AUTH_SOCK", agentSocket)
+	_ = os.Setenv("SSH_AUTH_SOCK", agentSocket)
 
 	// 3. Load only the target key
 	if err := s.LoadKey(ctx, keyPath); err != nil {
 		// Rollback: restore original socket and cleanup
-		os.Setenv("SSH_AUTH_SOCK", originalSocket)
-		s.cleanupIsolatedAgent(ctx, agentSocket, agentPID)
+		_ = os.Setenv("SSH_AUTH_SOCK", originalSocket)
+		_ = s.cleanupIsolatedAgent(ctx, agentSocket, agentPID)
 		return fmt.Errorf("failed to load key in isolated agent: %w", err)
 	}
 
 	// 4. Validate the isolation worked
 	if err := s.validateIsolatedAgent(ctx, keyPath); err != nil {
-		os.Setenv("SSH_AUTH_SOCK", originalSocket)
-		s.cleanupIsolatedAgent(ctx, agentSocket, agentPID)
+		_ = os.Setenv("SSH_AUTH_SOCK", originalSocket)
+		_ = s.cleanupIsolatedAgent(ctx, agentSocket, agentPID)
 		return fmt.Errorf("isolated agent validation failed: %w", err)
 	}
 
