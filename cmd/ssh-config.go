@@ -56,10 +56,10 @@ func (c *SSHConfigCommand) CreateCobraCommand() *cobra.Command {
 	// Override the RunE to use our command structure
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		// Get flag values
-		c.generate = c.GetFlagBool(cmd, "generate")
-		c.backup = c.GetFlagBool(cmd, "backup")
-		c.apply = c.GetFlagBool(cmd, "apply")
-		c.account = c.GetFlagString(cmd, "account")
+		c.generate, _ = cmd.Flags().GetBool("generate")
+		c.backup, _ = cmd.Flags().GetBool("backup")
+		c.apply, _ = cmd.Flags().GetBool("apply")
+		c.account, _ = cmd.Flags().GetString("account")
 
 		ctx := context.Background()
 		return c.Execute(ctx, args)
@@ -72,6 +72,17 @@ func (c *SSHConfigCommand) CreateCobraCommand() *cobra.Command {
 func (c *SSHConfigCommand) Validate(args []string) error {
 	// No validation needed for this command
 	return nil
+}
+
+// Execute is the main entry point for the command
+func (c *SSHConfigCommand) Execute(ctx context.Context, args []string) error {
+	// Validate arguments
+	if err := c.Validate(args); err != nil {
+		return err
+	}
+
+	// Execute the command logic
+	return c.Run(ctx, args)
 }
 
 // Run executes the SSH config command logic
@@ -351,9 +362,9 @@ Features:
 
 Examples:
   gitpersona ssh-config                    # Show current SSH config status
-  gitpersona ssh-config generate           # Generate SSH config for all accounts
-  gitpersona ssh-config generate --account work  # Generate for specific account
-  gitpersona ssh-config apply --backup     # Apply config with backup`,
+  gitpersona ssh-config --generate         # Generate SSH config for all accounts
+  gitpersona ssh-config --generate --account work  # Generate for specific account
+  gitpersona ssh-config --apply --backup   # Apply config with backup`,
 		Args: cobra.NoArgs,
 		RunE: runSSHConfig,
 	}
@@ -373,6 +384,19 @@ func init() {
 func runSSHConfig(cmd *cobra.Command, args []string) error {
 	// Create and run the SSH config command
 	sshConfigCmd := NewSSHConfigCommand()
+
+	// Get flag values from cobra command
+	generate, _ := cmd.Flags().GetBool("generate")
+	backup, _ := cmd.Flags().GetBool("backup")
+	apply, _ := cmd.Flags().GetBool("apply")
+	account, _ := cmd.Flags().GetString("account")
+
+	// Set flags on our command
+	sshConfigCmd.generate = generate
+	sshConfigCmd.backup = backup
+	sshConfigCmd.apply = apply
+	sshConfigCmd.account = account
+
 	ctx := context.Background()
-	return sshConfigCmd.Execute(ctx, args)
+	return sshConfigCmd.Run(ctx, args)
 }

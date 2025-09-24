@@ -378,6 +378,21 @@ func BenchmarkManagerGetAccount(b *testing.B) {
 }
 
 func BenchmarkManagerListAccounts(b *testing.B) {
+	// Create temporary config directory for benchmark
+	tempDir := b.TempDir()
+	configDir := filepath.Join(tempDir, ".config", "gitpersona")
+	err := os.MkdirAll(configDir, 0755)
+	if err != nil {
+		b.Fatalf("Failed to create config directory: %v", err)
+	}
+
+	// Set temporary home directory for testing
+	originalHome := os.Getenv("HOME")
+	defer func() {
+		_ = os.Setenv("HOME", originalHome)
+	}()
+	_ = os.Setenv("HOME", tempDir)
+
 	manager := NewManager()
 
 	// Setup: add multiple accounts

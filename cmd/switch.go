@@ -211,21 +211,43 @@ func validateAccount(configManager *config.Manager, accountAlias string) error {
 	return nil
 }
 
-// updateGitConfig updates the Git user configuration
+// isGitRepo checks if the current directory is a Git repository
+func isGitRepo() bool {
+	cmd := exec.Command("git", "rev-parse", "--git-dir")
+	return cmd.Run() == nil
+}
+
+// updateGitConfig updates the Git user configuration (both global and local if in a repo)
 func updateGitConfig(account *models.Account) error {
-	// Set user name
+	// Set global configuration
 	if account.Name != "" {
 		cmd := exec.Command("git", "config", "--global", "user.name", account.Name)
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to set git user.name: %w", err)
+			return fmt.Errorf("failed to set global git user.name: %w", err)
 		}
 	}
 
-	// Set user email
 	if account.Email != "" {
 		cmd := exec.Command("git", "config", "--global", "user.email", account.Email)
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to set git user.email: %w", err)
+			return fmt.Errorf("failed to set global git user.email: %w", err)
+		}
+	}
+
+	// Check if we're in a Git repository and set local config too
+	if isGitRepo() {
+		if account.Name != "" {
+			cmd := exec.Command("git", "config", "--local", "user.name", account.Name)
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("failed to set local git user.name: %w", err)
+			}
+		}
+
+		if account.Email != "" {
+			cmd := exec.Command("git", "config", "--local", "user.email", account.Email)
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("failed to set local git user.email: %w", err)
+			}
 		}
 	}
 

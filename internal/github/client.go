@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/pem"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -303,10 +304,28 @@ func (c *Client) generateSSHKey(alias, email string) (string, error) {
 		return "", fmt.Errorf("failed to write public key: %w", err)
 	}
 
-	// Add to SSH agent
-	c.addKeyToSSHAgent(privateKeyPath)
+	// Add to SSH agent (skip in tests to prevent pollution)
+	if !isTestEnvironment() {
+		c.addKeyToSSHAgent(privateKeyPath)
+	}
 
 	return privateKeyPath, nil
+}
+
+// isTestEnvironment checks if we're running in a test environment
+func isTestEnvironment() bool {
+	// Check for common test environment indicators
+	for _, arg := range os.Args {
+		if strings.Contains(arg, "test") || strings.Contains(arg, "_test") {
+			return true
+		}
+	}
+	// Check for Go test binary pattern
+	if strings.Contains(os.Args[0], ".test") {
+		return true
+	}
+	// Check for testing flag
+	return flag.Lookup("test.v") != nil
 }
 
 // addKeyToSSHAgent adds the SSH key to the SSH agent

@@ -2,6 +2,7 @@ package github
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -135,6 +136,8 @@ func TestClient_generateSSHKey(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	defer func() {
 		_ = os.Setenv("HOME", originalHome)
+		// Clean up any SSH keys that might have been added to agent
+		cleanupTestSSHKeys(t)
 	}()
 	_ = os.Setenv("HOME", tempDir)
 
@@ -274,6 +277,8 @@ func TestClient_findExistingWorkingSSHKey(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	defer func() {
 		_ = os.Setenv("HOME", originalHome)
+		// Clean up any SSH keys that might have been added to agent
+		cleanupTestSSHKeys(t)
 	}()
 	_ = os.Setenv("HOME", tempDir)
 
@@ -478,6 +483,8 @@ func TestClient_SSHKeyGeneration(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	defer func() {
 		_ = os.Setenv("HOME", originalHome)
+		// Clean up any SSH keys that might have been added to agent
+		cleanupTestSSHKeys(t)
 	}()
 	_ = os.Setenv("HOME", tempDir)
 
@@ -544,5 +551,33 @@ func TestClient_Performance(t *testing.T) {
 
 	if duration > 100*time.Millisecond {
 		t.Errorf("generateAlias took too long: %v", duration)
+	}
+}
+
+// cleanupTestSSHKeys removes any test SSH keys from the SSH agent
+func cleanupTestSSHKeys(t *testing.T) {
+	// List loaded keys
+	cmd := exec.Command("ssh-add", "-l")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// No keys loaded or agent not running - that's fine
+		return
+	}
+
+	// Remove any keys from temp directories (test keys)
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "/var/folders") && strings.Contains(line, "test") {
+			// Extract key path from the line
+			parts := strings.Fields(line)
+			if len(parts) >= 3 {
+				keyPath := parts[2] // Usually the 3rd field contains the key path
+				if strings.Contains(keyPath, "/var/folders") {
+					// Remove this test key
+					removeCmd := exec.Command("ssh-add", "-d", keyPath)
+					_ = removeCmd.Run() // Ignore errors
+				}
+			}
+		}
 	}
 }
