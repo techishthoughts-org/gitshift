@@ -98,6 +98,9 @@ type SSHManager interface {
 	StopAgent(ctx context.Context, account *Account) error
 	LoadKey(ctx context.Context, keyPath string) error
 
+	// SSH account switching
+	SwitchToAccount(ctx context.Context, alias, keyPath string) error
+
 	// SSH testing and diagnostics
 	TestConnectivity(ctx context.Context, account *Account) (*ConnectivityResult, error)
 	DiagnoseIssues(ctx context.Context) ([]*SSHIssue, error)

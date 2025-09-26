@@ -29,19 +29,19 @@ func NewManager() *Manager {
 
 // SwitchToAccount switches SSH configuration to use the specified account
 func (m *Manager) SwitchToAccount(accountAlias, keyPath string) error {
-	// 1. Clear SSH agent
+	// 1. Update SSH config to use the specific key for github.com
+	if err := m.updateGitHubSSHConfig(accountAlias, keyPath); err != nil {
+		return fmt.Errorf("failed to update SSH config: %w", err)
+	}
+
+	// 2. Clear SSH agent to force re-authentication
 	if err := m.clearSSHAgent(); err != nil {
 		return fmt.Errorf("failed to clear SSH agent: %w", err)
 	}
 
-	// 2. Add the specific key to agent
+	// 3. Add only the specific key to agent
 	if err := m.addKeyToAgent(keyPath); err != nil {
 		return fmt.Errorf("failed to add key to agent: %w", err)
-	}
-
-	// 3. Update SSH config to prioritize this account's key
-	if err := m.updateSSHConfig(accountAlias, keyPath); err != nil {
-		return fmt.Errorf("failed to update SSH config: %w", err)
 	}
 
 	return nil
@@ -71,79 +71,81 @@ func (m *Manager) addKeyToAgent(keyPath string) error {
 	return nil
 }
 
-// updateSSHConfig updates the SSH config to prioritize the account's key
-func (m *Manager) updateSSHConfig(accountAlias, keyPath string) error {
+// updateGitHubSSHConfig updates the SSH config to use the specific key for GitHub
+func (m *Manager) updateGitHubSSHConfig(accountAlias, keyPath string) error {
 	// Read current SSH config
 	content, err := os.ReadFile(m.configPath)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to read SSH config: %w", err)
 	}
 
-	configText := string(content)
-
-	// Find the GitHub section and update the default IdentityFile
-	lines := strings.Split(configText, "\n")
-	newLines := make([]string, 0, len(lines))
-	inGitHubSection := false
-	foundIdentityFile := false
-
-	for _, line := range lines {
-		trimmedLine := strings.TrimSpace(line)
-
-		// Check if we're entering the github.com section
-		if strings.HasPrefix(trimmedLine, "Host github.com") {
-			inGitHubSection = true
-			newLines = append(newLines, line)
-			continue
-		}
-
-		// Check if we're leaving the github.com section
-		if inGitHubSection && strings.HasPrefix(trimmedLine, "Host ") && !strings.Contains(trimmedLine, "github") {
-			inGitHubSection = false
-		}
-
-		// If we're in the github.com section and find IdentityFile, update it
-		if inGitHubSection && strings.HasPrefix(trimmedLine, "IdentityFile") {
-			newLines = append(newLines, fmt.Sprintf("    IdentityFile %s", keyPath))
-			foundIdentityFile = true
-			continue
-		}
-
-		newLines = append(newLines, line)
-	}
-
-	// If we didn't find an IdentityFile line in the github.com section, we need to add it
-	if inGitHubSection && !foundIdentityFile {
-		// Find the end of the github.com section and add IdentityFile before it
-		for i := len(newLines) - 1; i >= 0; i-- {
-			if strings.HasPrefix(strings.TrimSpace(newLines[i]), "Host github.com") {
-				// Insert IdentityFile after the Host line
-				insertIndex := i + 1
-				// Find where to insert (after existing properties)
-				for j := insertIndex; j < len(newLines); j++ {
-					line := strings.TrimSpace(newLines[j])
-					if line == "" || strings.HasPrefix(line, "Host ") {
-						insertIndex = j
-						break
-					}
-					insertIndex = j + 1
-				}
-
-				// Insert the IdentityFile line
-				newLine := fmt.Sprintf("    IdentityFile %s", keyPath)
-				newLines = append(newLines[:insertIndex], append([]string{newLine}, newLines[insertIndex:]...)...)
-				break
-			}
-		}
-	}
+	// Create a completely new SSH config optimized for GitPersona
+	newConfig := m.buildOptimizedSSHConfig(accountAlias, keyPath, string(content))
 
 	// Write the updated config back
-	newContent := strings.Join(newLines, "\n")
-	if err := os.WriteFile(m.configPath, []byte(newContent), 0600); err != nil {
+	if err := os.WriteFile(m.configPath, []byte(newConfig), 0600); err != nil {
 		return fmt.Errorf("failed to write SSH config: %w", err)
 	}
 
 	return nil
+}
+
+// buildOptimizedSSHConfig creates an optimized SSH config for GitPersona account switching
+func (m *Manager) buildOptimizedSSHConfig(accountAlias, keyPath, existingConfig string) string {
+	var result strings.Builder
+
+	// Add GitPersona header
+	result.WriteString("# GitPersona SSH Configuration\n")
+	result.WriteString("# This configuration prevents SSH key conflicts when using multiple GitHub accounts\n")
+	result.WriteString("# Last updated for account: " + accountAlias + "\n\n")
+
+	// Add GitHub host configuration with strict isolation
+	result.WriteString("Host github.com\n")
+	result.WriteString("    HostName github.com\n")
+	result.WriteString("    User git\n")
+	result.WriteString(fmt.Sprintf("    IdentityFile %s\n", keyPath))
+	result.WriteString("    IdentitiesOnly yes\n")
+	result.WriteString("    PreferredAuthentications publickey\n")
+	result.WriteString("    AddKeysToAgent no\n") // Prevent automatic key loading
+	result.WriteString("    UseKeychain no\n")    // Prevent keychain integration
+	result.WriteString("\n")
+
+	// Preserve any non-GitHub host configurations from existing config
+	if existingConfig != "" {
+		lines := strings.Split(existingConfig, "\n")
+		inGitHubSection := false
+
+		for _, line := range lines {
+			trimmedLine := strings.TrimSpace(line)
+
+			// Skip GitPersona header comments and github.com sections
+			if strings.HasPrefix(trimmedLine, "# GitPersona") ||
+				strings.HasPrefix(trimmedLine, "Host github.com") ||
+				strings.Contains(trimmedLine, "github-") {
+				if strings.HasPrefix(trimmedLine, "Host github.com") || strings.Contains(trimmedLine, "github-") {
+					inGitHubSection = true
+				}
+				continue
+			}
+
+			// Check if we're leaving a GitHub section
+			if inGitHubSection && strings.HasPrefix(trimmedLine, "Host ") && !strings.Contains(trimmedLine, "github") {
+				inGitHubSection = false
+			}
+
+			// Skip lines that are part of GitHub sections
+			if inGitHubSection {
+				continue
+			}
+
+			// Preserve other host configurations
+			if trimmedLine != "" || !inGitHubSection {
+				result.WriteString(line + "\n")
+			}
+		}
+	}
+
+	return result.String()
 }
 
 // TestConnection tests the SSH connection to GitHub

@@ -323,6 +323,34 @@ func (am *RealAccountManager) SwitchAccount(ctx context.Context, alias string) e
 		return fmt.Errorf("failed to save configuration: %w", err)
 	}
 
+	// Switch SSH configuration if SSH manager is available and SSH key is configured
+	if am.sshManager != nil && account.SSHKeyPath != "" {
+		if err := am.sshManager.SwitchToAccount(ctx, alias, account.SSHKeyPath); err != nil {
+			am.logger.Error(ctx, "failed_to_switch_ssh_config",
+				observability.F("alias", alias),
+				observability.F("ssh_key_path", account.SSHKeyPath),
+				observability.F("error", err.Error()),
+			)
+
+			// Rollback: restore previous account
+			config.CurrentAccount = previousAccount
+			if saveErr := am.configManager.Save(); saveErr != nil {
+				am.logger.Error(ctx, "failed_to_rollback_account_switch",
+					observability.F("previous_account", previousAccount),
+					observability.F("error", saveErr.Error()),
+				)
+				return fmt.Errorf("SSH switch failed and rollback failed: SSH error: %w, rollback error: %v", err, saveErr)
+			}
+
+			return fmt.Errorf("failed to switch SSH configuration: %w", err)
+		}
+
+		am.logger.Info(ctx, "ssh_switched_successfully",
+			observability.F("alias", alias),
+			observability.F("ssh_key_path", account.SSHKeyPath),
+		)
+	}
+
 	// Update Git configuration if Git manager is available
 	if am.gitManager != nil {
 		if err := am.gitManager.SetGlobalConfig(ctx, &Account{
@@ -335,6 +363,10 @@ func (am *RealAccountManager) SwitchAccount(ctx context.Context, alias string) e
 			am.logger.Warn(ctx, "failed_to_update_git_config",
 				observability.F("alias", alias),
 				observability.F("error", err.Error()),
+			)
+		} else {
+			am.logger.Info(ctx, "git_config_updated_successfully",
+				observability.F("alias", alias),
 			)
 		}
 	}

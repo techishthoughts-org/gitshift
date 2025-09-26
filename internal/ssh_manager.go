@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/techishthoughts/GitPersona/internal/observability"
@@ -14,7 +15,8 @@ import (
 
 // RealSSHManager implements the SSHManager interface with unified SSH operations
 type RealSSHManager struct {
-	logger observability.Logger
+	logger    observability.Logger
+	configMux sync.RWMutex // Protects SSH config file operations
 }
 
 // NewSSHManager creates a new SSH manager
@@ -336,6 +338,10 @@ func (sm *RealSSHManager) GenerateConfig(ctx context.Context, accounts []*Accoun
 
 // InstallConfig installs SSH configuration
 func (sm *RealSSHManager) InstallConfig(ctx context.Context, configContent string) error {
+	// Lock to prevent concurrent SSH config modifications
+	sm.configMux.Lock()
+	defer sm.configMux.Unlock()
+
 	sm.logger.Info(ctx, "installing_ssh_config")
 
 	homeDir, err := os.UserHomeDir()
@@ -703,5 +709,162 @@ func (sm *RealSSHManager) FixIssues(ctx context.Context, issues []*SSHIssue) err
 		observability.F("fixed", fixedCount),
 	)
 
+	return nil
+}
+
+// SwitchToAccount switches SSH configuration to use a specific account with isolation
+func (sm *RealSSHManager) SwitchToAccount(ctx context.Context, alias, keyPath string) error {
+	sm.logger.Info(ctx, "switching_ssh_to_account",
+		observability.F("alias", alias),
+		observability.F("key_path", keyPath),
+	)
+
+	// Validate key exists
+	if _, err := os.Stat(keyPath); err != nil {
+		return fmt.Errorf("SSH key not found at %s: %w", keyPath, err)
+	}
+
+	// Update SSH config to use the specific key for GitHub
+	if err := sm.updateGitHubSSHConfig(ctx, alias, keyPath); err != nil {
+		return fmt.Errorf("failed to update SSH config: %w", err)
+	}
+
+	// Clear SSH agent to force re-authentication
+	if err := sm.clearSSHAgent(ctx); err != nil {
+		sm.logger.Error(ctx, "failed_to_clear_ssh_agent",
+			observability.F("error", err.Error()),
+		)
+		return fmt.Errorf("failed to clear SSH agent: %w", err)
+	}
+
+	// Add only the specific key to agent
+	if err := sm.addKeyToAgent(ctx, keyPath); err != nil {
+		sm.logger.Error(ctx, "failed_to_add_key_to_agent",
+			observability.F("key_path", keyPath),
+			observability.F("error", err.Error()),
+		)
+		return fmt.Errorf("failed to add SSH key to agent: %w", err)
+	}
+
+	sm.logger.Info(ctx, "ssh_switched_to_account_successfully",
+		observability.F("alias", alias),
+	)
+
+	return nil
+}
+
+// updateGitHubSSHConfig updates the SSH config to use the specific key for GitHub
+func (sm *RealSSHManager) updateGitHubSSHConfig(ctx context.Context, alias, keyPath string) error {
+	// Lock to prevent concurrent SSH config modifications
+	sm.configMux.Lock()
+	defer sm.configMux.Unlock()
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	configPath := filepath.Join(homeDir, ".ssh", "config")
+
+	// Read current SSH config
+	content, err := os.ReadFile(configPath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to read SSH config: %w", err)
+	}
+
+	// Create a completely new SSH config optimized for GitPersona
+	newConfig := sm.buildOptimizedSSHConfig(alias, keyPath, string(content))
+
+	// Write the updated config back
+	if err := os.WriteFile(configPath, []byte(newConfig), 0600); err != nil {
+		return fmt.Errorf("failed to write SSH config: %w", err)
+	}
+
+	sm.logger.Info(ctx, "ssh_config_updated_for_account",
+		observability.F("alias", alias),
+		observability.F("config_path", configPath),
+	)
+
+	return nil
+}
+
+// buildOptimizedSSHConfig creates an optimized SSH config for GitPersona account switching
+func (sm *RealSSHManager) buildOptimizedSSHConfig(alias, keyPath, existingConfig string) string {
+	var result strings.Builder
+
+	// Add GitPersona header
+	result.WriteString("# GitPersona SSH Configuration\n")
+	result.WriteString("# This configuration prevents SSH key conflicts when using multiple GitHub accounts\n")
+	result.WriteString("# Last updated for account: " + alias + "\n\n")
+
+	// Add GitHub host configuration with strict isolation
+	result.WriteString("Host github.com\n")
+	result.WriteString("    HostName github.com\n")
+	result.WriteString("    User git\n")
+	result.WriteString(fmt.Sprintf("    IdentityFile %s\n", keyPath))
+	result.WriteString("    IdentitiesOnly yes\n")
+	result.WriteString("    PreferredAuthentications publickey\n")
+	result.WriteString("    AddKeysToAgent no\n") // Prevent automatic key loading
+	result.WriteString("    UseKeychain no\n")    // Prevent keychain integration
+	result.WriteString("\n")
+
+	// Preserve any non-GitHub host configurations from existing config
+	if existingConfig != "" {
+		lines := strings.Split(existingConfig, "\n")
+		inGitHubSection := false
+
+		for _, line := range lines {
+			trimmedLine := strings.TrimSpace(line)
+
+			// Skip GitPersona header comments and github.com sections
+			if strings.HasPrefix(trimmedLine, "# GitPersona") {
+				continue
+			}
+
+			if strings.HasPrefix(trimmedLine, "Host github.com") || strings.Contains(trimmedLine, "github-") {
+				inGitHubSection = true
+				continue
+			}
+
+			// Check if we're leaving a GitHub section
+			if inGitHubSection && strings.HasPrefix(trimmedLine, "Host ") && !strings.Contains(trimmedLine, "github") {
+				inGitHubSection = false
+			}
+
+			// Skip lines that are part of GitHub sections
+			if inGitHubSection {
+				continue
+			}
+
+			// Preserve other host configurations
+			if trimmedLine != "" || !inGitHubSection {
+				result.WriteString(line + "\n")
+			}
+		}
+	}
+
+	return result.String()
+}
+
+// clearSSHAgent removes all keys from the SSH agent
+func (sm *RealSSHManager) clearSSHAgent(ctx context.Context) error {
+	cmd := exec.CommandContext(ctx, "ssh-add", "-D")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// It's OK if there are no keys to remove
+		if strings.Contains(string(output), "no identities") {
+			return nil
+		}
+		return fmt.Errorf("ssh-add -D failed: %w", err)
+	}
+	return nil
+}
+
+// addKeyToAgent adds a specific key to the SSH agent
+func (sm *RealSSHManager) addKeyToAgent(ctx context.Context, keyPath string) error {
+	cmd := exec.CommandContext(ctx, "ssh-add", keyPath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("ssh-add %s failed: %w\nOutput: %s", keyPath, err, string(output))
+	}
 	return nil
 }

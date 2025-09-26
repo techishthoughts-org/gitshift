@@ -375,6 +375,14 @@ func (s *SSHKeyScanner) CreateAccountsFromSSHKeys(ctx context.Context, keys []*S
 			if enrichedData.Email != "" {
 				account.Account.Email = enrichedData.Email
 			}
+
+			// If no email found from API, try email mapper
+			if account.Account.Email == "" {
+				emailMapper := NewEmailMapper(s.logger)
+				if email := emailMapper.GetEmailForGitHubUser(ctx, key.GitHubUsername); email != "" {
+					account.Account.Email = email
+				}
+			}
 		}
 
 		accounts = append(accounts, account)

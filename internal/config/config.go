@@ -76,6 +76,28 @@ func (m *Manager) Load() error {
 		m.config.PendingAccounts = make(map[string]*models.PendingAccount)
 	}
 
+	// Fix accounts with zero CreatedAt values (migration fix)
+	needsSave := false
+	for _, account := range m.config.Accounts {
+		if account.CreatedAt.IsZero() {
+			account.CreatedAt = time.Now()
+			needsSave = true
+		}
+	}
+
+	// Fix pending accounts with zero CreatedAt values
+	for _, pending := range m.config.PendingAccounts {
+		if pending.CreatedAt.IsZero() {
+			pending.CreatedAt = time.Now()
+			needsSave = true
+		}
+	}
+
+	// Save the config if we made any fixes
+	if needsSave {
+		return m.Save()
+	}
+
 	return nil
 }
 

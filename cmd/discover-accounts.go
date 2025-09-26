@@ -3,8 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/techishthoughts/GitPersona/internal/config"
 	"github.com/techishthoughts/GitPersona/internal/discovery"
 	"github.com/techishthoughts/GitPersona/internal/observability"
 )
@@ -243,12 +245,15 @@ func runFullDiscovery(ctx context.Context, logger observability.Logger) error {
 }
 
 func addDiscoveredAccounts(ctx context.Context, accounts []*discovery.DiscoveredAccount) error {
-	// This would integrate with the existing account management system
-	// For now, we'll just show what would be added
+	configManager := config.NewManager()
+	if err := configManager.Load(); err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
 
 	fmt.Println("🔄 Adding discovered accounts...")
 	fmt.Println()
 
+	added := 0
 	for _, account := range accounts {
 		// Skip accounts with low confidence or missing critical data
 		if account.Confidence < 7 {
@@ -261,16 +266,45 @@ func addDiscoveredAccounts(ctx context.Context, accounts []*discovery.Discovered
 			continue
 		}
 
-		fmt.Printf("✅ Would add account: %s\n", account.Account.Alias)
+		// Set created timestamp if not set
+		if account.Account.CreatedAt.IsZero() {
+			account.Account.CreatedAt = time.Now()
+		}
 
-		// TODO: Integrate with actual account creation
-		// This would call the account service to create the account
-		// configService.SetAccount(ctx, account.Account)
+		// Add the account to configuration
+		if err := configManager.AddAccount(account.Account); err != nil {
+			fmt.Printf("❌ Failed to add account %s: %v\n", account.Account.Alias, err)
+			continue
+		}
+
+		fmt.Printf("✅ Successfully added account: %s\n", account.Account.Alias)
+		if account.Account.Name != "" {
+			fmt.Printf("   Name: %s\n", account.Account.Name)
+		}
+		if account.Account.Email != "" {
+			fmt.Printf("   Email: %s\n", account.Account.Email)
+		}
+		if account.Account.GitHubUsername != "" {
+			fmt.Printf("   GitHub: @%s\n", account.Account.GitHubUsername)
+		}
+		added++
 	}
 
 	fmt.Println()
-	fmt.Println("🎉 Account discovery completed!")
-	fmt.Println("💡 Use 'gitpersona list' to see your accounts")
+	if added > 0 {
+		fmt.Printf("🎉 Successfully added %d account(s)!\n", added)
+		fmt.Println("💡 Use 'gitpersona list' to see your accounts")
+
+		// Set the first added account as current if no current account is set
+		if configManager.GetConfig().CurrentAccount == "" && len(accounts) > 0 {
+			firstAccount := accounts[0]
+			if err := configManager.SetCurrentAccount(firstAccount.Account.Alias); err == nil {
+				fmt.Printf("📌 Set '%s' as current account\n", firstAccount.Account.Alias)
+			}
+		}
+	} else {
+		fmt.Println("⚠️  No accounts were added")
+	}
 
 	return nil
 }

@@ -1,7 +1,6 @@
 package discovery
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -322,33 +321,30 @@ func (d *AccountDiscovery) scanGitHubCLI() ([]*DiscoveredAccount, error) {
 
 // enrichAccountFromGitHubAPI tries to fetch additional user information from GitHub API
 func (d *AccountDiscovery) enrichAccountFromGitHubAPI(username string) *models.Account {
-	// Try to get user info from GitHub API using gh command
-	cmd := exec.Command("gh", "api", "user")
+	// Try to get user info from GitHub API using curl (more reliable than gh command)
+	cmd := exec.Command("curl", "-s", fmt.Sprintf("https://api.github.com/users/%s", username))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return &models.Account{} // Return empty account if API call fails
 	}
 
-	// Simple JSON parsing for the user data
-	var userData struct {
-		Login string `json:"login"`
-		Name  string `json:"name"`
-		Email string `json:"email"`
+	outputStr := string(output)
+	var name string
+
+	// Extract name using regex (simple approach)
+	nameRegex := regexp.MustCompile(`"name":\s*"([^"]*)"`)
+	if matches := nameRegex.FindStringSubmatch(outputStr); len(matches) > 1 {
+		name = matches[1]
 	}
 
-	if err := json.Unmarshal(output, &userData); err != nil {
-		return &models.Account{} // Return empty account if parsing fails
-	}
+	// Use email mapper to find the correct email
+	emailMapper := NewEmailMapper(nil)                        // TODO: pass proper logger
+	email := emailMapper.GetEmailForGitHubUser(nil, username) // TODO: pass proper context
 
-	// Only return data if it matches the username we're looking for
-	if userData.Login == username {
-		return &models.Account{
-			Name:  userData.Name,
-			Email: userData.Email,
-		}
+	return &models.Account{
+		Name:  name,
+		Email: email,
 	}
-
-	return &models.Account{}
 }
 
 // SSHHost represents an SSH host configuration
