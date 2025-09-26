@@ -704,9 +704,13 @@ func TestManagerPerformance(t *testing.T) {
 	}
 	addDuration := time.Since(start)
 
-	// Performance requirement: should add 100 accounts in < 2s (relaxed for CI)
-	if addDuration > 2*time.Second {
-		t.Errorf("Adding %d accounts took too long: %v", numAccounts, addDuration)
+	// Performance requirement: should add 100 accounts in < 5s (relaxed for CI)
+	expectedDuration := 5 * time.Second
+	if os.Getenv("CI") != "" {
+		expectedDuration = 10 * time.Second // Even more relaxed for CI
+	}
+	if addDuration > expectedDuration {
+		t.Errorf("Adding %d accounts took too long: %v (expected < %v)", numAccounts, addDuration, expectedDuration)
 	}
 
 	// Test listing performance

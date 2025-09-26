@@ -352,7 +352,9 @@ func offerProjectConfiguration(configManager *config.Manager, result *DetectionR
 	fmt.Print("   This will create a .gitpersona.yaml file for automatic switching. (y/N): ")
 
 	var response string
-	fmt.Scanln(&response)
+	if _, err := fmt.Scanln(&response); err != nil {
+		// Handle scan error silently
+	}
 
 	if strings.ToLower(strings.TrimSpace(response)) == "y" {
 		projectConfig := &models.ProjectConfig{

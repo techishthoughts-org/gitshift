@@ -7,7 +7,8 @@ import (
 	"github.com/techishthoughts/GitPersona/internal/models"
 )
 
-// AccountService handles account management operations
+// AccountService handles account management operations with support for
+// multi-account switching, validation, and SSH integration.
 type AccountService interface {
 	// Account CRUD operations
 	GetAccount(ctx context.Context, alias string) (*models.Account, error)
@@ -26,7 +27,8 @@ type AccountService interface {
 	TestAccountSSH(ctx context.Context, account *models.Account) error
 }
 
-// SSHService handles SSH key and configuration management
+// SSHService handles SSH key and configuration management including
+// key generation, validation, permission fixes, and GitHub authentication testing.
 type SSHService interface {
 	// SSH key management
 	GenerateKey(ctx context.Context, keyType string, email string, keyPath string) (*SSHKey, error)
@@ -45,7 +47,8 @@ type SSHService interface {
 	FixIssues(ctx context.Context, issues []*SSHIssue) error
 }
 
-// GitHubService handles GitHub API operations
+// GitHubService handles GitHub API operations including authentication,
+// repository management, SSH key management, and organization operations.
 type GitHubService interface {
 	// Authentication
 	Authenticate(ctx context.Context, token string) error
@@ -68,7 +71,8 @@ type GitHubService interface {
 	GetOrganization(ctx context.Context, name string) (*GitHubOrganization, error)
 }
 
-// GitHubTokenService handles GitHub token management and storage
+// GitHubTokenService handles GitHub token management and storage with
+// support for token caching, validation, and account-specific token isolation.
 type GitHubTokenService interface {
 	// Token retrieval
 	GetCurrentGitHubToken(ctx context.Context) (string, error)
@@ -85,7 +89,8 @@ type GitHubTokenService interface {
 	CacheToken(ctx context.Context, account, token string) error
 }
 
-// ConfigurationService handles application configuration
+// ConfigurationService handles application configuration management
+// including loading, saving, validation, and conflict detection.
 type ConfigurationService interface {
 	// Configuration management
 	Load(ctx context.Context) error
@@ -162,8 +167,8 @@ type SSHKeyInfo struct {
 	Valid       bool   `json:"valid"`
 }
 
-// SSHValidationResult represents SSH validation results
-type SSHValidationResult struct {
+// SSHValidationResultInterface represents SSH validation results from interfaces
+type SSHValidationResultInterface struct {
 	Valid           bool          `json:"valid"`
 	Issues          []*SSHIssue   `json:"issues"`
 	Recommendations []string      `json:"recommendations"`

@@ -162,7 +162,7 @@ func TestGetContext(t *testing.T) {
 	cmd.SetContext(customCtx)
 
 	retrievedCtx := cmd.GetContext()
-	if retrievedCtx.Value("test") != "value" {
+	if retrievedCtx.Value(testContextKey("test")) != "value" {
 		t.Error("GetContext should return the set context")
 	}
 }

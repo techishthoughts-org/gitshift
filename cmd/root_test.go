@@ -76,9 +76,23 @@ func TestExecute(t *testing.T) {
 	// Test that Execute function exists and can be called
 	// Note: This is a simple test since Execute() calls cobra.Execute()
 	// which would require more complex setup to test properly
+
+	// Skip this test in CI environments where TUI is not available
+	if os.Getenv("CI") != "" || !isTTYAvailable() {
+		t.Skip("Skipping Execute test in non-TTY environment")
+	}
+
 	err := Execute()
 	// Execute might return an error in test environment, that's okay
 	_ = err
+}
+
+// isTTYAvailable checks if a TTY is available for testing
+func isTTYAvailable() bool {
+	if _, err := os.OpenFile("/dev/tty", os.O_RDWR, 0); err != nil {
+		return false
+	}
+	return true
 }
 
 func TestInitConfig(t *testing.T) {
@@ -114,7 +128,13 @@ func TestShowVersion(t *testing.T) {
 func TestRunTUI(t *testing.T) {
 	// Test that runTUI function exists and can be called
 	// Note: This function starts the TUI application which requires a TTY,
-	// so we can't easily test it in a unit test environment, but we can verify it doesn't panic
+	// so we can't easily test it in a unit test environment
+
+	// Skip this test in CI environments or where TTY is not available
+	if os.Getenv("CI") != "" || !isTTYAvailable() {
+		t.Skip("Skipping runTUI test in non-TTY environment")
+	}
+
 	defer func() {
 		if r := recover(); r != nil {
 			t.Errorf("runTUI panicked: %v", r)

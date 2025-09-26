@@ -6,7 +6,9 @@ import (
 	"time"
 )
 
-// Account represents a GitHub account configuration
+// Account represents a GitHub account configuration with complete isolation support.
+// It provides multi-account management with SSH key isolation, token management,
+// and comprehensive validation capabilities.
 type Account struct {
 	// Alias is a unique identifier for the account (e.g., "work", "personal")
 	Alias string `json:"alias" yaml:"alias" mapstructure:"alias" validate:"required"`
@@ -40,6 +42,29 @@ type Account struct {
 
 	// MissingFields tracks which required fields are missing for pending accounts
 	MissingFields []string `json:"missing_fields,omitempty" yaml:"missing_fields,omitempty" mapstructure:"missing_fields"`
+
+	// === ISOLATION ENHANCEMENTS ===
+
+	// TokenPath is the path where the account's GitHub token is stored
+	TokenPath string `json:"token_path,omitempty" yaml:"token_path,omitempty" mapstructure:"token_path"`
+
+	// SSHSocketPath is the path to the isolated SSH agent socket for this account
+	SSHSocketPath string `json:"ssh_socket_path,omitempty" yaml:"ssh_socket_path,omitempty" mapstructure:"ssh_socket_path"`
+
+	// IsolationLevel defines the level of isolation for this account
+	IsolationLevel IsolationLevel `json:"isolation_level" yaml:"isolation_level" mapstructure:"isolation_level"`
+
+	// LastValidation tracks when the account was last validated
+	LastValidation *time.Time `json:"last_validation,omitempty" yaml:"last_validation,omitempty" mapstructure:"last_validation"`
+
+	// ValidationErrors tracks any validation errors encountered
+	ValidationErrors []string `json:"validation_errors,omitempty" yaml:"validation_errors,omitempty" mapstructure:"validation_errors"`
+
+	// IsolationMetadata contains account-specific isolation settings
+	IsolationMetadata *IsolationMetadata `json:"isolation_metadata,omitempty" yaml:"isolation_metadata,omitempty" mapstructure:"isolation_metadata"`
+
+	// AccountMetadata stores additional account-specific data
+	AccountMetadata map[string]string `json:"account_metadata,omitempty" yaml:"account_metadata,omitempty" mapstructure:"account_metadata"`
 }
 
 // AccountStatus represents the status of an account
@@ -49,7 +74,68 @@ const (
 	AccountStatusActive   AccountStatus = "active"
 	AccountStatusPending  AccountStatus = "pending"
 	AccountStatusDisabled AccountStatus = "disabled"
+	AccountStatusIsolated AccountStatus = "isolated" // New status for accounts with full isolation
 )
+
+// IsolationLevel represents the level of isolation for an account
+type IsolationLevel string
+
+const (
+	IsolationLevelNone     IsolationLevel = "none"     // No isolation (legacy mode)
+	IsolationLevelBasic    IsolationLevel = "basic"    // Basic SSH key isolation
+	IsolationLevelStandard IsolationLevel = "standard" // SSH + Token isolation
+	IsolationLevelStrict   IsolationLevel = "strict"   // Full isolation with validation
+	IsolationLevelComplete IsolationLevel = "complete" // Maximum isolation with containers
+)
+
+// IsolationMetadata contains isolation-specific configuration
+type IsolationMetadata struct {
+	// SSH isolation settings
+	SSHIsolation *SSHIsolationSettings `json:"ssh_isolation,omitempty" yaml:"ssh_isolation,omitempty"`
+
+	// Token isolation settings
+	TokenIsolation *TokenIsolationSettings `json:"token_isolation,omitempty" yaml:"token_isolation,omitempty"`
+
+	// Git isolation settings
+	GitIsolation *GitIsolationSettings `json:"git_isolation,omitempty" yaml:"git_isolation,omitempty"`
+
+	// Environment isolation settings
+	EnvironmentIsolation *EnvironmentIsolationSettings `json:"environment_isolation,omitempty" yaml:"environment_isolation,omitempty"`
+}
+
+// SSHIsolationSettings defines SSH-specific isolation parameters
+type SSHIsolationSettings struct {
+	UseIsolatedAgent    bool   `json:"use_isolated_agent" yaml:"use_isolated_agent"`
+	SocketPath          string `json:"socket_path,omitempty" yaml:"socket_path,omitempty"`
+	ForceIdentitiesOnly bool   `json:"force_identities_only" yaml:"force_identities_only"`
+	AgentTimeout        int    `json:"agent_timeout" yaml:"agent_timeout"` // in seconds
+	AutoCleanup         bool   `json:"auto_cleanup" yaml:"auto_cleanup"`
+}
+
+// TokenIsolationSettings defines token-specific isolation parameters
+type TokenIsolationSettings struct {
+	UseEncryptedStorage bool   `json:"use_encrypted_storage" yaml:"use_encrypted_storage"`
+	StoragePath         string `json:"storage_path,omitempty" yaml:"storage_path,omitempty"`
+	AutoValidation      bool   `json:"auto_validation" yaml:"auto_validation"`
+	ValidationInterval  int    `json:"validation_interval" yaml:"validation_interval"` // in minutes
+	StrictValidation    bool   `json:"strict_validation" yaml:"strict_validation"`
+}
+
+// GitIsolationSettings defines Git-specific isolation parameters
+type GitIsolationSettings struct {
+	UseLocalConfig      bool              `json:"use_local_config" yaml:"use_local_config"`
+	CustomGitConfig     map[string]string `json:"custom_git_config,omitempty" yaml:"custom_git_config,omitempty"`
+	IsolateSSHCommand   bool              `json:"isolate_ssh_command" yaml:"isolate_ssh_command"`
+	UseCustomSSHCommand string            `json:"use_custom_ssh_command,omitempty" yaml:"use_custom_ssh_command,omitempty"`
+}
+
+// EnvironmentIsolationSettings defines environment-specific isolation parameters
+type EnvironmentIsolationSettings struct {
+	IsolateEnvironment  bool              `json:"isolate_environment" yaml:"isolate_environment"`
+	CustomEnvironment   map[string]string `json:"custom_environment,omitempty" yaml:"custom_environment,omitempty"`
+	ClearEnvironment    bool              `json:"clear_environment" yaml:"clear_environment"`
+	PreserveEnvironment []string          `json:"preserve_environment,omitempty" yaml:"preserve_environment,omitempty"`
+}
 
 // PendingAccount represents an account that needs manual completion
 type PendingAccount struct {
@@ -75,7 +161,8 @@ type PendingAccount struct {
 	CreatedAt time.Time `json:"created_at" yaml:"created_at" mapstructure:"created_at"`
 }
 
-// Config represents the entire application configuration
+// Config represents the entire application configuration including
+// all account definitions, pending accounts, and global settings.
 type Config struct {
 	// Accounts is a map of alias to account configurations
 	Accounts map[string]*Account `json:"accounts" yaml:"accounts" mapstructure:"accounts"`
@@ -105,17 +192,61 @@ type ProjectConfig struct {
 	CreatedAt time.Time `json:"created_at" yaml:"created_at"`
 }
 
-// NewAccount creates a new account with the current timestamp
+// NewAccount creates a new account with the current timestamp and default isolation settings.
+// It initializes standard isolation metadata for SSH, token, Git, and environment isolation.
 func NewAccount(alias, name, email, sshKeyPath string) *Account {
 	return &Account{
-		Alias:      alias,
-		Name:       name,
-		Email:      email,
-		SSHKeyPath: sshKeyPath,
-		IsDefault:  false,
-		Status:     AccountStatusActive,
-		CreatedAt:  time.Now(),
+		Alias:           alias,
+		Name:            name,
+		Email:           email,
+		SSHKeyPath:      sshKeyPath,
+		IsDefault:       false,
+		Status:          AccountStatusActive,
+		CreatedAt:       time.Now(),
+		IsolationLevel:  IsolationLevelStandard, // Default to standard isolation
+		AccountMetadata: make(map[string]string),
+		IsolationMetadata: &IsolationMetadata{
+			SSHIsolation: &SSHIsolationSettings{
+				UseIsolatedAgent:    true,
+				ForceIdentitiesOnly: true,
+				AgentTimeout:        3600, // 1 hour
+				AutoCleanup:         true,
+			},
+			TokenIsolation: &TokenIsolationSettings{
+				UseEncryptedStorage: true,
+				AutoValidation:      true,
+				ValidationInterval:  60, // 1 hour
+				StrictValidation:    true,
+			},
+			GitIsolation: &GitIsolationSettings{
+				UseLocalConfig:    true,
+				IsolateSSHCommand: true,
+				CustomGitConfig:   make(map[string]string),
+			},
+			EnvironmentIsolation: &EnvironmentIsolationSettings{
+				IsolateEnvironment:  false, // Default to non-isolated environment
+				CustomEnvironment:   make(map[string]string),
+				ClearEnvironment:    false,
+				PreserveEnvironment: []string{"HOME", "USER", "PATH"},
+			},
+		},
 	}
+}
+
+// NewIsolatedAccount creates a new account with complete isolation
+func NewIsolatedAccount(alias, name, email, sshKeyPath, githubUsername string) *Account {
+	account := NewAccount(alias, name, email, sshKeyPath)
+	account.GitHubUsername = githubUsername
+	account.IsolationLevel = IsolationLevelComplete
+	account.Status = AccountStatusIsolated
+
+	// Enhanced isolation settings
+	account.IsolationMetadata.SSHIsolation.UseIsolatedAgent = true
+	account.IsolationMetadata.TokenIsolation.StrictValidation = true
+	account.IsolationMetadata.EnvironmentIsolation.IsolateEnvironment = true
+	account.IsolationMetadata.EnvironmentIsolation.ClearEnvironment = true
+
+	return account
 }
 
 // NewConfig creates a new configuration with default values
@@ -137,7 +268,8 @@ func NewProjectConfig(accountAlias string) *ProjectConfig {
 	}
 }
 
-// Validate checks if the account configuration is valid
+// Validate checks if the account configuration is valid by verifying
+// required fields, email format, and GitHub username format.
 func (a *Account) Validate() error {
 	if a.Alias == "" {
 		return ErrInvalidAlias
@@ -226,6 +358,91 @@ func NewPendingAccount(alias, githubUsername, source string, confidence int, mis
 // IsPending returns true if the account is in pending status
 func (a *Account) IsPending() bool {
 	return a.Status == AccountStatusPending
+}
+
+// IsIsolated returns true if the account has isolation enabled
+func (a *Account) IsIsolated() bool {
+	return a.Status == AccountStatusIsolated || a.IsolationLevel != IsolationLevelNone
+}
+
+// RequiresSSHIsolation returns true if the account requires SSH isolation
+func (a *Account) RequiresSSHIsolation() bool {
+	return a.IsolationMetadata != nil &&
+		a.IsolationMetadata.SSHIsolation != nil &&
+		a.IsolationMetadata.SSHIsolation.UseIsolatedAgent
+}
+
+// RequiresTokenIsolation returns true if the account requires token isolation
+func (a *Account) RequiresTokenIsolation() bool {
+	return a.IsolationMetadata != nil &&
+		a.IsolationMetadata.TokenIsolation != nil &&
+		a.IsolationMetadata.TokenIsolation.UseEncryptedStorage
+}
+
+// GetSSHSocketPath returns the SSH socket path for this account
+func (a *Account) GetSSHSocketPath() string {
+	if a.SSHSocketPath != "" {
+		return a.SSHSocketPath
+	}
+	if a.IsolationMetadata != nil &&
+		a.IsolationMetadata.SSHIsolation != nil &&
+		a.IsolationMetadata.SSHIsolation.SocketPath != "" {
+		return a.IsolationMetadata.SSHIsolation.SocketPath
+	}
+	return ""
+}
+
+// SetLastValidation updates the last validation timestamp
+func (a *Account) SetLastValidation(validationTime time.Time, errors []string) {
+	a.LastValidation = &validationTime
+	a.ValidationErrors = errors
+	if len(errors) == 0 {
+		// Clear previous validation errors if validation passed
+		a.ValidationErrors = nil
+	}
+}
+
+// IsValidationRequired checks if account validation is required
+func (a *Account) IsValidationRequired() bool {
+	if a.LastValidation == nil {
+		return true
+	}
+
+	if a.IsolationMetadata != nil &&
+		a.IsolationMetadata.TokenIsolation != nil &&
+		a.IsolationMetadata.TokenIsolation.AutoValidation {
+
+		validationInterval := time.Duration(a.IsolationMetadata.TokenIsolation.ValidationInterval) * time.Minute
+		return time.Since(*a.LastValidation) > validationInterval
+	}
+
+	// Default validation interval: 24 hours
+	return time.Since(*a.LastValidation) > 24*time.Hour
+}
+
+// GetIsolationLevel returns the isolation level with fallback to default
+func (a *Account) GetIsolationLevel() IsolationLevel {
+	if a.IsolationLevel == "" {
+		return IsolationLevelNone // Legacy accounts
+	}
+	return a.IsolationLevel
+}
+
+// UpdateAccountMetadata updates or adds account metadata
+func (a *Account) UpdateAccountMetadata(key, value string) {
+	if a.AccountMetadata == nil {
+		a.AccountMetadata = make(map[string]string)
+	}
+	a.AccountMetadata[key] = value
+}
+
+// GetAccountMetadata retrieves account metadata
+func (a *Account) GetAccountMetadata(key string) (string, bool) {
+	if a.AccountMetadata == nil {
+		return "", false
+	}
+	value, exists := a.AccountMetadata[key]
+	return value, exists
 }
 
 // GetMissingFields returns the list of missing fields for pending accounts

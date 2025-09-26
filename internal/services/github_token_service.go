@@ -20,19 +20,20 @@ type RealGitHubTokenService struct {
 	tokenStorage TokenStorageService
 }
 
-// NewGitHubTokenService creates a new GitHub token service
+// NewGitHubTokenService creates a new GitHub token service with isolation support
 func NewGitHubTokenService(logger observability.Logger, runner execrunner.CmdRunner) GitHubTokenService {
 	if runner == nil {
 		runner = &execrunner.RealCmdRunner{}
 	}
 
-	// Initialize token storage
+	// Initialize token storage - this is now REQUIRED for multi-account support
 	tokenStorage, err := NewTokenStorageService(logger)
 	if err != nil {
 		logger.Error(context.Background(), "failed_to_initialize_token_storage",
 			observability.F("error", err.Error()),
 		)
-		// Fall back to CLI-based service
+		// For compatibility, allow nil but warn about limited functionality
+		logger.Warn(context.Background(), "token_storage_disabled_multi_account_features_limited")
 		tokenStorage = nil
 	}
 
@@ -91,7 +92,7 @@ func (s *RealGitHubTokenService) getTokenFromCLI(ctx context.Context) (string, e
 	return token, nil
 }
 
-// GetTokenForAccount retrieves a GitHub token for a specific account
+// GetTokenForAccount retrieves a GitHub token for a specific account with strict isolation
 func (s *RealGitHubTokenService) GetTokenForAccount(ctx context.Context, accountAlias string) (string, error) {
 	s.logger.Info(ctx, "retrieving_github_token_for_account",
 		observability.F("account", accountAlias),
@@ -106,13 +107,18 @@ func (s *RealGitHubTokenService) GetTokenForAccount(ctx context.Context, account
 			)
 			return token, nil
 		}
+		s.logger.Error(ctx, "failed_to_get_token_from_storage",
+			observability.F("account", accountAlias),
+			observability.F("error", err.Error()),
+		)
 	}
 
-	// Fallback to current token if account-specific token not found
-	s.logger.Info(ctx, "account_token_not_found_using_current_token",
+	// CRITICAL FIX: No fallback to current token - this breaks multi-account isolation
+	// Each account must have its own token for proper isolation
+	s.logger.Error(ctx, "no_isolated_token_found_for_account",
 		observability.F("account", accountAlias),
 	)
-	return s.GetCurrentGitHubToken(ctx)
+	return "", fmt.Errorf("no token found for account '%s' - account isolation requires dedicated tokens", accountAlias)
 }
 
 // ValidateToken validates that a GitHub token is working

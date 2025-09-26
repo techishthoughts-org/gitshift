@@ -42,8 +42,8 @@ type TokenMetadata struct {
 	ExpiresAt   time.Time `json:"expires_at,omitempty"`
 }
 
-// TokenValidationResult contains the result of token validation
-type TokenValidationResult struct {
+// TokenStorageValidationResult contains the result of token validation for storage
+type TokenStorageValidationResult struct {
 	Valid     bool           `json:"valid"`
 	Username  string         `json:"username,omitempty"`
 	Email     string         `json:"email,omitempty"`
@@ -307,12 +307,11 @@ func (s *RealTokenStorageService) ValidateToken(ctx context.Context, token strin
 	// This is a simplified implementation - in a real scenario, you'd use the GitHub API client
 	// For now, we'll simulate validation
 	if len(token) < 10 || !isValidTokenFormat(token) {
-		result.Error = "invalid token format"
+		// Invalid token format - return invalid result
 		return result, nil
 	}
 
 	result.Valid = true
-	result.Username = "validated-user"       // Would come from actual API call
 	result.Scopes = []string{"repo", "user"} // Would come from actual API call
 
 	s.logger.Info(ctx, "github_token_validation_completed",

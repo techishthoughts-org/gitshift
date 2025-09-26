@@ -241,79 +241,54 @@ func (s *RealSSHService) ValidateConfiguration(ctx context.Context) (*SSHValidat
 	s.logger.Info(ctx, "validating_ssh_configuration")
 
 	result := &SSHValidationResult{
-		Valid:           true,
-		Issues:          []*SSHIssue{},
-		Recommendations: []string{},
-		Keys:            []*SSHKeyInfo{},
+		Valid:               true,
+		KeyExists:           true,
+		KeyReadable:         true,
+		KeyFormatValid:      true,
+		PublicKeyExists:     true,
+		PermissionsCorrect:  true,
+		AgentIsolated:       false,
+		ConnectivityTested:  false,
+		ConnectivityWorking: false,
+		Issues:              []string{},
 	}
 
 	// Check SSH directory
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		result.Valid = false
-		result.Issues = append(result.Issues, &SSHIssue{
-			Type:        "ssh_directory_error",
-			Severity:    "high",
-			Description: "Failed to get home directory",
-			Fix:         "Check system configuration",
-		})
+		result.Issues = append(result.Issues, "Failed to get home directory")
 		return result, nil
 	}
 
 	sshDir := filepath.Join(homeDir, ".ssh")
 	if _, err := os.Stat(sshDir); os.IsNotExist(err) {
 		result.Valid = false
-		result.Issues = append(result.Issues, &SSHIssue{
-			Type:        "ssh_directory_missing",
-			Severity:    "high",
-			Description: "SSH directory does not exist",
-			Fix:         "Create SSH directory with proper permissions",
-		})
+		result.Issues = append(result.Issues, "SSH directory does not exist")
 		return result, nil
 	}
 
 	// Check SSH directory permissions
 	if info, err := os.Stat(sshDir); err == nil {
 		if info.Mode().Perm()&077 != 0 {
-			result.Issues = append(result.Issues, &SSHIssue{
-				Type:        "ssh_directory_permissions",
-				Severity:    "medium",
-				Description: "SSH directory has incorrect permissions",
-				Fix:         "Set SSH directory permissions to 700",
-			})
+			result.Issues = append(result.Issues, "SSH directory has incorrect permissions")
 		}
 	}
 
 	// List and validate SSH keys
 	keys, err := s.ListKeys(ctx)
 	if err != nil {
-		result.Issues = append(result.Issues, &SSHIssue{
-			Type:        "ssh_keys_error",
-			Severity:    "medium",
-			Description: "Failed to list SSH keys",
-			Fix:         "Check SSH directory permissions",
-		})
+		result.Issues = append(result.Issues, "Failed to list SSH keys")
 	} else {
-		result.Keys = keys
 		if len(keys) == 0 {
-			result.Issues = append(result.Issues, &SSHIssue{
-				Type:        "no_ssh_keys",
-				Severity:    "medium",
-				Description: "No SSH keys found",
-				Fix:         "Generate SSH keys for GitHub authentication",
-			})
+			result.Issues = append(result.Issues, "No SSH keys found")
 		}
 	}
 
 	// Check for invalid keys
 	for _, key := range keys {
 		if !key.Valid {
-			result.Issues = append(result.Issues, &SSHIssue{
-				Type:        "invalid_ssh_key",
-				Severity:    "high",
-				Description: fmt.Sprintf("Invalid SSH key: %s", key.Path),
-				Fix:         "Regenerate or fix the SSH key",
-			})
+			result.Issues = append(result.Issues, fmt.Sprintf("Invalid SSH key: %s", key.Path))
 		}
 	}
 
@@ -322,18 +297,11 @@ func (s *RealSSHService) ValidateConfiguration(ctx context.Context) (*SSHValidat
 		result.Valid = false
 	}
 
-	// Generate recommendations
-	if len(keys) == 0 {
-		result.Recommendations = append(result.Recommendations, "Generate SSH keys for GitHub authentication")
-	}
-	if result.Valid {
-		result.Recommendations = append(result.Recommendations, "SSH configuration looks good!")
-	}
+	// SSH validation complete - recommendations not supported in this struct
 
 	s.logger.Info(ctx, "ssh_configuration_validated",
 		observability.F("valid", result.Valid),
 		observability.F("issues_count", len(result.Issues)),
-		observability.F("keys_count", len(result.Keys)),
 	)
 
 	return result, nil
@@ -435,7 +403,17 @@ func (s *RealSSHService) DiagnoseIssues(ctx context.Context) ([]*SSHIssue, error
 		return nil, fmt.Errorf("failed to validate configuration: %w", err)
 	}
 
-	return result.Issues, nil
+	// Convert string issues to SSHIssue structs
+	var sshIssues []*SSHIssue
+	for _, issue := range result.Issues {
+		sshIssues = append(sshIssues, &SSHIssue{
+			Type:        "ssh_issue",
+			Severity:    "medium",
+			Description: issue,
+			Fix:         "Please check SSH configuration",
+		})
+	}
+	return sshIssues, nil
 }
 
 // FixIssues fixes SSH configuration issues

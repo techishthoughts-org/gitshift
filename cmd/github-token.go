@@ -320,16 +320,14 @@ func runValidateToken(cmd *cobra.Command, args []string) error {
 
 	if result.Valid {
 		fmt.Printf("✅ Token for account '%s' is valid\n", account)
-		if result.Username != "" {
-			fmt.Printf("   Username: %s\n", result.Username)
-		}
 		if len(result.Scopes) > 0 {
 			fmt.Printf("   Scopes: %s\n", strings.Join(result.Scopes, ", "))
 		}
+		fmt.Printf("   Token Type: %s\n", result.TokenType)
 	} else {
 		fmt.Printf("❌ Token for account '%s' is invalid\n", account)
-		if result.Error != "" {
-			fmt.Printf("   Error: %s\n", result.Error)
+		if len(result.Issues) > 0 {
+			fmt.Printf("   Issues: %s\n", strings.Join(result.Issues, ", "))
 		}
 	}
 
