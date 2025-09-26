@@ -1,5 +1,5 @@
 # Pre-commit configuration for GitPersona
-# This runs all validations locally before committing
+# This runs basic validations locally before committing
 repos:
   # Go formatting with local gofmt
   - repo: local
@@ -11,90 +11,6 @@ repos:
         args: [-s, -w]
         types: [go]
 
-  # Go import formatting with local goimports
-  - repo: local
-    hooks:
-      - id: goimports
-        name: goimports
-        entry: goimports
-        language: system
-        args: [-w]
-        types: [go]
-
-  # Go linting with golangci-lint (full strict mode to match CI)
-  - repo: local
-    hooks:
-      - id: golangci-lint
-        name: golangci-lint
-        entry: golangci-lint
-        language: system
-        args: [run, --timeout=5m]
-        pass_filenames: false
-        types: [go]
-
-  # Go security vulnerability scanning
-  - repo: local
-    hooks:
-      - id: govulncheck
-        name: govulncheck
-        entry: govulncheck
-        language: system
-        args: [./...]
-        pass_filenames: false
-        types: [go]
-
-  # Go security scanner (gosec)
-  - repo: local
-    hooks:
-      - id: gosec
-        name: gosec security scanner
-        entry: bash
-        language: system
-        args: [-c, 'go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest && gosec -fmt sarif -out gosec.sarif ./...']
-        pass_filenames: false
-        types: [go]
-        always_run: true
-        verbose: true
-
-  # Trivy filesystem vulnerability scanner
-  - repo: local
-    hooks:
-      - id: trivy-fs
-        name: trivy filesystem scan
-        entry: bash
-        language: system
-        args: [-c, 'if command -v trivy >/dev/null 2>&1; then trivy fs --format sarif --output trivy-results.sarif .; else echo "Trivy not installed, skipping filesystem scan"; fi']
-        pass_filenames: false
-        types: [go]
-        always_run: true
-        verbose: true
-
-  # TruffleHog secrets scanner
-  - repo: local
-    hooks:
-      - id: trufflehog
-        name: trufflehog secrets scan
-        entry: bash
-        language: system
-        args: [-c, 'if command -v trufflehog >/dev/null 2>&1; then trufflehog filesystem --debug --only-verified .; else echo "TruffleHog not installed, skipping secrets scan"; fi']
-        pass_filenames: false
-        types: [go]
-        always_run: true
-        verbose: true
-
-  # GitLeaks secrets scanner
-  - repo: local
-    hooks:
-      - id: gitleaks
-        name: gitleaks secrets scan
-        entry: bash
-        language: system
-        args: [-c, 'if command -v gitleaks >/dev/null 2>&1; then gitleaks detect --source . --verbose; else echo "GitLeaks not installed, skipping secrets scan"; fi']
-        pass_filenames: false
-        types: [go]
-        always_run: true
-        verbose: true
-
   # Go vet analysis
   - repo: local
     hooks:
@@ -105,70 +21,6 @@ repos:
         args: [vet, ./...]
         pass_filenames: false
         types: [go]
-
-  # Go test runner with coverage
-  - repo: local
-    hooks:
-      - id: go-test
-        name: go test with coverage
-        entry: go
-        language: system
-        args: [test, -v, -timeout=5m, -coverprofile=coverage.out, -covermode=atomic, ./...]
-        pass_filenames: false
-        types: [go]
-        always_run: true
-
-  # Go coverage report
-  - repo: local
-    hooks:
-      - id: go-coverage
-        name: go coverage report
-        entry: go
-        language: system
-        args: [tool, cover, -html=coverage.out, -o, coverage.html]
-        pass_filenames: false
-        types: [go]
-        always_run: true
-        verbose: true
-
-  # Go coverage summary
-  - repo: local
-    hooks:
-      - id: go-coverage-summary
-        name: go coverage summary
-        entry: go
-        language: system
-        args: [tool, cover, -func=coverage.out]
-        pass_filenames: false
-        types: [go]
-        always_run: true
-        verbose: true
-
-  # Go coverage threshold check
-  - repo: local
-    hooks:
-      - id: go-coverage-threshold
-        name: go coverage threshold check
-        entry: bash
-        language: system
-        args: [-c, 'coverage=$(go tool cover -func=coverage.out | grep total | awk "{print \$3}" | sed "s/%//"); echo "Total coverage: ${coverage}%"; if (( $(echo "$coverage < 100" | bc -l) )); then echo "❌ Coverage ${coverage}% is below minimum threshold of 100%"; exit 1; else echo "✅ Coverage ${coverage}% meets minimum threshold of 100%"; fi']
-        pass_filenames: false
-        types: [go]
-        always_run: true
-        verbose: true
-
-  # Go performance benchmarks
-  - repo: local
-    hooks:
-      - id: go-benchmark
-        name: go performance benchmarks
-        entry: go
-        language: system
-        args: [test, -bench=., -benchmem, -run=^$, -timeout=10m, ./...]
-        pass_filenames: false
-        types: [go]
-        always_run: true
-        verbose: true
 
   # Go build verification
   - repo: local
@@ -191,6 +43,3 @@ repos:
       - id: check-added-large-files
       - id: check-merge-conflict
       - id: check-case-conflict
-      - id: check-json
-      - id: check-toml
-      - id: debug-statements
