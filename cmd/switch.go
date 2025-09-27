@@ -42,6 +42,12 @@ func runSwitchCommand(cmd *cobra.Command, args []string) error {
 	validateOnly, _ := cmd.Flags().GetBool("validate")
 	force, _ := cmd.Flags().GetBool("force")
 
+	// Check if we're already using the target account
+	if currentAccount, err := getCurrentAccount(); err == nil && currentAccount == accountAlias && !validateOnly && !force {
+		fmt.Printf("ℹ️  Already using account '%s'. No changes made.\n", accountAlias)
+		return nil
+	}
+
 	// Load GitPersona configuration
 	configManager := config.NewManager()
 	if err := configManager.Load(); err != nil {
@@ -324,6 +330,21 @@ func testConfiguration(account *models.Account) error {
 	}
 
 	return nil
+}
+
+// getCurrentAccount returns the currently active account alias, or an error if not found
+func getCurrentAccount() (string, error) {
+	configManager := config.NewManager()
+	if err := configManager.Load(); err != nil {
+		return "", fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	currentAccount := configManager.GetConfig().CurrentAccount
+	if currentAccount == "" {
+		return "", fmt.Errorf("no active account set")
+	}
+
+	return currentAccount, nil
 }
 
 func init() {

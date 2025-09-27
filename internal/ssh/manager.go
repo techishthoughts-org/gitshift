@@ -60,13 +60,94 @@ func (m *Manager) SwitchToAccount(accountAlias, keyPath string) error {
 		fmt.Printf("⚠️  Warning: SSH agent key loading failed: %v\n", err)
 	}
 
-	// 5. Test the connection
+	// 5. Update shell configuration with GIT_SSH_COMMAND
+	if err := m.updateShellConfig(accountAlias, keyPath); err != nil {
+		// Don't fail the entire operation if shell config update fails
+		fmt.Printf("⚠️  Warning: failed to update shell configuration: %v\n", err)
+	} else {
+		fmt.Printf("✅ Shell configuration updated for account: %s\n", accountAlias)
+	}
+
+	// 6. Test the connection (don't fail on error)
 	if err := m.TestConnection(); err != nil {
-		// Don't fail if connection test fails, might be network issue
 		fmt.Printf("⚠️  Warning: SSH connection test failed: %v\n", err)
 	}
 
 	return nil
+}
+
+// GetLoadedKeys returns the list of currently loaded SSH keys
+func (m *Manager) GetLoadedKeys() ([]string, error) {
+	cmd := exec.Command("ssh-add", "-l")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		if strings.Contains(string(output), "The agent has no identities") {
+			return []string{}, nil
+		}
+		return nil, fmt.Errorf("failed to list SSH keys: %w", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	var keys []string
+	for _, line := range lines {
+		if parts := strings.Fields(line); len(parts) >= 3 {
+			keys = append(keys, strings.TrimSpace(parts[2]))
+		}
+	}
+	return keys, nil
+}
+
+// updateShellConfig updates the shell configuration to set GIT_SSH_COMMAND
+func (m *Manager) updateShellConfig(accountAlias, keyPath string) error {
+	// Path to the shell config file
+	configPath := filepath.Join(m.homeDir, ".zsh_secrets")
+
+	// Read existing content
+	content, err := os.ReadFile(configPath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to read shell config: %w", err)
+	}
+
+	// Create backup
+	backupPath := configPath + ".bak"
+	if err := os.WriteFile(backupPath, content, 0600); err != nil {
+		return fmt.Errorf("failed to create backup: %w", err)
+	}
+
+	// Remove existing GIT_SSH_COMMAND if it exists
+	lines := strings.Split(string(content), "\n")
+	var newLines []string
+	for _, line := range lines {
+		if !strings.HasPrefix(strings.TrimSpace(line), "export GIT_SSH_COMMAND=") {
+			newLines = append(newLines, line)
+		}
+	}
+
+	// Add new GIT_SSH_COMMAND
+	newLines = append(newLines, fmt.Sprintf(`export GIT_SSH_COMMAND="ssh -i %s -o IdentitiesOnly=yes"`, keyPath))
+
+	// Add a newline at the end if the file wasn't empty
+	if len(newLines) > 0 && newLines[len(newLines)-1] != "" {
+		newLines = append(newLines, "")
+	}
+
+	// Write back to file
+	if err := os.WriteFile(configPath, []byte(strings.Join(newLines, "\n")), 0600); err != nil {
+		// Try to restore backup if write fails
+		_ = os.WriteFile(configPath, content, 0600)
+		return fmt.Errorf("failed to write shell config: %w", err)
+	}
+
+	return nil
+}
+
+// SourceShellConfig sources the shell configuration to apply changes
+func (m *Manager) SourceShellConfig() error {
+	configPath := filepath.Join(m.homeDir, ".zsh_secrets")
+	cmd := exec.Command("zsh", "-c", fmt.Sprintf("source %s", configPath))
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 // clearSSHAgent removes all keys from the SSH agent
@@ -93,6 +174,22 @@ func (m *Manager) addKeyToAgent(keyPath string) error {
 	return nil
 }
 
+// TestConnection tests the SSH connection to GitHub
+func (m *Manager) TestConnection() error {
+	// Test SSH connection to GitHub
+	testCmd := exec.Command("ssh", "-T", "git@github.com")
+	output, err := testCmd.CombinedOutput()
+	outputStr := string(output)
+
+	// GitHub returns success (0) but with a message when authentication succeeds
+	// but shell access is not granted (which is the expected behavior)
+	if err == nil || strings.Contains(outputStr, "successfully authenticated") {
+		return nil
+	}
+
+	return fmt.Errorf("SSH connection test failed: %w\nOutput: %s", err, outputStr)
+}
+
 // updateGitHubSSHConfigV2 updates the SSH config with improved multi-account isolation
 func (m *Manager) updateGitHubSSHConfigV2(accountAlias, keyPath string) error {
 	// Ensure SSH directory exists
@@ -104,19 +201,18 @@ func (m *Manager) updateGitHubSSHConfigV2(accountAlias, keyPath string) error {
 	// Read current SSH config (if exists)
 	existingContent := ""
 	if content, err := os.ReadFile(m.configPath); err == nil {
+		if !strings.Contains(string(content), "# GitPersona Managed Config") {
+			// Backup existing config if it's not already managed by GitPersona
+			backupPath := m.configPath + ".backup"
+			if err := os.WriteFile(backupPath, content, 0600); err != nil {
+				return fmt.Errorf("failed to backup SSH config: %w", err)
+			}
+		}
 		existingContent = string(content)
 	}
 
-	// Build the new optimized SSH config
+	// Build the new config
 	newConfig := m.buildIsolatedSSHConfig(accountAlias, keyPath, existingContent)
-
-	// Backup existing config if it exists and isn't already a GitPersona config
-	if existingContent != "" && !strings.Contains(existingContent, "GitPersona SSH Configuration") {
-		backupPath := m.configPath + ".backup-" + fmt.Sprintf("%d", os.Getpid())
-		if err := os.WriteFile(backupPath, []byte(existingContent), 0600); err != nil {
-			fmt.Printf("⚠️  Warning: failed to backup SSH config: %v\n", err)
-		}
-	}
 
 	// Write the updated config
 	if err := os.WriteFile(m.configPath, []byte(newConfig), 0600); err != nil {
@@ -128,160 +224,89 @@ func (m *Manager) updateGitHubSSHConfigV2(accountAlias, keyPath string) error {
 
 // buildIsolatedSSHConfig creates an SSH config with proper multi-account isolation
 func (m *Manager) buildIsolatedSSHConfig(accountAlias, keyPath, existingConfig string) string {
-	var result strings.Builder
+	// Start with the GitPersona header
+	config := "# GitPersona Managed Config - DO NOT EDIT MANUALLY\n"
+	config += "# This file is automatically generated by GitPersona\n\n"
 
-	// Add GitPersona header with clear identification
-	result.WriteString("# GitPersona SSH Configuration\n")
-	result.WriteString("# This configuration ensures proper isolation between multiple GitHub accounts\n")
-	result.WriteString(fmt.Sprintf("# Current active account: %s\n", accountAlias))
-	result.WriteString("# DO NOT EDIT MANUALLY - Managed by GitPersona\n\n")
+	// Preserve non-GitHub configurations
+	config += m.preserveNonGitHubConfig(existingConfig)
 
-	// Add strict GitHub configuration with complete isolation
-	result.WriteString("# Primary GitHub host with complete isolation\n")
-	result.WriteString("Host github.com\n")
-	result.WriteString("    HostName github.com\n")
-	result.WriteString("    User git\n")
-	result.WriteString(fmt.Sprintf("    IdentityFile %s\n", keyPath))
-	result.WriteString("    IdentitiesOnly yes\n")
-	result.WriteString("    PreferredAuthentications publickey\n")
-	result.WriteString("    PubkeyAuthentication yes\n")
-	result.WriteString("    AddKeysToAgent no\n") // Prevent automatic key loading
-	result.WriteString("    UseKeychain no\n")    // Disable keychain integration
-	result.WriteString("    StrictHostKeyChecking accept-new\n")
-	result.WriteString("    UserKnownHostsFile ~/.ssh/known_hosts\n")
-	result.WriteString("    ConnectTimeout 10\n")
-	result.WriteString("    ServerAliveInterval 60\n")
-	result.WriteString("    ServerAliveCountMax 3\n")
-	result.WriteString("\n")
+	// Add GitHub host configuration
+	config += fmt.Sprintf(`# GitHub account: %s
+Host github.com
+    HostName github.com
+    User git
+    IdentityFile %s
+    IdentitiesOnly yes
+    AddKeysToAgent yes
+    UseKeychain yes
 
-	// Add catch-all for any GitHub subdomain or SSH variant
-	result.WriteString("# Catch-all for GitHub variants\n")
-	result.WriteString("Host *.github.com github-*\n")
-	result.WriteString("    HostName github.com\n")
-	result.WriteString("    User git\n")
-	result.WriteString(fmt.Sprintf("    IdentityFile %s\n", keyPath))
-	result.WriteString("    IdentitiesOnly yes\n")
-	result.WriteString("    PreferredAuthentications publickey\n")
-	result.WriteString("    PubkeyAuthentication yes\n")
-	result.WriteString("    AddKeysToAgent no\n")
-	result.WriteString("    UseKeychain no\n")
-	result.WriteString("\n")
+`, accountAlias, keyPath)
 
-	// Preserve non-GitHub configurations from existing config
-	if existingConfig != "" {
-		result.WriteString("# Preserved non-GitHub configurations\n")
-		preservedConfig := m.preserveNonGitHubConfig(existingConfig)
-		if preservedConfig != "" {
-			result.WriteString(preservedConfig)
-			result.WriteString("\n")
-		}
-	}
-
-	// Add global defaults that don't conflict with GitHub isolation
-	result.WriteString("# Global SSH defaults (non-conflicting)\n")
-	result.WriteString("Host *\n")
-	result.WriteString("    Protocol 2\n")
-	result.WriteString("    Compression yes\n")
-	result.WriteString("    TCPKeepAlive yes\n")
-	result.WriteString("    ServerAliveInterval 60\n")
-	result.WriteString("    ServerAliveCountMax 3\n")
-	result.WriteString("    # Note: Key management is handled per-host above\n\n")
-
-	return result.String()
+	return config
 }
 
 // preserveNonGitHubConfig extracts and preserves non-GitHub host configurations
 func (m *Manager) preserveNonGitHubConfig(existingConfig string) string {
-	var result strings.Builder
+	if existingConfig == "" {
+		return ""
+	}
+
+	var preserved []string
 	lines := strings.Split(existingConfig, "\n")
 	inGitHubSection := false
-	inGitPersonaSection := false
-	currentHostLines := []string{}
+	skipUntilNextHost := false
 
-	for _, line := range lines {
-		trimmedLine := strings.TrimSpace(line)
+	for i := 0; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
 
-		// Skip GitPersona managed sections
-		if strings.Contains(trimmedLine, "GitPersona") {
-			inGitPersonaSection = true
-			continue
-		}
-		if inGitPersonaSection && trimmedLine == "" {
-			inGitPersonaSection = false
-			continue
-		}
-		if inGitPersonaSection {
-			continue
-		}
+		// Check if we're entering a GitHub host section
+		if strings.HasPrefix(line, "Host ") {
+			hostLine := strings.TrimSpace(strings.TrimPrefix(line, "Host"))
+			hosts := strings.Fields(hostLine)
 
-		// Detect GitHub-related host entries
-		if strings.HasPrefix(trimmedLine, "Host ") {
-			// Process previous host if it wasn't GitHub-related
-			if len(currentHostLines) > 0 && !inGitHubSection {
-				for _, hostLine := range currentHostLines {
-					result.WriteString(hostLine + "\n")
+			// Check if any of the hosts is github.com
+			isGitHubHost := false
+			for _, host := range hosts {
+				if host == "github.com" || strings.Contains(host, "github") {
+					isGitHubHost = true
+					break
 				}
 			}
 
-			// Reset for new host
-			currentHostLines = []string{line}
-			inGitHubSection = strings.Contains(strings.ToLower(trimmedLine), "github")
-		} else if strings.HasPrefix(trimmedLine, "    ") || strings.HasPrefix(trimmedLine, "\t") || trimmedLine == "" {
-			// Add configuration line to current host
-			currentHostLines = append(currentHostLines, line)
-		} else {
-			// Not a host configuration, add directly if not in GitHub section
-			if !inGitHubSection {
-				result.WriteString(line + "\n")
+			if isGitHubHost {
+				inGitHubSection = true
+				skipUntilNextHost = true
+				continue
+			}
+
+			// If we were in a GitHub section and found a new host, we're done
+			if inGitHubSection {
+				inGitHubSection = false
+			}
+
+			// If we were skipping until next host, stop skipping
+			if skipUntilNextHost {
+				skipUntilNextHost = false
 			}
 		}
-	}
 
-	// Process final host if it wasn't GitHub-related
-	if len(currentHostLines) > 0 && !inGitHubSection {
-		for _, hostLine := range currentHostLines {
-			result.WriteString(hostLine + "\n")
+		// Skip lines in GitHub sections or when we're in skip mode
+		if inGitHubSection || skipUntilNextHost {
+			continue
 		}
+
+		// Preserve all other lines
+		preserved = append(preserved, lines[i])
 	}
 
-	return result.String()
-}
-
-// TestConnection tests the SSH connection to GitHub
-func (m *Manager) TestConnection() error {
-	cmd := exec.Command("ssh", "-T", "git@github.com")
-	output, err := cmd.CombinedOutput()
-
-	// SSH connection to GitHub should fail with exit code 1 but give us the auth message
-	if err != nil {
-		if strings.Contains(string(output), "successfully authenticated") {
-			return nil // This is the expected behavior
+	if len(preserved) > 0 {
+		// Ensure there's a blank line before adding GitHub config
+		if preserved[len(preserved)-1] != "" {
+			preserved = append(preserved, "")
 		}
-		return fmt.Errorf("SSH connection test failed: %w\nOutput: %s", err, string(output))
+		return strings.Join(preserved, "\n") + "\n"
 	}
 
-	return nil
-}
-
-// GetLoadedKeys returns the list of currently loaded SSH keys
-func (m *Manager) GetLoadedKeys() ([]string, error) {
-	cmd := exec.Command("ssh-add", "-l")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		// No keys loaded
-		if strings.Contains(string(output), "no identities") {
-			return []string{}, nil
-		}
-		return nil, fmt.Errorf("failed to list SSH keys: %w", err)
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	keys := make([]string, 0, len(lines))
-	for _, line := range lines {
-		if line != "" {
-			keys = append(keys, line)
-		}
-	}
-
-	return keys, nil
+	return ""
 }
