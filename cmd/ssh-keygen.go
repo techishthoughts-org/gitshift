@@ -20,7 +20,7 @@ var sshKeygenCmd = &cobra.Command{
 This command handles:
 - SSH key generation with custom parameters
 - Proper file naming and storage in ~/.ssh
-- SSH key permissions (600 for private, 644 for public)  
+- SSH key permissions (600 for private, 644 for public)
 - Known hosts management
 - Integration with GitPersona account system
 
@@ -34,7 +34,7 @@ The generated keys will be automatically configured for use with GitHub.`,
   # Generate RSA key instead of Ed25519
   gitpersona ssh-keygen myaccount --type rsa --bits 4096
 
-  # Generate key and add to GitHub automatically  
+  # Generate key and add to GitHub automatically
   gitpersona ssh-keygen myaccount --add-to-github`,
 	Args: cobra.ExactArgs(1),
 	RunE: runSSHKeygen,

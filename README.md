@@ -13,17 +13,17 @@
 GitPersona is a **clean, focused CLI tool** for managing multiple GitHub accounts with **complete SSH isolation**. No GitHub API dependencies, no complex TUI interfaces - just pure SSH-based account management that works.
 
 ### **The Problem We Solve**
-- 🔄 **Manual switching** between Git configurations  
+- 🔄 **Manual switching** between Git configurations
 - 🔑 **SSH key conflicts** across multiple accounts
 - 😤 **Wrong commits** pushed to wrong accounts
-- 🚫 **Key interference** and authentication failures  
+- 🚫 **Key interference** and authentication failures
 - 📁 **Complex SSH setup** for each account
 - 🤔 **Hard-to-manage** known_hosts entries
 
 ### **Our SSH-First Solution**
 **GitPersona** provides **complete isolation** with:
 - 🔐 **SSH-Only Approach** - No GitHub API dependencies
-- 🔄 **Complete Isolation** - Accounts never interfere 
+- 🔄 **Complete Isolation** - Accounts never interfere
 - 🔑 **Smart SSH Management** - Auto-generates and manages keys
 - ⚡ **Fast Switching** - Instant account transitions
 - 🛡️ **Secure by Design** - SSH config with `IdentitiesOnly=yes`
@@ -82,12 +82,12 @@ gitpersona ssh-test work --verbose
 
 ### **Account Management**
 - `gitpersona add` - Add a new account manually
-- `gitpersona list` - List all configured accounts  
+- `gitpersona list` - List all configured accounts
 - `gitpersona remove` - Remove an account
 - `gitpersona update` - Update account information
 - `gitpersona switch` - Switch to a different account
 
-### **SSH Key Management**  
+### **SSH Key Management**
 - `gitpersona ssh-keygen` - Generate SSH keys with full control
 - `gitpersona ssh-test` - Test and troubleshoot SSH connectivity
 - `gitpersona discover` - Auto-discover accounts from SSH keys
@@ -131,7 +131,7 @@ GitPersona uses a **pure SSH-first approach**:
 ### **File Structure**
 ```
 ~/.ssh/
-├── id_ed25519_work          # Work account private key  
+├── id_ed25519_work          # Work account private key
 ├── id_ed25519_work.pub      # Work account public key
 ├── id_ed25519_personal      # Personal account private key
 ├── id_ed25519_personal.pub  # Personal account public key
@@ -154,7 +154,7 @@ GitPersona uses a **pure SSH-first approach**:
 
 ### **Account Isolation**
 - **Complete SSH isolation** between accounts
-- **No key conflicts** or cross-contamination  
+- **No key conflicts** or cross-contamination
 - **SSH agent clearing** before key loading
 - **Config backup** before modifications
 
@@ -171,7 +171,7 @@ make dev    # Full development build with tests
 
 ### **Available Make Targets**
 - `make build` - Build the binary
-- `make test` - Run tests  
+- `make test` - Run tests
 - `make dev` - Full development workflow
 - `make demo` - Show GitPersona in action
 - `make clean` - Clean build artifacts
@@ -182,14 +182,14 @@ make dev    # Full development build with tests
 GitPersona/
 ├── cmd/                    # CLI commands
 │   ├── add.go             # Account addition
-│   ├── discover.go        # SSH key discovery  
+│   ├── discover.go        # SSH key discovery
 │   ├── list.go            # Account listing
 │   ├── ssh-keygen.go      # SSH key generation
 │   ├── ssh-test.go        # SSH testing
 │   └── switch.go          # Account switching
 ├── internal/
 │   ├── config/            # Configuration management
-│   ├── discovery/         # SSH-only discovery  
+│   ├── discovery/         # SSH-only discovery
 │   ├── git/               # Git operations
 │   ├── models/            # Data models
 │   └── ssh/               # SSH management

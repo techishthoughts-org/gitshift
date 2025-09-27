@@ -18,7 +18,7 @@ var sshTestCmd = &cobra.Command{
 	Long: `Test SSH connectivity and troubleshoot common SSH issues.
 This command helps with:
 - Testing SSH key authentication to GitHub
-- Verifying known_hosts configuration  
+- Verifying known_hosts configuration
 - Checking SSH key permissions
 - Troubleshooting SSH agent issues
 - Validating SSH configuration
@@ -29,10 +29,10 @@ If no account is specified, it tests the currently active account.`,
 
   # Test specific account
   gitpersona ssh-test costaar7
-  
+
   # Test with verbose output
   gitpersona ssh-test costaar7 --verbose
-  
+
   # Fix known_hosts issues
   gitpersona ssh-test --fix-known-hosts`,
 	Args: cobra.MaximumNArgs(1),

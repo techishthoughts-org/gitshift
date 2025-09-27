@@ -80,7 +80,7 @@ demo: build
 	@echo ""
 	@echo "🔍 SSH key discovery:"
 	@./$(BINARY_NAME) discover || true
-	@echo ""  
+	@echo ""
 	@echo "🔧 Available commands:"
 	@./$(BINARY_NAME) --help
 
