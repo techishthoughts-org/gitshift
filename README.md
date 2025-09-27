@@ -36,7 +36,7 @@ gitshift is a **clean, focused CLI tool** for managing multiple GitHub accounts 
 
 ```bash
 # Clone and build
-git clone https://github.com/techishthoughts/gitshift.git
+git clone https://github.com/techishthoughts-org/gitshift/gitshift.git
 cd gitshift
 make build
 ```
@@ -164,7 +164,7 @@ gitshift uses a **pure SSH-first approach**:
 
 ### **Build from Source**
 ```bash
-git clone https://github.com/techishthoughts/gitshift.git
+git clone https://github.com/techishthoughts-org/gitshift/gitshift.git
 cd gitshift
 make dev    # Full development build with tests
 ```

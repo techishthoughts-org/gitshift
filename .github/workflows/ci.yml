@@ -34,7 +34,7 @@ jobs:
   build:
     name: Build
     needs: test
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,10 +47,30 @@ jobs:
           mkdir -p dist
           GOOS=linux GOARCH=amd64 go build -o dist/gitshift-linux-amd64 .
           GOOS=darwin GOARCH=amd64 go build -o dist/gitshift-darwin-amd64 .
+
+          # Get the tag name without refs/tags/
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
-          generate_release_notes: true
+          tag_name: ${{ env.TAG_NAME }}
+          name: Release ${{ env.TAG_NAME }}
+          body: |
+            ## Changes
+
+            - Initial release
+
+            ## Assets
+
+            - `gitshift-linux-amd64` - Linux 64-bit binary
+            - `gitshift-darwin-amd64` - macOS 64-bit binary
+          files: |
+            dist/gitshift-linux-amd64
+            dist/gitshift-darwin-amd64
+          draft: false
+          prerelease: false
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
