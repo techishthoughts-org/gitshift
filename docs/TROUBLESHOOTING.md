@@ -1,6 +1,6 @@
-# 🚨 GitPersona Troubleshooting Guide
+# 🚨 gitshift Troubleshooting Guide
 
-> **Comprehensive guide to diagnosing and fixing common GitPersona issues**
+> **Comprehensive guide to diagnosing and fixing common gitshift issues**
 
 ---
 
@@ -25,28 +25,28 @@
 
 ```bash
 # Full system diagnostics
-gitpersona diagnose --verbose
+gitshift diagnose --verbose
 
 # Auto-fix detected issues
-gitpersona diagnose --fix
+gitshift diagnose --fix
 
 # Focus on specific components
-gitpersona diagnose --ssh-only
-gitpersona diagnose --git-only
-gitpersona diagnose --accounts-only
+gitshift diagnose --ssh-only
+gitshift diagnose --git-only
+gitshift diagnose --accounts-only
 ```
 
 ### **Quick Health Check**
 
 ```bash
 # Check system health
-gitpersona health
+gitshift health
 
 # Check current account status
-gitpersona status
+gitshift status
 
 # Validate current configuration
-gitpersona config validate
+gitshift config validate
 ```
 
 ---
@@ -55,38 +55,38 @@ gitpersona config validate
 
 ### **Issue: Command Not Found**
 
-**Problem**: `gitpersona: command not found`
+**Problem**: `gitshift: command not found`
 
 **Solutions**:
 ```bash
 # 1. Check if binary exists
-ls -la gitpersona
+ls -la gitshift
 
 # 2. Make binary executable
-chmod +x gitpersona
+chmod +x gitshift
 
 # 3. Install system-wide
-sudo mv gitpersona /usr/local/bin/
+sudo mv gitshift /usr/local/bin/
 
 # 4. Add to PATH
-export PATH="$PATH:/path/to/gitpersona"
-echo 'export PATH="$PATH:/path/to/gitpersona"' >> ~/.zshrc
+export PATH="$PATH:/path/to/gitshift"
+echo 'export PATH="$PATH:/path/to/gitshift"' >> ~/.zshrc
 ```
 
 ### **Issue: Permission Denied**
 
-**Problem**: `Permission denied` when running GitPersona
+**Problem**: `Permission denied` when running gitshift
 
 **Solutions**:
 ```bash
 # 1. Check file permissions
-ls -la gitpersona
+ls -la gitshift
 
 # 2. Fix permissions
-chmod +x gitpersona
+chmod +x gitshift
 
 # 3. Check directory permissions
-ls -la /usr/local/bin/gitpersona
+ls -la /usr/local/bin/gitshift
 ```
 
 ### **Issue: Configuration File Not Found**
@@ -96,16 +96,16 @@ ls -la /usr/local/bin/gitpersona
 **Solutions**:
 ```bash
 # 1. Check config directory
-ls -la ~/.config/gitpersona/
+ls -la ~/.config/gitshift/
 
 # 2. Create config directory
-mkdir -p ~/.config/gitpersona
+mkdir -p ~/.config/gitshift
 
 # 3. Initialize configuration
-gitpersona diagnose --fix
+gitshift diagnose --fix
 
 # 4. Set custom config path
-export GITPERSONA_CONFIG_PATH="/custom/path"
+export gitshift_CONFIG_PATH="/custom/path"
 ```
 
 ---
@@ -127,17 +127,17 @@ ssh -T git@github.com -i ~/.ssh/id_ed25519_work
 # 3. Check SSH agent
 ssh-add -l
 
-# 4. Diagnose with GitPersona
-gitpersona diagnose --ssh-only --verbose
+# 4. Diagnose with gitshift
+gitshift diagnose --ssh-only --verbose
 ```
 
 #### **Solutions**
 ```bash
-# 1. Use GitPersona's comprehensive SSH troubleshooting
-gitpersona ssh-troubleshoot --verbose
+# 1. Use gitshift's comprehensive SSH troubleshooting
+gitshift ssh-troubleshoot --verbose
 
 # 2. Auto-fix SSH issues
-gitpersona ssh-troubleshoot --auto-fix
+gitshift ssh-troubleshoot --auto-fix
 
 # 3. Check SSH key permissions
 ls -la ~/.ssh/id_ed25519_work
@@ -169,7 +169,7 @@ ls -la ~/.ssh/sockets/
 ls -la ~/.ssh/control/
 
 # 2. Check SSH agent status
-gitpersona ssh-agent --status
+gitshift ssh-agent --status
 ```
 
 #### **Solutions**
@@ -180,12 +180,12 @@ mkdir -p ~/.ssh/socket ~/.ssh/sockets ~/.ssh/control
 # 2. Set correct permissions
 chmod 700 ~/.ssh/socket ~/.ssh/sockets ~/.ssh/control
 
-# 3. Let GitPersona fix automatically
-gitpersona diagnose --fix
+# 3. Let gitshift fix automatically
+gitshift diagnose --fix
 
 # 4. Restart SSH agent
-gitpersona ssh-agent --clear
-gitpersona ssh-agent --start
+gitshift ssh-agent --clear
+gitshift ssh-agent --start
 ```
 
 ### **Issue: Multiple SSH Keys Conflict**
@@ -200,26 +200,26 @@ ssh-add -l
 # 2. Check SSH config
 cat ~/.ssh/config
 
-# 3. Diagnose with GitPersona
-gitpersona diagnose --ssh-only --verbose
+# 3. Diagnose with gitshift
+gitshift diagnose --ssh-only --verbose
 ```
 
 #### **Solutions**
 ```bash
-# 1. Use GitPersona's SSH troubleshooting for key conflicts
-gitpersona ssh-troubleshoot --verbose
+# 1. Use gitshift's SSH troubleshooting for key conflicts
+gitshift ssh-troubleshoot --verbose
 
 # 2. Auto-fix SSH key conflicts
-gitpersona ssh-troubleshoot --auto-fix
+gitshift ssh-troubleshoot --auto-fix
 
 # 3. Generate proper SSH configuration
-gitpersona ssh-config generate --apply
+gitshift ssh-config generate --apply
 
 # 4. Clear all keys from agent
-gitpersona ssh-agent --clear
+gitshift ssh-agent --clear
 
 # 5. Load only the required key
-gitpersona ssh-agent --load ~/.ssh/id_ed25519_work
+gitshift ssh-agent --load ~/.ssh/id_ed25519_work
 
 # 6. Use SSH config with IdentitiesOnly
 echo "IdentitiesOnly yes" >> ~/.ssh/config
@@ -236,11 +236,11 @@ This is a common issue when multiple SSH keys are loaded in the SSH agent, causi
 
 #### **Diagnosis**
 ```bash
-# 1. Use GitPersona's comprehensive SSH diagnostics
-gitpersona ssh-troubleshoot --verbose
+# 1. Use gitshift's comprehensive SSH diagnostics
+gitshift ssh-troubleshoot --verbose
 
 # 2. Check for SSH key conflicts
-gitpersona diagnose --ssh-only --verbose
+gitshift diagnose --ssh-only --verbose
 
 # 3. List loaded SSH keys
 ssh-add -l
@@ -249,16 +249,16 @@ ssh-add -l
 #### **Solutions**
 ```bash
 # 1. Auto-fix SSH key conflicts
-gitpersona ssh-troubleshoot --auto-fix
+gitshift ssh-troubleshoot --auto-fix
 
 # 2. Generate proper SSH configuration
-gitpersona ssh-config generate --apply
+gitshift ssh-config generate --apply
 
 # 3. Clean up SSH agent
-gitpersona ssh-agent --cleanup
+gitshift ssh-agent --cleanup
 
 # 4. Test GitHub connectivity
-gitpersona ssh-troubleshoot --test-github
+gitshift ssh-troubleshoot --test-github
 ```
 
 ### **Issue: SSH Key Not Found**
@@ -271,19 +271,19 @@ gitpersona ssh-troubleshoot --test-github
 ls -la ~/.ssh/id_ed25519_work
 
 # 2. Check account configuration
-gitpersona config show --account work
+gitshift config show --account work
 ```
 
 #### **Solutions**
 ```bash
 # 1. Generate new SSH key
-gitpersona ssh-keys generate work
+gitshift ssh-keys generate work
 
 # 2. Update account configuration
-gitpersona config set --account work ssh_key_path "/new/path"
+gitshift config set --account work ssh_key_path "/new/path"
 
 # 3. Use existing key
-gitpersona config set --account work ssh_key_path "/existing/path"
+gitshift config set --account work ssh_key_path "/existing/path"
 ```
 
 ---
@@ -301,23 +301,23 @@ git config --global --list
 git config --local --list
 
 # 2. Check current account
-gitpersona status
+gitshift status
 
 # 3. Validate Git configuration
-gitpersona validate-git
+gitshift validate-git
 ```
 
 #### **Solutions**
 ```bash
 # 1. Switch to correct account
-gitpersona switch work
+gitshift switch work
 
 # 2. Manually set Git config
 git config --global user.name "John Doe"
 git config --global user.email "john@company.com"
 
-# 3. Fix with GitPersona
-gitpersona diagnose --git-only --fix
+# 3. Fix with gitshift
+gitshift diagnose --git-only --fix
 ```
 
 ### **Issue: SSH Command Not Set**
@@ -330,7 +330,7 @@ gitpersona diagnose --git-only --fix
 git config --global core.sshCommand
 
 # 2. Check account configuration
-gitpersona config show --account work
+gitshift config show --account work
 ```
 
 #### **Solutions**
@@ -339,10 +339,10 @@ gitpersona config show --account work
 git config --global core.sshCommand "ssh -i ~/.ssh/id_ed25519_work -o IdentitiesOnly=yes"
 
 # 2. Switch account (auto-sets SSH command)
-gitpersona switch work
+gitshift switch work
 
-# 3. Fix with GitPersona
-gitpersona diagnose --git-only --fix
+# 3. Fix with gitshift
+gitshift diagnose --git-only --fix
 ```
 
 ### **Issue: Git Config Conflicts**
@@ -365,10 +365,10 @@ git config --local --unset user.name
 git config --local --unset user.email
 
 # 2. Use global config only
-gitpersona config set global_git_config true
+gitshift config set global_git_config true
 
 # 3. Set up project-specific config
-gitpersona project set work
+gitshift project set work
 ```
 
 ---
@@ -382,25 +382,25 @@ gitpersona project set work
 #### **Diagnosis**
 ```bash
 # 1. List all accounts
-gitpersona list
+gitshift list
 
 # 2. Check configuration
-gitpersona config show
+gitshift config show
 
 # 3. Validate configuration
-gitpersona config validate
+gitshift config validate
 ```
 
 #### **Solutions**
 ```bash
 # 1. Add missing account
-gitpersona add-github username --alias work
+gitshift add-github username --alias work
 
 # 2. Check account alias
-gitpersona list --account work
+gitshift list --account work
 
 # 3. Fix account configuration
-gitpersona config validate --fix
+gitshift config validate --fix
 ```
 
 ### **Issue: Account Switch Fails**
@@ -410,28 +410,28 @@ gitpersona config validate --fix
 #### **Diagnosis**
 ```bash
 # 1. Force switch with verbose output
-gitpersona switch work --force --verbose
+gitshift switch work --force --verbose
 
 # 2. Check account validation
-gitpersona diagnose --accounts-only
+gitshift diagnose --accounts-only
 
 # 3. Check SSH validation
-gitpersona diagnose --ssh-only
+gitshift diagnose --ssh-only
 ```
 
 #### **Solutions**
 ```bash
 # 1. Fix account configuration
-gitpersona diagnose --fix
+gitshift diagnose --fix
 
 # 2. Reset SSH agent
-gitpersona ssh-agent --clear
+gitshift ssh-agent --clear
 
 # 3. Skip validation (temporary)
-gitpersona switch work --skip-validation
+gitshift switch work --skip-validation
 
 # 4. Force switch
-gitpersona switch work --force
+gitshift switch work --force
 ```
 
 ### **Issue: Duplicate Account Aliases**
@@ -441,22 +441,22 @@ gitpersona switch work --force
 #### **Diagnosis**
 ```bash
 # 1. List all accounts
-gitpersona list
+gitshift list
 
 # 2. Check configuration file
-cat ~/.config/gitpersona/config.yaml
+cat ~/.config/gitshift/config.yaml
 ```
 
 #### **Solutions**
 ```bash
 # 1. Remove duplicate account
-gitpersona remove duplicate-alias
+gitshift remove duplicate-alias
 
 # 2. Rename account
-gitpersona config set --account old-alias alias new-alias
+gitshift config set --account old-alias alias new-alias
 
 # 3. Fix configuration manually
-gitpersona config edit
+gitshift config edit
 ```
 
 ---
@@ -526,7 +526,7 @@ gh api rate_limit
 
 # 2. Wait and retry
 sleep 60
-gitpersona switch work
+gitshift switch work
 
 # 3. Use personal access token
 export GITHUB_TOKEN="ghp_your_token"
@@ -548,8 +548,8 @@ ls -la ~/.config/zsh_secrets
 ls -la ~/.secrets/zsh_secrets
 ls -la ~/.zsh/secrets
 
-# 2. Check GitPersona logs
-tail -f ~/.config/gitpersona/logs/gitpersona.log
+# 2. Check gitshift logs
+tail -f ~/.config/gitshift/logs/gitshift.log
 ```
 
 #### **Solutions**
@@ -558,11 +558,11 @@ tail -f ~/.config/gitpersona/logs/gitpersona.log
 touch ~/.zsh_secrets
 chmod 600 ~/.zsh_secrets
 
-# 2. Let GitPersona create it
-gitpersona switch work
+# 2. Let gitshift create it
+gitshift switch work
 
 # 3. Set custom location
-export GITPERSONA_ZSH_SECRETS_PATH="/custom/path"
+export gitshift_ZSH_SECRETS_PATH="/custom/path"
 ```
 
 ### **Issue: GITHUB_TOKEN Not Updating**
@@ -578,23 +578,23 @@ gh auth token
 cat ~/.zsh_secrets
 
 # 3. Test token update
-gitpersona secrets update-token
+gitshift secrets update-token
 ```
 
 #### **Solutions**
 ```bash
 # 1. Update token manually
-gitpersona secrets update-token
+gitshift secrets update-token
 
 # 2. Check file permissions
 ls -la ~/.zsh_secrets
 chmod 600 ~/.zsh_secrets
 
 # 3. Validate zsh_secrets file
-gitpersona secrets validate
+gitshift secrets validate
 
 # 4. Reload zsh_secrets
-gitpersona secrets reload
+gitshift secrets reload
 ```
 
 ### **Issue: Zsh Secrets File Corruption**
@@ -606,8 +606,8 @@ gitpersona secrets reload
 # 1. Check file syntax
 bash -n ~/.zsh_secrets
 
-# 2. Validate with GitPersona
-gitpersona secrets validate
+# 2. Validate with gitshift
+gitshift secrets validate
 
 # 3. Check file content
 cat ~/.zsh_secrets
@@ -619,14 +619,14 @@ cat ~/.zsh_secrets
 cp ~/.zsh_secrets ~/.zsh_secrets.backup
 
 # 2. Fix syntax errors
-gitpersona secrets validate --fix
+gitshift secrets validate --fix
 
 # 3. Restore from backup
-gitpersona secrets restore --backup 1
+gitshift secrets restore --backup 1
 
 # 4. Recreate file
 rm ~/.zsh_secrets
-gitpersona switch work
+gitshift switch work
 ```
 
 ---
@@ -640,10 +640,10 @@ gitpersona switch work
 #### **Diagnosis**
 ```bash
 # 1. Enable debug logging
-export GITPERSONA_DEBUG=true
+export gitshift_DEBUG=true
 
 # 2. Run with verbose output
-gitpersona switch work --verbose
+gitshift switch work --verbose
 
 # 3. Check system resources
 top
@@ -653,13 +653,13 @@ df -h
 #### **Solutions**
 ```bash
 # 1. Skip SSH validation for speed
-gitpersona switch work --skip-validation
+gitshift switch work --skip-validation
 
 # 2. Clear SSH agent cache
-gitpersona ssh-agent --clear
+gitshift ssh-agent --clear
 
 # 3. Optimize SSH configuration
-gitpersona ssh-config optimize
+gitshift ssh-config optimize
 
 # 4. Check disk space
 df -h
@@ -667,21 +667,21 @@ df -h
 
 ### **Issue: High Memory Usage**
 
-**Problem**: GitPersona using too much memory
+**Problem**: gitshift using too much memory
 
 #### **Solutions**
 ```bash
 # 1. Check memory usage
-ps aux | grep gitpersona
+ps aux | grep gitshift
 
-# 2. Restart GitPersona
-pkill gitpersona
+# 2. Restart gitshift
+pkill gitshift
 
 # 3. Clear caches
-gitpersona cache clear
+gitshift cache clear
 
 # 4. Optimize configuration
-gitpersona config optimize
+gitshift config optimize
 ```
 
 ---
@@ -693,22 +693,22 @@ gitpersona config optimize
 #### **Enable Debug Logging**
 ```bash
 # 1. Set debug environment variable
-export GITPERSONA_DEBUG=true
+export gitshift_DEBUG=true
 
 # 2. Set log level
-export GITPERSONA_LOG_LEVEL=debug
+export gitshift_LOG_LEVEL=debug
 
 # 3. Run command with verbose output
-gitpersona switch work --verbose
+gitshift switch work --verbose
 
 # 4. Check logs
-tail -f ~/.config/gitpersona/logs/gitpersona.log
+tail -f ~/.config/gitshift/logs/gitshift.log
 ```
 
 #### **Debug Information Collection**
 ```bash
 # 1. Collect system information
-gitpersona diagnose --include-system > debug-info.txt
+gitshift diagnose --include-system > debug-info.txt
 
 # 2. Include in bug reports
 cat debug-info.txt
@@ -719,29 +719,29 @@ cat debug-info.txt
 #### **Reset Configuration**
 ```bash
 # 1. Backup current configuration
-gitpersona config backup
+gitshift config backup
 
 # 2. Reset to defaults
-gitpersona config reset
+gitshift config reset
 
 # 3. Restore from backup if needed
-gitpersona config restore --backup 1
+gitshift config restore --backup 1
 ```
 
 #### **Clean Installation**
 ```bash
 # 1. Remove configuration
-rm -rf ~/.config/gitpersona
+rm -rf ~/.config/gitshift
 
 # 2. Remove SSH keys (optional)
 rm -rf ~/.ssh/id_ed25519_*
 
-# 3. Reinstall GitPersona
-go build -o gitpersona
-sudo mv gitpersona /usr/local/bin/
+# 3. Reinstall gitshift
+go build -o gitshift
+sudo mv gitshift /usr/local/bin/
 
 # 4. Reconfigure
-gitpersona add-github username
+gitshift add-github username
 ```
 
 ### **Network Issues**
@@ -783,32 +783,32 @@ sudo ufw status
 #### **Built-in Help**
 ```bash
 # General help
-gitpersona --help
+gitshift --help
 
 # Command-specific help
-gitpersona diagnose --help
-gitpersona switch --help
-gitpersona ssh-keys --help
+gitshift diagnose --help
+gitshift switch --help
+gitshift ssh-keys --help
 ```
 
 #### **Diagnostic Commands**
 ```bash
 # Comprehensive diagnostics
-gitpersona diagnose --verbose
+gitshift diagnose --verbose
 
 # System information
-gitpersona diagnose --include-system
+gitshift diagnose --include-system
 
 # Health check
-gitpersona health
+gitshift health
 ```
 
 ### **Community Support**
 
 #### **GitHub Issues**
-- **[Report Bugs](https://github.com/techishthoughts/GitPersona/issues)** - Report issues and bugs
-- **[Feature Requests](https://github.com/techishthoughts/GitPersona/issues)** - Request new features
-- **[Discussions](https://github.com/techishthoughts/GitPersona/discussions)** - Community support
+- **[Report Bugs](https://github.com/techishthoughts/gitshift/issues)** - Report issues and bugs
+- **[Feature Requests](https://github.com/techishthoughts/gitshift/issues)** - Request new features
+- **[Discussions](https://github.com/techishthoughts/gitshift/discussions)** - Community support
 
 #### **Bug Report Template**
 ```markdown
@@ -816,7 +816,7 @@ gitpersona health
 Brief description of the issue
 
 **Steps to Reproduce**
-1. Run command: `gitpersona switch work`
+1. Run command: `gitshift switch work`
 2. See error: `Permission denied (publickey)`
 
 **Expected Behavior**
@@ -827,12 +827,12 @@ Switch fails with SSH authentication error
 
 **Environment**
 - OS: macOS 14.0
-- GitPersona Version: 1.0.0
+- gitshift Version: 1.0.0
 - Go Version: 1.21.0
 
 **Debug Information**
 ```
-$ gitpersona diagnose --include-system
+$ gitshift diagnose --include-system
 [Output here]
 ```
 
@@ -844,12 +844,12 @@ Any other relevant information
 
 #### **Enterprise Support**
 For enterprise users requiring professional support:
-- **Email**: support@gitpersona.com
+- **Email**: support@gitshift.com
 - **Documentation**: [Enterprise Guide](ENTERPRISE.md)
 - **SLA**: 24-hour response time
 
 #### **Consulting Services**
-- **Implementation**: Help with GitPersona deployment
+- **Implementation**: Help with gitshift deployment
 - **Customization**: Tailored configurations
 - **Training**: Team training sessions
 
@@ -869,8 +869,8 @@ For enterprise users requiring professional support:
 
 **Still need help?**
 
-- 🐛 **[Report a Bug](https://github.com/techishthoughts/GitPersona/issues)**
-- 💬 **[Join Discussions](https://github.com/techishthoughts/GitPersona/discussions)**
-- 📧 **[Contact Support](mailto:support@gitpersona.com)**
+- 🐛 **[Report a Bug](https://github.com/techishthoughts/gitshift/issues)**
+- 💬 **[Join Discussions](https://github.com/techishthoughts/gitshift/discussions)**
+- 📧 **[Contact Support](mailto:support@gitshift.com)**
 
 </div>

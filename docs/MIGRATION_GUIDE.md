@@ -1,29 +1,29 @@
-# GitPersona v2.0 Migration Guide
+# gitshift v2.0 Migration Guide
 
 ## 🚀 Quick Start Migration
 
 ### Automatic Migration
 ```bash
 # Check if migration is needed
-gitpersona migrate check
+gitshift migrate check
 
 # Run automatic migration with backup
-gitpersona migrate run --backup
+gitshift migrate run --backup
 
 # Verify migration
-gitpersona account list --detailed
+gitshift account list --detailed
 ```
 
 ### Manual Migration Steps
 ```bash
 # 1. Create backup
-gitpersona migrate backup create
+gitshift migrate backup create
 
 # 2. Import existing accounts
-gitpersona migrate run --from-legacy
+gitshift migrate run --from-legacy
 
 # 3. Validate configuration
-gitpersona diagnose health
+gitshift diagnose health
 ```
 
 ## 📋 Pre-Migration Checklist
@@ -48,53 +48,53 @@ git config --global --list
 # List SSH keys
 ls -la ~/.ssh/
 
-# Verify GitPersona installation
-gitpersona version
+# Verify gitshift installation
+gitshift version
 ```
 
 ## 🔄 Migration Scenarios
 
 ### Scenario 1: First-Time Installation
 
-**From:** No GitPersona installation
-**To:** GitPersona v2.0 with discovered accounts
+**From:** No gitshift installation
+**To:** gitshift v2.0 with discovered accounts
 
 ```bash
-# Install GitPersona v2.0
-go install github.com/techishthoughts/GitPersona@v2.0.0
+# Install gitshift v2.0
+go install github.com/techishthoughts/gitshift@v2.0.0
 
 # Auto-discover accounts from Git config and SSH keys
-gitpersona smart detect --auto-import
+gitshift smart detect --auto-import
 
 # Create your first account if none discovered
-gitpersona account add main \
+gitshift account add main \
   --name "Your Name" \
   --email "your@email.com"
 
 # Generate SSH key
-gitpersona ssh keys generate \
+gitshift ssh keys generate \
   --name main \
   --type ed25519 \
   --email "your@email.com"
 ```
 
-### Scenario 2: Legacy GitPersona v1.x
+### Scenario 2: Legacy gitshift v1.x
 
-**From:** GitPersona v1.x configuration
-**To:** GitPersona v2.0 with enhanced features
+**From:** gitshift v1.x configuration
+**To:** gitshift v2.0 with enhanced features
 
 ```bash
 # Backup existing config
-cp ~/.gitpersona/config.yaml ~/.gitpersona/config.yaml.backup
+cp ~/.gitshift/config.yaml ~/.gitshift/config.yaml.backup
 
 # Run migration
-gitpersona migrate run --from-v1
+gitshift migrate run --from-v1
 
 # Verify enhanced features
-gitpersona account list --json | jq '.accounts[].isolation_level'
+gitshift account list --json | jq '.accounts[].isolation_level'
 
 # Test new functionality
-gitpersona security audit
+gitshift security audit
 ```
 
 ### Scenario 3: Multiple Git Identities
@@ -104,18 +104,18 @@ gitpersona security audit
 
 ```bash
 # Discover existing identities
-gitpersona smart detect --comprehensive
+gitshift smart detect --comprehensive
 
 # Import discovered accounts
-gitpersona migrate run --interactive
+gitshift migrate run --interactive
 
 # Configure account isolation
-gitpersona account update work --isolation-level strict
-gitpersona account update personal --isolation-level standard
+gitshift account update work --isolation-level strict
+gitshift account update personal --isolation-level standard
 
 # Test account switching
-gitpersona account switch work
-gitpersona git config show
+gitshift account switch work
+gitshift git config show
 ```
 
 ### Scenario 4: SSH Key Management
@@ -125,15 +125,15 @@ gitpersona git config show
 
 ```bash
 # Import existing SSH keys
-gitpersona ssh keys import --discover
+gitshift ssh keys import --discover
 
 # Associate keys with accounts
-gitpersona account update work --ssh-key ~/.ssh/id_ed25519_work
-gitpersona account update personal --ssh-key ~/.ssh/id_ed25519_personal
+gitshift account update work --ssh-key ~/.ssh/id_ed25519_work
+gitshift account update personal --ssh-key ~/.ssh/id_ed25519_personal
 
 # Test SSH functionality
-gitpersona ssh test
-gitpersona ssh fix --auto
+gitshift ssh test
+gitshift ssh fix --auto
 ```
 
 ### Scenario 5: GitHub Integration
@@ -143,21 +143,21 @@ gitpersona ssh fix --auto
 
 ```bash
 # Set up GitHub tokens securely
-gitpersona github token set --account work
-gitpersona github token set --account personal
+gitshift github token set --account work
+gitshift github token set --account personal
 
 # Test GitHub integration
-gitpersona github test --account work
+gitshift github test --account work
 
 # Upload SSH keys to GitHub
-gitpersona ssh keys upload --account work --title "Work Laptop"
+gitshift ssh keys upload --account work --title "Work Laptop"
 ```
 
 ## 🛠️ Configuration Migration
 
 ### Legacy Config Structure
 ```yaml
-# ~/.gitpersona/config.yaml (v1.x)
+# ~/.gitshift/config.yaml (v1.x)
 current_account: work
 global_git_mode: true
 accounts:
@@ -175,7 +175,7 @@ accounts:
 
 ### New Config Structure
 ```yaml
-# ~/.gitpersona/config.yaml (v2.0)
+# ~/.gitshift/config.yaml (v2.0)
 config_version: "2.0.0"
 current_account: work
 global_git_config: true
@@ -213,14 +213,14 @@ accounts:
 ### Existing SSH Keys Discovery
 ```bash
 # Automatic discovery
-gitpersona ssh keys discover
+gitshift ssh keys discover
 
 # Manual import
-gitpersona ssh keys import --path ~/.ssh/id_ed25519_work --account work
-gitpersona ssh keys import --path ~/.ssh/id_ed25519_personal --account personal
+gitshift ssh keys import --path ~/.ssh/id_ed25519_work --account work
+gitshift ssh keys import --path ~/.ssh/id_ed25519_personal --account personal
 
 # Validate imported keys
-gitpersona ssh keys validate --all
+gitshift ssh keys validate --all
 ```
 
 ### SSH Key Naming Convention
@@ -239,15 +239,15 @@ id_ed25519_opensource
 ### SSH Configuration Enhancement
 ```bash
 # Generate new keys with proper naming
-gitpersona ssh keys generate --account work --type ed25519
-gitpersona ssh keys generate --account personal --type ed25519
+gitshift ssh keys generate --account work --type ed25519
+gitshift ssh keys generate --account personal --type ed25519
 
 # Configure SSH agent isolation
-gitpersona account update work --ssh-isolation strict
-gitpersona account update personal --ssh-isolation standard
+gitshift account update work --ssh-isolation strict
+gitshift account update personal --ssh-isolation standard
 
 # Fix SSH permissions
-gitpersona ssh fix --auto
+gitshift ssh fix --auto
 ```
 
 ## 🐙 GitHub Integration Migration
@@ -255,26 +255,26 @@ gitpersona ssh fix --auto
 ### Token Migration
 ```bash
 # Import existing tokens (secure prompt)
-gitpersona github token set --account work
-gitpersona github token set --account personal
+gitshift github token set --account work
+gitshift github token set --account personal
 
 # Validate tokens
-gitpersona github test --account work
-gitpersona github test --account personal
+gitshift github test --account work
+gitshift github test --account personal
 
 # Configure token settings
-gitpersona github config --account work --auto-validate true
-gitpersona github config --account personal --scope "repo,user"
+gitshift github config --account work --auto-validate true
+gitshift github config --account personal --scope "repo,user"
 ```
 
 ### SSH Key Upload
 ```bash
 # Upload keys to GitHub
-gitpersona ssh keys upload --account work --title "Work MacBook Pro"
-gitpersona ssh keys upload --account personal --title "Personal Laptop"
+gitshift ssh keys upload --account work --title "Work MacBook Pro"
+gitshift ssh keys upload --account personal --title "Personal Laptop"
 
 # Verify GitHub SSH access
-gitpersona ssh test --github
+gitshift ssh test --github
 ```
 
 ## 🔒 Security Enhancement Migration
@@ -282,25 +282,25 @@ gitpersona ssh test --github
 ### Security Audit
 ```bash
 # Run initial security audit
-gitpersona security audit --detailed
+gitshift security audit --detailed
 
 # Fix security violations
-gitpersona security fix --auto
+gitshift security fix --auto
 
 # Enable ongoing monitoring
-gitpersona security config --auto-audit true --interval daily
+gitshift security config --auto-audit true --interval daily
 ```
 
 ### Isolation Levels
 ```bash
 # Configure isolation levels per account
-gitpersona account update work --isolation-level strict
-gitpersona account update personal --isolation-level standard
-gitpersona account update opensource --isolation-level minimal
+gitshift account update work --isolation-level strict
+gitshift account update personal --isolation-level standard
+gitshift account update opensource --isolation-level minimal
 
 # Test isolation
-gitpersona account switch work
-gitpersona diagnose isolation
+gitshift account switch work
+gitshift diagnose isolation
 ```
 
 ## 🚨 Troubleshooting Migration Issues
@@ -310,62 +310,62 @@ gitpersona diagnose isolation
 #### Issue: Migration Fails with Permission Error
 ```bash
 # Fix: Correct file permissions
-chmod 700 ~/.gitpersona
-chmod 600 ~/.gitpersona/config.yaml
-gitpersona migrate run --retry
+chmod 700 ~/.gitshift
+chmod 600 ~/.gitshift/config.yaml
+gitshift migrate run --retry
 ```
 
 #### Issue: SSH Keys Not Discovered
 ```bash
 # Fix: Manual SSH key discovery
-gitpersona ssh keys discover --verbose
-gitpersona ssh keys import --path ~/.ssh/id_* --auto-associate
+gitshift ssh keys discover --verbose
+gitshift ssh keys import --path ~/.ssh/id_* --auto-associate
 ```
 
 #### Issue: GitHub Token Invalid
 ```bash
 # Fix: Regenerate GitHub token
-gitpersona github token set --account work --regenerate
-gitpersona github test --account work
+gitshift github token set --account work --regenerate
+gitshift github test --account work
 ```
 
 #### Issue: Git Config Not Switching
 ```bash
 # Fix: Reset Git configuration
-gitpersona git reset --account work
-gitpersona account switch work --force
-gitpersona git config show
+gitshift git reset --account work
+gitshift account switch work --force
+gitshift git config show
 ```
 
 #### Issue: Account Validation Fails
 ```bash
 # Fix: Validate and repair account
-gitpersona account validate work --fix
-gitpersona account repair work --auto
+gitshift account validate work --fix
+gitshift account repair work --auto
 ```
 
 ### Recovery Commands
 ```bash
 # Restore from backup
-gitpersona migrate restore --backup ~/.gitpersona/backups/latest
+gitshift migrate restore --backup ~/.gitshift/backups/latest
 
 # Reset to clean state
-gitpersona reset --confirm --backup
+gitshift reset --confirm --backup
 
 # Rebuild configuration
-gitpersona migrate run --clean-install
+gitshift migrate run --clean-install
 ```
 
 ### Debug Mode
 ```bash
 # Enable debug logging
-export GITPERSONA_LOG_LEVEL=debug
+export gitshift_LOG_LEVEL=debug
 
 # Run commands with verbose output
-gitpersona account list --verbose --debug
+gitshift account list --verbose --debug
 
 # Check system diagnostics
-gitpersona diagnose system --comprehensive
+gitshift diagnose system --comprehensive
 ```
 
 ## 📊 Post-Migration Verification
@@ -381,31 +381,31 @@ gitpersona diagnose system --comprehensive
 ### Verification Commands
 ```bash
 # Comprehensive health check
-gitpersona diagnose health --verbose
+gitshift diagnose health --verbose
 
 # Test all accounts
-gitpersona account validate --all
+gitshift account validate --all
 
 # Test SSH functionality
-gitpersona ssh test --all-accounts
+gitshift ssh test --all-accounts
 
 # Verify GitHub integration
-gitpersona github test --all-accounts
+gitshift github test --all-accounts
 
 # Security verification
-gitpersona security audit --comprehensive
+gitshift security audit --comprehensive
 ```
 
 ### Performance Validation
 ```bash
 # Benchmark account operations
-gitpersona benchmark --operations account,ssh,git
+gitshift benchmark --operations account,ssh,git
 
 # Test parallel execution
-gitpersona account list --parallel --time
+gitshift account list --parallel --time
 
 # Measure improvement
-gitpersona stats --compare-v1
+gitshift stats --compare-v1
 ```
 
 ## 🔮 Advanced Migration Features
@@ -413,50 +413,50 @@ gitpersona stats --compare-v1
 ### Batch Operations
 ```bash
 # Import multiple accounts from CSV
-gitpersona migrate import --csv accounts.csv
+gitshift migrate import --csv accounts.csv
 
 # Bulk SSH key generation
-gitpersona ssh keys generate --batch --accounts work,personal,oss
+gitshift ssh keys generate --batch --accounts work,personal,oss
 
 # Mass account validation
-gitpersona account validate --batch --fix-issues
+gitshift account validate --batch --fix-issues
 ```
 
 ### Custom Migration Scripts
 ```bash
 # Export current config for custom processing
-gitpersona migrate export --format yaml > current-config.yaml
+gitshift migrate export --format yaml > current-config.yaml
 
 # Apply custom transformations
 ./custom-migration-script.sh current-config.yaml
 
 # Import processed config
-gitpersona migrate import --config processed-config.yaml
+gitshift migrate import --config processed-config.yaml
 ```
 
 ### Integration Testing
 ```bash
 # Test migration in sandbox
-gitpersona migrate test --sandbox
+gitshift migrate test --sandbox
 
 # Validate migration completeness
-gitpersona migrate validate --comprehensive
+gitshift migrate validate --comprehensive
 
 # Performance impact analysis
-gitpersona migrate benchmark --before-after
+gitshift migrate benchmark --before-after
 ```
 
 ## 📞 Support & Resources
 
 ### Getting Help
 - **Documentation**: `docs/` directory
-- **Command Help**: `gitpersona [command] --help`
-- **Debug Info**: `gitpersona diagnose system --debug`
+- **Command Help**: `gitshift [command] --help`
+- **Debug Info**: `gitshift diagnose system --debug`
 - **Issues**: GitHub issue tracker
 
 ### Migration Support
-- **Pre-migration Consultation**: Run `gitpersona migrate check --advice`
-- **Interactive Migration**: Use `gitpersona migrate run --interactive`
+- **Pre-migration Consultation**: Run `gitshift migrate check --advice`
+- **Interactive Migration**: Use `gitshift migrate run --interactive`
 - **Rollback Support**: Automatic backups enable safe rollback
 - **Community Support**: GitHub discussions
 
@@ -469,4 +469,4 @@ gitpersona migrate benchmark --before-after
 
 ---
 
-**Welcome to GitPersona v2.0!** - Your Git identity management just got 87% faster and infinitely more secure.
+**Welcome to gitshift v2.0!** - Your Git identity management just got 87% faster and infinitely more secure.

@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/GitPersona/internal/config"
-	"github.com/techishthoughts/GitPersona/internal/discovery"
-	"github.com/techishthoughts/GitPersona/internal/models"
+	"github.com/techishthoughts/gitshift/internal/config"
+	"github.com/techishthoughts/gitshift/internal/discovery"
+	"github.com/techishthoughts/gitshift/internal/models"
 )
 
 // discoverCmd represents the discover command
@@ -22,8 +22,8 @@ var discoverCmd = &cobra.Command{
 - GitHub CLI (gh) authentication
 
 Examples:
-  gitpersona discover
-  gitpersona discover --auto-import`,
+  gitshift discover
+  gitshift discover --auto-import`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configManager := config.NewManager()
 		if err := configManager.Load(); err != nil {
@@ -64,7 +64,7 @@ Examples:
 
 		if len(discovered) == 0 {
 			fmt.Println("❌ No existing Git accounts found on your system.")
-			fmt.Println("💡 Use 'gitpersona add-github username' for automatic setup!")
+			fmt.Println("💡 Use 'gitshift add-github username' for automatic setup!")
 			return nil
 		}
 
@@ -155,7 +155,7 @@ Examples:
 
 						// Provide specific completion command based on what's missing
 						if account.GitHubUsername != "" {
-							fmt.Printf("   💡 Complete with: gitpersona complete %s", account.Alias)
+							fmt.Printf("   💡 Complete with: gitshift complete %s", account.Alias)
 							if account.Name == "" {
 								fmt.Printf(" --name \"Your Name\"")
 							}
@@ -164,7 +164,7 @@ Examples:
 							}
 							fmt.Println()
 						} else {
-							fmt.Printf("   💡 Complete with: gitpersona add-github USERNAME --alias %s", account.Alias)
+							fmt.Printf("   💡 Complete with: gitshift add-github USERNAME --alias %s", account.Alias)
 							if account.Name != "" {
 								fmt.Printf(" --name \"%s\"", account.Name)
 							} else {
@@ -189,16 +189,16 @@ Examples:
 					if account.Name == "" && account.Email == "" {
 						reasons = append(reasons, "missing name and email")
 						if account.GitHubUsername != "" {
-							recommendations = append(recommendations, fmt.Sprintf("gitpersona add-github %s --name \"Your Name\" --email \"your@email.com\"", account.GitHubUsername))
+							recommendations = append(recommendations, fmt.Sprintf("gitshift add-github %s --name \"Your Name\" --email \"your@email.com\"", account.GitHubUsername))
 						} else if account.Alias != "" {
-							recommendations = append(recommendations, fmt.Sprintf("gitpersona add %s --name \"Your Name\" --email \"your@email.com\"", account.Alias))
+							recommendations = append(recommendations, fmt.Sprintf("gitshift add %s --name \"Your Name\" --email \"your@email.com\"", account.Alias))
 						} else {
 							recommendations = append(recommendations, "--name \"Your Name\" --email \"your@email.com\"")
 						}
 					}
 					if account.GitHubUsername == "" && account.SSHKeyPath == "" {
 						reasons = append(reasons, "missing GitHub username and SSH key")
-						recommendations = append(recommendations, "gitpersona add-github USERNAME")
+						recommendations = append(recommendations, "gitshift add-github USERNAME")
 					}
 
 					fmt.Printf("%s\n", strings.Join(reasons, ", "))
@@ -208,17 +208,17 @@ Examples:
 						fmt.Printf("   💡 To add this account:")
 						if account.GitHubUsername != "" {
 							// We have GitHub username, suggest completing with missing fields
-							fmt.Printf(" gitpersona add-github %s", account.GitHubUsername)
+							fmt.Printf(" gitshift add-github %s", account.GitHubUsername)
 							if len(recommendations) > 1 {
 								fmt.Printf(" %s", strings.Join(recommendations[1:], " "))
 							}
 						} else if account.Alias != "" && (account.Name != "" || account.Email != "") {
 							// We have alias and some info, suggest using the alias
-							fmt.Printf(" gitpersona add %s", account.Alias)
+							fmt.Printf(" gitshift add %s", account.Alias)
 							// Filter out the generic recommendation and use specific ones
 							specificRecommendations := []string{}
 							for _, rec := range recommendations {
-								if rec != "gitpersona add-github USERNAME" {
+								if rec != "gitshift add-github USERNAME" {
 									specificRecommendations = append(specificRecommendations, rec)
 								}
 							}
@@ -239,7 +239,7 @@ Examples:
 
 		if imported > 0 {
 			fmt.Printf("🎉 Successfully imported %d account(s)!\n", imported)
-			fmt.Println("💡 Use 'gitpersona list' to see all accounts")
+			fmt.Println("💡 Use 'gitshift list' to see all accounts")
 
 			// Automatically test SSH for imported accounts
 			if !dryRun {
@@ -262,8 +262,8 @@ Examples:
 			pendingAccounts := configManager.ListPendingAccounts()
 			if len(pendingAccounts) > 0 {
 				fmt.Printf("\n📋 Found %d pending account(s) that need completion\n", len(pendingAccounts))
-				fmt.Println("💡 Use 'gitpersona pending' to see pending accounts")
-				fmt.Println("💡 Use 'gitpersona complete <alias>' to complete pending accounts")
+				fmt.Println("💡 Use 'gitshift pending' to see pending accounts")
+				fmt.Println("💡 Use 'gitshift complete <alias>' to complete pending accounts")
 			}
 		}
 
@@ -273,7 +273,7 @@ Examples:
 
 // testSSHForAccount performs basic SSH testing for a discovered account
 func testSSHForAccount(account *models.Account) error {
-	// This is a simplified SSH test - for full testing, users can run 'gitpersona ssh test <alias>'
+	// This is a simplified SSH test - for full testing, users can run 'gitshift ssh test <alias>'
 	if account.SSHKeyPath == "" {
 		return fmt.Errorf("no SSH key configured")
 	}

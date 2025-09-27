@@ -1,106 +1,89 @@
-name: 🚀 GitPersona CI
-
+---
+name: 🚀 GitShift CI
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
-
+    branches: [main]
 env:
   GO_VERSION: '1.23'
-
 jobs:
   # 🧪 Test & Build
   test-and-build:
     name: 🧪 Test & Build
     runs-on: ubuntu-latest
-
     steps:
-    - name: 📥 Checkout Code
-      uses: actions/checkout@v4
-
-    - name: 🐹 Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        check-latest: true
-
-    - name: 📦 Cache Dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/go/pkg/mod
-          ~/.cache/go-build
-        key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-${{ env.GO_VERSION }}-
-
-    - name: 🔄 Download Dependencies
-      run: go mod download
-
-    - name: 🔍 Verify Dependencies
-      run: go mod verify
-
-    - name: 🧹 Format Check
-      run: |
-        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
-          echo "Code is not formatted properly:"
-          gofmt -s -l .
-          exit 1
-        fi
-
-    - name: 🔧 Vet Analysis
-      run: go vet ./...
-
-    - name: 🧪 Run Tests
-      run: go test -v -timeout 5m ./...
-
-    - name: 🏗️ Build Binary
-      run: |
-        go build -o gitpersona .
-        ./gitpersona --version
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+      - name: 📦 Cache Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum')
+            }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ env.GO_VERSION }}-
+      - name: 🔄 Download Dependencies
+        run: go mod download
+      - name: 🔍 Verify Dependencies
+        run: go mod verify
+      - name: 🧹 Format Check
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "Code is not formatted properly:"
+            gofmt -s -l .
+            exit 1
+          fi
+      - name: 🔧 Vet Analysis
+        run: go vet ./...
+      - name: 🧪 Run Tests
+        run: go test -v -timeout 5m ./...
+      - name: 🏗️ Build Binary
+        run: |
+          go build -o gitshift .
+          ./gitshift --version
 
   # 🔒 Security Check
   security:
     name: 🔒 Security Analysis
     runs-on: ubuntu-latest
-
     steps:
-    - name: 📥 Checkout Code
-      uses: actions/checkout@v4
-
-    - name: 🐹 Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
-
-    - name: 🔍 Vulnerability Check
-      run: |
-        go install golang.org/x/vuln/cmd/govulncheck@latest
-        govulncheck ./...
-
-    - name: 📦 Dependency Review
-      uses: actions/dependency-review-action@v4
-      if: github.event_name == 'pull_request'
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: 🔍 Vulnerability Check
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+      - name: 📦 Dependency Review
+        uses: actions/dependency-review-action@v4
+        if: github.event_name == 'pull_request'
 
   # 📊 Code Quality
   quality:
     name: 📊 Code Quality
     runs-on: ubuntu-latest
-
     steps:
-    - name: 📥 Checkout Code
-      uses: actions/checkout@v4
-
-    - name: 🐹 Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
-
-    - name: 🔍 Run golangci-lint
-      uses: golangci/golangci-lint-action@v4
-      with:
-        version: latest
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: 🔍 Run golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
         # Re-enabled strict checks after comprehensive fixes
         # Only 13 minor issues remain (mostly defer calls and test env)
-        args: --timeout=5m
+          args: --timeout=5m

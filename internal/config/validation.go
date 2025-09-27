@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/techishthoughts/GitPersona/internal/models"
+	"github.com/techishthoughts/gitshift/internal/models"
 	"golang.org/x/crypto/ssh"
 )
 

@@ -1,4 +1,4 @@
-// Package gh provides GitHub API and authentication functionality for GitPersona.
+// Package gh provides GitHub API and authentication functionality for gitshift.
 package gh
 
 import (

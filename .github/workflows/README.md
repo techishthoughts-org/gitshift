@@ -115,7 +115,7 @@ This will trigger:
 
 ### Environment Variables
 - `GO_VERSION` - Go version for builds (currently 1.23)
-- `BINARY_NAME` - Binary name (currently gitpersona)
+- `BINARY_NAME` - Binary name (currently gitshift)
 
 ## 📊 Monitoring
 

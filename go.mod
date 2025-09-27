@@ -1,4 +1,4 @@
-module github.com/techishthoughts/GitPersona
+module github.com/techishthoughts/gitshift
 
 go 1.23.0
 

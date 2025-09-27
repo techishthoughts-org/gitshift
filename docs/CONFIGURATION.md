@@ -1,6 +1,6 @@
-# ⚙️ GitPersona Configuration Guide
+# ⚙️ gitshift Configuration Guide
 
-> **Complete guide to configuring GitPersona for optimal GitHub account management**
+> **Complete guide to configuring gitshift for optimal GitHub account management**
 
 ---
 
@@ -20,10 +20,10 @@
 
 ## 📁 **Configuration File Structure**
 
-GitPersona stores its configuration in `~/.config/gitpersona/config.yaml`:
+gitshift stores its configuration in `~/.config/gitshift/config.yaml`:
 
 ```yaml
-# GitPersona Configuration File
+# gitshift Configuration File
 # Version: 1.0.0
 # Last Updated: 2025-01-16T10:30:00Z
 
@@ -188,8 +188,8 @@ auto_detect: false # Disable automatic account detection
 ```
 
 **When `true`**:
-- GitPersona automatically detects account based on repository
-- Uses `.gitpersona.yaml` files in project directories
+- gitshift automatically detects account based on repository
+- Uses `.gitshift.yaml` files in project directories
 - Provides seamless workflow integration
 
 **When `false`**:
@@ -205,10 +205,10 @@ auto_detect: false # Disable automatic account detection
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GITPERSONA_CONFIG_PATH` | `~/.config/gitpersona` | Configuration directory path |
-| `GITPERSONA_DEBUG` | `false` | Enable debug logging |
-| `GITPERSONA_SSH_DIR` | `~/.ssh` | SSH keys directory |
-| `GITPERSONA_LOG_LEVEL` | `info` | Logging level (debug, info, warn, error) |
+| `gitshift_CONFIG_PATH` | `~/.config/gitshift` | Configuration directory path |
+| `gitshift_DEBUG` | `false` | Enable debug logging |
+| `gitshift_SSH_DIR` | `~/.ssh` | SSH keys directory |
+| `gitshift_LOG_LEVEL` | `info` | Logging level (debug, info, warn, error) |
 
 ### **GitHub Integration Variables**
 
@@ -231,24 +231,24 @@ auto_detect: false # Disable automatic account detection
 #### **Temporary (Current Session)**
 ```bash
 # Enable debug logging
-export GITPERSONA_DEBUG=true
+export gitshift_DEBUG=true
 
 # Set custom config path
-export GITPERSONA_CONFIG_PATH="/custom/path"
+export gitshift_CONFIG_PATH="/custom/path"
 
 # Set custom SSH directory
-export GITPERSONA_SSH_DIR="/custom/ssh"
+export gitshift_SSH_DIR="/custom/ssh"
 ```
 
 #### **Permanent (Shell Profile)**
 Add to `~/.zshrc`, `~/.bashrc`, or `~/.profile`:
 
 ```bash
-# GitPersona Configuration
-export GITPERSONA_CONFIG_PATH="$HOME/.config/gitpersona"
-export GITPERSONA_DEBUG=false
-export GITPERSONA_SSH_DIR="$HOME/.ssh"
-export GITPERSONA_LOG_LEVEL="info"
+# gitshift Configuration
+export gitshift_CONFIG_PATH="$HOME/.config/gitshift"
+export gitshift_DEBUG=false
+export gitshift_SSH_DIR="$HOME/.ssh"
+export gitshift_LOG_LEVEL="info"
 
 # GitHub CLI Configuration
 export GITHUB_CLI_PATH="gh"
@@ -260,8 +260,8 @@ Create `.env` file in project directory:
 
 ```bash
 # .env
-GITPERSONA_DEBUG=true
-GITPERSONA_LOG_LEVEL=debug
+gitshift_DEBUG=true
+gitshift_LOG_LEVEL=debug
 GITHUB_TOKEN=ghp_your_token_here
 ```
 
@@ -293,16 +293,16 @@ ssh_key_path: "/Users/john/.ssh/id_ecdsa_client"
 
 ### **SSH Config Integration**
 
-GitPersona can generate SSH configuration entries:
+gitshift can generate SSH configuration entries:
 
 ```bash
 # Generate SSH config
-gitpersona ssh-config generate
+gitshift ssh-config generate
 ```
 
 **Generated SSH Config Example**:
 ```bash
-# SSH Configuration for GitPersona
+# SSH Configuration for gitshift
 # Generated automatically - do not edit manually
 
 Host github-personal
@@ -336,7 +336,7 @@ ssh_agent:
 
 #### **SSH Socket Directories**
 ```bash
-# GitPersona creates these directories automatically
+# gitshift creates these directories automatically
 ~/.ssh/socket/     # SSH agent sockets
 ~/.ssh/sockets/    # Additional socket storage
 ~/.ssh/control/    # SSH control connections
@@ -348,7 +348,7 @@ ssh_agent:
 
 ### **Zsh Secrets Configuration**
 
-GitPersona automatically manages `GITHUB_TOKEN` in your `zsh_secrets` file:
+gitshift automatically manages `GITHUB_TOKEN` in your `zsh_secrets` file:
 
 #### **Supported File Locations**
 ```yaml
@@ -363,7 +363,7 @@ zsh_secrets_locations:
 #### **Zsh Secrets File Format**
 ```bash
 # ~/.zsh_secrets
-# GitPersona managed file - do not edit manually
+# gitshift managed file - do not edit manually
 
 # GitHub Token (updated automatically)
 export GITHUB_TOKEN="ghp_your_token_here"
@@ -389,19 +389,19 @@ zsh_secrets:
 #### **Manual Management**
 ```bash
 # Update token manually
-gitpersona secrets update-token
+gitshift secrets update-token
 
 # Get current token
-gitpersona secrets get-token
+gitshift secrets get-token
 
 # Validate zsh_secrets file
-gitpersona secrets validate
+gitshift secrets validate
 
 # Backup zsh_secrets file
-gitpersona secrets backup
+gitshift secrets backup
 
 # Restore from backup
-gitpersona secrets restore --backup 1
+gitshift secrets restore --backup 1
 ```
 
 ---
@@ -410,10 +410,10 @@ gitpersona secrets restore --backup 1
 
 ### **Project Configuration File**
 
-Create `.gitpersona.yaml` in your project directory:
+Create `.gitshift.yaml` in your project directory:
 
 ```yaml
-# .gitpersona.yaml
+# .gitshift.yaml
 account: work
 description: "Work project - use work account"
 created_at: "2025-01-16T10:00:00Z"
@@ -441,14 +441,14 @@ ssh_config:
 
 #### **Basic Project Config**
 ```yaml
-# .gitpersona.yaml
+# .gitshift.yaml
 account: work
 description: "Company project"
 ```
 
 #### **Advanced Project Config**
 ```yaml
-# .gitpersona.yaml
+# .gitshift.yaml
 account: client-project
 description: "Client project with specific requirements"
 auto_switch: true
@@ -473,50 +473,50 @@ ssh_config:
 #### **View Configuration**
 ```bash
 # Show current configuration
-gitpersona config show
+gitshift config show
 
 # Show specific account
-gitpersona config show --account work
+gitshift config show --account work
 
 # Show in different formats
-gitpersona config show --format yaml
-gitpersona config show --format json
-gitpersona config show --format toml
+gitshift config show --format yaml
+gitshift config show --format json
+gitshift config show --format toml
 ```
 
 #### **Edit Configuration**
 ```bash
 # Edit configuration file
-gitpersona config edit
+gitshift config edit
 
 # Edit specific account
-gitpersona config edit --account work
+gitshift config edit --account work
 
 # Edit with specific editor
-gitpersona config edit --editor vim
+gitshift config edit --editor vim
 ```
 
 #### **Set Configuration Values**
 ```bash
 # Set global settings
-gitpersona config set global_git_config false
-gitpersona config set auto_detect true
+gitshift config set global_git_config false
+gitshift config set auto_detect true
 
 # Set account-specific settings
-gitpersona config set --account work email "new@email.com"
-gitpersona config set --account work ssh_key_path "/new/path"
+gitshift config set --account work email "new@email.com"
+gitshift config set --account work ssh_key_path "/new/path"
 ```
 
 #### **Validate Configuration**
 ```bash
 # Validate entire configuration
-gitpersona config validate
+gitshift config validate
 
 # Validate specific account
-gitpersona config validate --account work
+gitshift config validate --account work
 
 # Fix configuration issues
-gitpersona config validate --fix
+gitshift config validate --fix
 ```
 
 ### **Configuration Backup and Restore**
@@ -524,25 +524,25 @@ gitpersona config validate --fix
 #### **Backup Configuration**
 ```bash
 # Create backup
-gitpersona config backup
+gitshift config backup
 
 # Create backup with description
-gitpersona config backup --description "Before major changes"
+gitshift config backup --description "Before major changes"
 
 # List backups
-gitpersona config backup --list
+gitshift config backup --list
 ```
 
 #### **Restore Configuration**
 ```bash
 # Restore from latest backup
-gitpersona config restore
+gitshift config restore
 
 # Restore from specific backup
-gitpersona config restore --backup 1
+gitshift config restore --backup 1
 
 # Restore with confirmation
-gitpersona config restore --confirm
+gitshift config restore --confirm
 ```
 
 ---
@@ -610,7 +610,7 @@ logging:
   level: "info"  # debug, info, warn, error
   format: "json"  # json, text
   output: "file"  # file, stdout, stderr
-  file_path: "~/.config/gitpersona/logs/gitpersona.log"
+  file_path: "~/.config/gitshift/logs/gitshift.log"
   max_size: "10MB"
   max_backups: 5
   max_age: 30
@@ -700,18 +700,18 @@ git_validation:
 
 ```bash
 # Validate entire configuration
-gitpersona config validate
+gitshift config validate
 
 # Validate specific components
-gitpersona config validate --accounts
-gitpersona config validate --ssh
-gitpersona config validate --git
+gitshift config validate --accounts
+gitshift config validate --ssh
+gitshift config validate --git
 
 # Validate with fixes
-gitpersona config validate --fix
+gitshift config validate --fix
 
 # Validate with detailed output
-gitpersona config validate --verbose
+gitshift config validate --verbose
 ```
 
 ---
@@ -721,7 +721,7 @@ gitpersona config validate --verbose
 ### **Complete Configuration Example**
 
 ```yaml
-# Complete GitPersona Configuration
+# Complete gitshift Configuration
 # This is a comprehensive example showing all available options
 
 # Account configurations
@@ -778,7 +778,7 @@ zsh_secrets:
 logging:
   level: "info"
   format: "json"
-  file_path: "~/.config/gitpersona/logs/gitpersona.log"
+  file_path: "~/.config/gitshift/logs/gitshift.log"
 
 performance:
   cache_enabled: true
@@ -796,28 +796,28 @@ performance:
 #### **Invalid YAML Syntax**
 ```bash
 # Check YAML syntax
-gitpersona config validate
+gitshift config validate
 
 # Fix YAML syntax errors
-gitpersona config validate --fix
+gitshift config validate --fix
 ```
 
 #### **Missing Required Fields**
 ```bash
 # Check for missing fields
-gitpersona config validate --accounts
+gitshift config validate --accounts
 
 # Fix missing fields
-gitpersona config validate --fix
+gitshift config validate --fix
 ```
 
 #### **Invalid File Permissions**
 ```bash
 # Check file permissions
-ls -la ~/.config/gitpersona/config.yaml
+ls -la ~/.config/gitshift/config.yaml
 
 # Fix permissions
-chmod 600 ~/.config/gitpersona/config.yaml
+chmod 600 ~/.config/gitshift/config.yaml
 ```
 
 ### **Configuration Recovery**
@@ -825,19 +825,19 @@ chmod 600 ~/.config/gitpersona/config.yaml
 #### **Reset to Defaults**
 ```bash
 # Reset configuration to defaults
-gitpersona config reset
+gitshift config reset
 
 # Reset specific account
-gitpersona config reset --account work
+gitshift config reset --account work
 ```
 
 #### **Restore from Backup**
 ```bash
 # List available backups
-gitpersona config backup --list
+gitshift config backup --list
 
 # Restore from backup
-gitpersona config restore --backup 1
+gitshift config restore --backup 1
 ```
 
 ---

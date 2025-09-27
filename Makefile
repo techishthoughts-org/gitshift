@@ -1,10 +1,10 @@
-# GitPersona - SSH-First GitHub Account Management
+# gitshift - SSH-First GitHub Account Management
 # A clean, focused tool for managing multiple GitHub accounts with SSH isolation
 
 .PHONY: build test clean lint fmt vet install deps help demo
 
 # Build variables
-BINARY_NAME=gitpersona
+BINARY_NAME=gitshift
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 LDFLAGS=-ldflags "-X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)"
@@ -18,11 +18,11 @@ build:
 	@go build $(LDFLAGS) -o $(BINARY_NAME) .
 	@echo "✅ Build complete: ./$(BINARY_NAME)"
 
-## Install the binary to $GOPATH/bin
+## Install the binary to /usr/local/bin
 install: build
 	@echo "📦 Installing $(BINARY_NAME)..."
-	@go install $(LDFLAGS) .
-	@echo "✅ Installed: $(shell go env GOPATH)/bin/$(BINARY_NAME)"
+	@sudo cp $(BINARY_NAME) /usr/local/bin/
+	@echo "✅ Installed: /usr/local/bin/$(BINARY_NAME)"
 
 ## Run basic tests
 test:
@@ -70,9 +70,9 @@ clean:
 dev: deps fmt vet build test
 	@echo "🚀 Development build complete!"
 
-## Demo - show GitPersona in action
+## Demo - show gitshift in action
 demo: build
-	@echo "🎭 GitPersona Demo"
+	@echo "🎭 gitshift Demo"
 	@echo "=================="
 	@echo ""
 	@echo "📋 Current accounts:"
@@ -86,11 +86,11 @@ demo: build
 
 ## Show help
 help:
-	@echo "🎭 GitPersona - SSH-First GitHub Account Management"
+	@echo "🎭 gitshift - SSH-First GitHub Account Management"
 	@echo ""
 	@echo "Available make targets:"
-	@echo "  build      Build the gitpersona binary"
-	@echo "  install    Install gitpersona to GOPATH/bin"
+	@echo "  build      Build the gitshift binary"
+	@echo "  install    Install gitshift to GOPATH/bin"
 	@echo "  test       Run tests"
 	@echo "  fmt        Format Go code"
 	@echo "  vet        Run go vet"
@@ -98,13 +98,13 @@ help:
 	@echo "  deps       Download and tidy dependencies"
 	@echo "  clean      Clean build artifacts"
 	@echo "  dev        Full development workflow"
-	@echo "  demo       Show GitPersona in action"
+	@echo "  demo       Show gitshift in action"
 	@echo "  help       Show this help"
 	@echo ""
 	@echo "🚀 Quick start:"
 	@echo "  make build    # Build the binary"
-	@echo "  ./gitpersona discover  # Find existing SSH keys"
-	@echo "  ./gitpersona ssh-keygen myaccount --email me@example.com"
+	@echo "  ./gitshift discover  # Find existing SSH keys"
+	@echo "  ./gitshift ssh-keygen myaccount --email me@example.com"
 
 # Release targets for cross-platform builds
 .PHONY: release

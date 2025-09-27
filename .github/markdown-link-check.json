@@ -1,19 +1,19 @@
 {
   "ignorePatterns": [
     {
-      "pattern": "^https://github.com/techishthoughts/GitPersona"
+      "pattern": "^https://github.com/techishthoughts/gitshift"
     },
     {
-      "pattern": "^https://github.com/techishthoughts/GitPersona/issues"
+      "pattern": "^https://github.com/techishthoughts/gitshift/issues"
     },
     {
-      "pattern": "^https://github.com/techishthoughts/GitPersona/discussions"
+      "pattern": "^https://github.com/techishthoughts/gitshift/discussions"
     },
     {
-      "pattern": "^https://github.com/techishthoughts/GitPersona/releases"
+      "pattern": "^https://github.com/techishthoughts/gitshift/releases"
     },
     {
-      "pattern": "^https://github.com/techishthoughts/GitPersona/wiki"
+      "pattern": "^https://github.com/techishthoughts/gitshift/wiki"
     },
     {
       "pattern": "^mailto:"
@@ -25,7 +25,7 @@
   "replacementPatterns": [
     {
       "pattern": "^/",
-      "replacement": "https://github.com/techishthoughts/GitPersona/blob/main/"
+      "replacement": "https://github.com/techishthoughts/gitshift/blob/main/"
     }
   ],
   "httpHeaders": [

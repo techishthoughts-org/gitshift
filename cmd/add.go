@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/GitPersona/internal/config"
-	"github.com/techishthoughts/GitPersona/internal/git"
-	"github.com/techishthoughts/GitPersona/internal/models"
+	"github.com/techishthoughts/gitshift/internal/config"
+	"github.com/techishthoughts/gitshift/internal/git"
+	"github.com/techishthoughts/gitshift/internal/models"
 )
 
 // addCmd represents the add command
@@ -24,12 +24,12 @@ and runs in non-interactive mode. If any required field is missing, it will prom
 interactively unless --non-interactive is specified.
 
 Examples:
-  gitpersona add work --name "Work User" --email "work@company.com" --github-username "workuser"
-  gitpersona add personal --name "Personal User" --email "user@example.com" --github-username "username"
-  gitpersona add work --name "Work" --email "work@company.com" --github-username "workuser" --ssh-key "~/.ssh/id_rsa_work"
-  gitpersona add work --non-interactive  # will fail if required fields missing
+  gitshift add work --name "Work User" --email "work@company.com" --github-username "workuser"
+  gitshift add personal --name "Personal User" --email "user@example.com" --github-username "username"
+  gitshift add work --name "Work" --email "work@company.com" --github-username "workuser" --ssh-key "~/.ssh/id_rsa_work"
+  gitshift add work --non-interactive  # will fail if required fields missing
 
-💡 TIP: Use 'gitpersona add-github username' for automatic setup from GitHub API!`,
+💡 TIP: Use 'gitshift add-github username' for automatic setup from GitHub API!`,
 	Args: cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configManager := config.NewManager()

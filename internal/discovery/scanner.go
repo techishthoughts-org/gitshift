@@ -1,7 +1,7 @@
 package discovery
 
 import (
-	"github.com/techishthoughts/GitPersona/internal/models"
+	"github.com/techishthoughts/gitshift/internal/models"
 )
 
 // AccountDiscovery handles automatic detection of existing Git accounts

@@ -10,32 +10,32 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/GitPersona/internal/config"
+	"github.com/techishthoughts/gitshift/internal/config"
 )
 
 var sshKeygenCmd = &cobra.Command{
 	Use:   "ssh-keygen [account-alias]",
-	Short: "🔑 Generate and manage SSH keys for GitPersona accounts",
-	Long: `Generate SSH keys with proper parameters and manage them within GitPersona.
+	Short: "🔑 Generate and manage SSH keys for gitshift accounts",
+	Long: `Generate SSH keys with proper parameters and manage them within gitshift.
 This command handles:
 - SSH key generation with custom parameters
 - Proper file naming and storage in ~/.ssh
 - SSH key permissions (600 for private, 644 for public)
 - Known hosts management
-- Integration with GitPersona account system
+- Integration with gitshift account system
 
 The generated keys will be automatically configured for use with GitHub.`,
 	Example: `  # Generate key for existing account
-  gitpersona ssh-keygen costaar7
+  gitshift ssh-keygen costaar7
 
   # Generate key with custom email
-  gitpersona ssh-keygen myaccount --email user@company.com
+  gitshift ssh-keygen myaccount --email user@company.com
 
   # Generate RSA key instead of Ed25519
-  gitpersona ssh-keygen myaccount --type rsa --bits 4096
+  gitshift ssh-keygen myaccount --type rsa --bits 4096
 
   # Generate key and add to GitHub automatically
-  gitpersona ssh-keygen myaccount --add-to-github`,
+  gitshift ssh-keygen myaccount --add-to-github`,
 	Args: cobra.ExactArgs(1),
 	RunE: runSSHKeygen,
 }
@@ -148,7 +148,7 @@ func runSSHKeygen(cmd *cobra.Command, args []string) error {
 		fmt.Printf("   1. Copy the public key above\n")
 		fmt.Printf("   2. Go to: https://github.com/settings/keys\n")
 		fmt.Printf("   3. Click 'New SSH key' and paste the content\n")
-		fmt.Printf("   OR run: gitpersona ssh-keygen %s --add-to-github\n", accountAlias)
+		fmt.Printf("   OR run: gitshift ssh-keygen %s --add-to-github\n", accountAlias)
 	}
 
 	return nil
@@ -337,7 +337,7 @@ func addKeyToGitHub(pubKeyPath, alias string) error {
 	}
 
 	// Add the key
-	title := fmt.Sprintf("gitpersona-%s-%s", alias, generateKeyID())
+	title := fmt.Sprintf("gitshift-%s-%s", alias, generateKeyID())
 	cmd = exec.Command("gh", "ssh-key", "add", pubKeyPath, "--title", title)
 
 	if err := cmd.Run(); err != nil {

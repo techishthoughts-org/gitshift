@@ -1,6 +1,6 @@
-# 📋 GitPersona User Guide
+# 📋 gitshift User Guide
 
-> **Complete guide to using GitPersona for GitHub account management**
+> **Complete guide to using gitshift for GitHub account management**
 
 ---
 
@@ -25,23 +25,23 @@
 #### **From Source**
 ```bash
 # Clone the repository
-git clone https://github.com/techishthoughts/GitPersona.git
-cd GitPersona
+git clone https://github.com/techishthoughts/gitshift.git
+cd gitshift
 
 # Build the binary
-go build -o gitpersona
+go build -o gitshift
 
 # Install system-wide (optional)
-sudo mv gitpersona /usr/local/bin/
+sudo mv gitshift /usr/local/bin/
 ```
 
 #### **Verify Installation**
 ```bash
 # Check version
-gitpersona --version
+gitshift --version
 
 # Get help
-gitpersona --help
+gitshift --help
 ```
 
 ### **First-Time Setup**
@@ -49,7 +49,7 @@ gitpersona --help
 #### **1. System Diagnostics**
 ```bash
 # Run comprehensive system check
-gitpersona diagnose --verbose
+gitshift diagnose --verbose
 
 # This will check:
 # - Git installation and configuration
@@ -61,7 +61,7 @@ gitpersona diagnose --verbose
 #### **2. Add Your First Account**
 ```bash
 # Add GitHub account with automated setup
-gitpersona add-github yourusername \
+gitshift add-github yourusername \
   --email "your@email.com" \
   --name "Your Full Name" \
   --description "Personal GitHub account"
@@ -76,10 +76,10 @@ gitpersona add-github yourusername \
 #### **3. Switch to Your Account**
 ```bash
 # Switch to the account
-gitpersona switch yourusername
+gitshift switch yourusername
 
 # Verify the switch
-gitpersona status
+gitshift status
 ```
 
 ---
@@ -91,15 +91,15 @@ gitpersona status
 #### **Basic Account Addition**
 ```bash
 # Add account with minimal information
-gitpersona add-github username
+gitshift add-github username
 
-# GitPersona will prompt for missing information
+# gitshift will prompt for missing information
 ```
 
 #### **Complete Account Setup**
 ```bash
 # Add account with all information
-gitpersona add-github username \
+gitshift add-github username \
   --email "user@company.com" \
   --name "Full Name" \
   --description "Work account for Company Inc" \
@@ -109,7 +109,7 @@ gitpersona add-github username \
 #### **Account from GitHub Username**
 ```bash
 # Automatically fetch information from GitHub
-gitpersona add-github @username
+gitshift add-github @username
 
 # This will:
 # - Fetch public profile information
@@ -121,7 +121,7 @@ gitpersona add-github @username
 
 ```bash
 # List all configured accounts
-gitpersona list
+gitshift list
 
 # Output example:
 # 📋 Configured Accounts:
@@ -143,26 +143,26 @@ gitpersona list
 
 ```bash
 # View current account status
-gitpersona status
+gitshift status
 
 # View specific account details
-gitpersona list --account work
+gitshift list --account work
 
 # Get account configuration
-gitpersona config --account personal
+gitshift config --account personal
 ```
 
 ### **Removing Accounts**
 
 ```bash
 # Remove an account
-gitpersona remove oldaccount
+gitshift remove oldaccount
 
 # Remove with confirmation
-gitpersona remove oldaccount --confirm
+gitshift remove oldaccount --confirm
 
 # Remove and clean up SSH keys
-gitpersona remove oldaccount --cleanup-ssh
+gitshift remove oldaccount --cleanup-ssh
 ```
 
 ---
@@ -174,10 +174,10 @@ gitpersona remove oldaccount --cleanup-ssh
 #### **List SSH Keys**
 ```bash
 # List all SSH keys
-gitpersona ssh-keys list
+gitshift ssh-keys list
 
 # List keys for specific account
-gitpersona ssh-keys list --account work
+gitshift ssh-keys list --account work
 
 # Output example:
 # 🔑 SSH Keys:
@@ -198,10 +198,10 @@ gitpersona ssh-keys list --account work
 #### **Generate New SSH Keys**
 ```bash
 # Generate key for specific account
-gitpersona ssh-keys generate work
+gitshift ssh-keys generate work
 
 # Generate with custom settings
-gitpersona ssh-keys generate work \
+gitshift ssh-keys generate work \
   --type ed25519 \
   --email "work@company.com" \
   --comment "Work account key"
@@ -210,22 +210,22 @@ gitpersona ssh-keys generate work \
 #### **Test SSH Keys**
 ```bash
 # Test SSH connection for account
-gitpersona ssh-keys test work
+gitshift ssh-keys test work
 
 # Test specific key
-gitpersona ssh-keys test --key ~/.ssh/id_ed25519_work
+gitshift ssh-keys test --key ~/.ssh/id_ed25519_work
 
 # Test all keys
-gitpersona ssh-keys test --all
+gitshift ssh-keys test --all
 ```
 
 #### **Setup SSH Keys**
 ```bash
 # Setup SSH key for account (generate + upload)
-gitpersona ssh-keys setup work
+gitshift ssh-keys setup work
 
 # Setup with custom email
-gitpersona ssh-keys setup work --email "work@company.com"
+gitshift ssh-keys setup work --email "work@company.com"
 ```
 
 ### **SSH Agent Management**
@@ -233,7 +233,7 @@ gitpersona ssh-keys setup work --email "work@company.com"
 #### **SSH Agent Status**
 ```bash
 # Check SSH agent status
-gitpersona ssh-agent --status
+gitshift ssh-agent --status
 
 # Output example:
 # 🔐 SSH Agent Status:
@@ -248,16 +248,16 @@ gitpersona ssh-agent --status
 #### **SSH Agent Operations**
 ```bash
 # Clear all keys from agent
-gitpersona ssh-agent --clear
+gitshift ssh-agent --clear
 
 # Load specific key
-gitpersona ssh-agent --load ~/.ssh/id_ed25519_work
+gitshift ssh-agent --load ~/.ssh/id_ed25519_work
 
 # Start SSH agent
-gitpersona ssh-agent --start
+gitshift ssh-agent --start
 
 # Stop SSH agent
-gitpersona ssh-agent --stop
+gitshift ssh-agent --stop
 ```
 
 ### **SSH Configuration**
@@ -265,25 +265,25 @@ gitpersona ssh-agent --stop
 #### **Validate SSH Configuration**
 ```bash
 # Validate SSH setup
-gitpersona validate-ssh
+gitshift validate-ssh
 
 # Validate with verbose output
-gitpersona validate-ssh --verbose
+gitshift validate-ssh --verbose
 
 # Fix SSH issues automatically
-gitpersona validate-ssh --fix
+gitshift validate-ssh --fix
 ```
 
 #### **SSH Config Management**
 ```bash
 # Generate SSH config
-gitpersona ssh-config generate
+gitshift ssh-config generate
 
 # Validate SSH config
-gitpersona ssh-config validate
+gitshift ssh-config validate
 
 # Show SSH config
-gitpersona ssh-config show
+gitshift ssh-config show
 ```
 
 ---
@@ -294,21 +294,21 @@ gitpersona ssh-config show
 
 ```bash
 # Switch to account
-gitpersona switch work
+gitshift switch work
 
 # Switch with validation
-gitpersona switch work --validate
+gitshift switch work --validate
 
 # Force switch (skip validation)
-gitpersona switch work --force
+gitshift switch work --force
 
 # Skip SSH validation for speed
-gitpersona switch work --skip-validation
+gitshift switch work --skip-validation
 ```
 
 ### **What Happens During Switch**
 
-When you run `gitpersona switch work`, the following happens:
+When you run `gitshift switch work`, the following happens:
 
 1. **Validation**: Checks if the target account exists and is valid
 2. **SSH Validation**: Tests SSH connection to GitHub (unless skipped)
@@ -321,29 +321,29 @@ When you run `gitpersona switch work`, the following happens:
 
 ```bash
 # Switch with detailed output
-gitpersona switch work --verbose
+gitshift switch work --verbose
 
 # Switch and show configuration
-gitpersona switch work --show-config
+gitshift switch work --show-config
 
 # Switch with confirmation prompt
-gitpersona switch work --confirm
+gitshift switch work --confirm
 ```
 
 ### **Project-Specific Switching**
 
 ```bash
 # Set up project-specific account
-gitpersona project set work
+gitshift project set work
 
-# This creates a .gitpersona.yaml file in the current directory
+# This creates a .gitshift.yaml file in the current directory
 # with the specified account configuration
 
 # Switch to project account
-gitpersona switch --project
+gitshift switch --project
 
 # Remove project configuration
-gitpersona project unset
+gitshift project unset
 ```
 
 ---
@@ -355,40 +355,40 @@ gitpersona project unset
 #### **Full System Check**
 ```bash
 # Comprehensive system diagnostics
-gitpersona diagnose
+gitshift diagnose
 
 # Verbose output with detailed information
-gitpersona diagnose --verbose
+gitshift diagnose --verbose
 
 # Include system information
-gitpersona diagnose --include-system
+gitshift diagnose --include-system
 ```
 
 #### **Focused Diagnostics**
 ```bash
 # Check only accounts
-gitpersona diagnose --accounts-only
+gitshift diagnose --accounts-only
 
 # Check only SSH configuration
-gitpersona diagnose --ssh-only
+gitshift diagnose --ssh-only
 
 # Check only Git configuration
-gitpersona diagnose --git-only
+gitshift diagnose --git-only
 
 # Check only GitHub integration
-gitpersona diagnose --github-only
+gitshift diagnose --github-only
 ```
 
 #### **Auto-Fix Issues**
 ```bash
 # Automatically fix detected issues
-gitpersona diagnose --fix
+gitshift diagnose --fix
 
 # Fix with confirmation prompts
-gitpersona diagnose --fix --confirm
+gitshift diagnose --fix --confirm
 
 # Fix specific categories
-gitpersona diagnose --fix --ssh-only
+gitshift diagnose --fix --ssh-only
 ```
 
 ### **Health Check Categories**
@@ -404,7 +404,7 @@ gitpersona diagnose --fix --ssh-only
 ### **Example Diagnostic Output**
 
 ```bash
-$ gitpersona diagnose --verbose
+$ gitshift diagnose --verbose
 
 🟢 Overall Health: EXCELLENT
 
@@ -442,7 +442,7 @@ $ gitpersona diagnose --verbose
   • system: GitHub CLI not found
     Recommendation: Install GitHub CLI for enhanced integration
 
-💡 Run 'gitpersona diagnose --fix' to automatically resolve fixable issues
+💡 Run 'gitshift diagnose --fix' to automatically resolve fixable issues
 ```
 
 ---
@@ -451,10 +451,10 @@ $ gitpersona diagnose --verbose
 
 ### **Configuration File**
 
-GitPersona stores configuration in `~/.config/gitpersona/config.yaml`:
+gitshift stores configuration in `~/.config/gitshift/config.yaml`:
 
 ```yaml
-# GitPersona Configuration
+# gitshift Configuration
 accounts:
   personal:
     alias: personal
@@ -494,40 +494,40 @@ config_version: "1.0.0"
 #### **View Configuration**
 ```bash
 # Show current configuration
-gitpersona config show
+gitshift config show
 
 # Show configuration for specific account
-gitpersona config show --account work
+gitshift config show --account work
 
 # Show configuration in different formats
-gitpersona config show --format yaml
-gitpersona config show --format json
+gitshift config show --format yaml
+gitshift config show --format json
 ```
 
 #### **Edit Configuration**
 ```bash
 # Edit configuration file
-gitpersona config edit
+gitshift config edit
 
 # Edit specific account
-gitpersona config edit --account work
+gitshift config edit --account work
 
 # Set configuration values
-gitpersona config set global_git_config false
-gitpersona config set auto_detect true
+gitshift config set global_git_config false
+gitshift config set auto_detect true
 ```
 
 ### **Environment Variables**
 
 ```bash
 # Configuration file location
-export GITPERSONA_CONFIG_PATH="~/.config/gitpersona"
+export gitshift_CONFIG_PATH="~/.config/gitshift"
 
 # Enable debug logging
-export GITPERSONA_DEBUG=true
+export gitshift_DEBUG=true
 
 # Default SSH key directory
-export GITPERSONA_SSH_DIR="~/.ssh"
+export gitshift_SSH_DIR="~/.ssh"
 
 # GitHub CLI path (if not in PATH)
 export GITHUB_CLI_PATH="/usr/local/bin/gh"
@@ -539,7 +539,7 @@ export GITHUB_CLI_PATH="/usr/local/bin/gh"
 
 ### **Zsh Secrets Integration**
 
-GitPersona automatically manages your `GITHUB_TOKEN` in your `zsh_secrets` file:
+gitshift automatically manages your `GITHUB_TOKEN` in your `zsh_secrets` file:
 
 #### **Supported Locations**
 - `~/.zsh_secrets` (default)
@@ -550,9 +550,9 @@ GitPersona automatically manages your `GITHUB_TOKEN` in your `zsh_secrets` file:
 #### **How It Works**
 ```bash
 # When you switch accounts
-gitpersona switch work
+gitshift switch work
 
-# GitPersona automatically:
+# gitshift automatically:
 # 1. Gets the current GitHub token from 'gh auth token'
 # 2. Updates the GITHUB_TOKEN in your zsh_secrets file
 # 3. Optionally reloads the zsh_secrets file
@@ -561,22 +561,22 @@ gitpersona switch work
 #### **Manual Token Management**
 ```bash
 # Update token manually
-gitpersona secrets update-token
+gitshift secrets update-token
 
 # Get current token
-gitpersona secrets get-token
+gitshift secrets get-token
 
 # Validate zsh_secrets file
-gitpersona secrets validate
+gitshift secrets validate
 ```
 
 ### **Project-Specific Configuration**
 
 #### **Project Configuration File**
-Create a `.gitpersona.yaml` file in your project directory:
+Create a `.gitshift.yaml` file in your project directory:
 
 ```yaml
-# .gitpersona.yaml
+# .gitshift.yaml
 account: work
 description: "Work project - use work account"
 created_at: "2025-01-16T10:00:00Z"
@@ -585,16 +585,16 @@ created_at: "2025-01-16T10:00:00Z"
 #### **Project Commands**
 ```bash
 # Set project account
-gitpersona project set work
+gitshift project set work
 
 # Switch to project account
-gitpersona switch --project
+gitshift switch --project
 
 # Remove project configuration
-gitpersona project unset
+gitshift project unset
 
 # List project configurations
-gitpersona project list
+gitshift project list
 ```
 
 ### **Automated GitHub Integration**
@@ -602,22 +602,22 @@ gitpersona project list
 #### **SSH Key Upload**
 ```bash
 # Add account with automatic SSH key upload
-gitpersona add-github username --upload-ssh
+gitshift add-github username --upload-ssh
 
 # Upload existing SSH key to GitHub
-gitpersona ssh-keys upload --key ~/.ssh/id_ed25519_work
+gitshift ssh-keys upload --key ~/.ssh/id_ed25519_work
 ```
 
 #### **Repository Management**
 ```bash
 # List repositories for current account
-gitpersona repos list
+gitshift repos list
 
 # Clone repository with correct account
-gitpersona repos clone owner/repo
+gitshift repos clone owner/repo
 
 # Set up repository with project account
-gitpersona repos setup owner/repo --account work
+gitshift repos setup owner/repo --account work
 ```
 
 ---
@@ -629,9 +629,9 @@ gitpersona repos setup owner/repo --account work
 #### **Naming Conventions**
 ```bash
 # Use descriptive aliases
-gitpersona add-github john-doe --alias personal
-gitpersona add-github john-company --alias work
-gitpersona add-github john-client --alias client-project
+gitshift add-github john-doe --alias personal
+gitshift add-github john-company --alias work
+gitshift add-github john-client --alias client-project
 
 # Use consistent email patterns
 # Personal: yourname@gmail.com
@@ -642,7 +642,7 @@ gitpersona add-github john-client --alias client-project
 #### **SSH Key Management**
 ```bash
 # Use Ed25519 keys (recommended)
-gitpersona ssh-keys generate work --type ed25519
+gitshift ssh-keys generate work --type ed25519
 
 # Use descriptive key names
 # ~/.ssh/id_ed25519_personal
@@ -663,13 +663,13 @@ Add to your `~/.zshrc` or `~/.bashrc`:
 # Auto-switch based on directory
 cd() {
     builtin cd "$@"
-    if [[ -f .gitpersona.yaml ]]; then
-        gitpersona switch --project
+    if [[ -f .gitshift.yaml ]]; then
+        gitshift switch --project
     fi
 }
 
 # Show current account in prompt
-export PS1='$(gitpersona status --short) $PS1'
+export PS1='$(gitshift status --short) $PS1'
 ```
 
 #### **Git Hooks**
@@ -678,7 +678,7 @@ Create `.git/hooks/pre-commit`:
 ```bash
 #!/bin/bash
 # Ensure correct account is active
-gitpersona switch --project
+gitshift switch --project
 ```
 
 ### **Security Best Practices**
@@ -686,13 +686,13 @@ gitpersona switch --project
 #### **SSH Key Security**
 ```bash
 # Use strong passphrases
-gitpersona ssh-keys generate work --passphrase
+gitshift ssh-keys generate work --passphrase
 
 # Regular key rotation
-gitpersona ssh-keys rotate work
+gitshift ssh-keys rotate work
 
 # Monitor key usage
-gitpersona ssh-keys audit
+gitshift ssh-keys audit
 ```
 
 #### **Token Management**
@@ -701,10 +701,10 @@ gitpersona ssh-keys audit
 gh auth login
 
 # Regularly refresh tokens
-gitpersona secrets refresh-token
+gitshift secrets refresh-token
 
 # Monitor token usage
-gitpersona secrets audit
+gitshift secrets audit
 ```
 
 ---
@@ -720,7 +720,7 @@ gitpersona secrets audit
 **Solutions**:
 ```bash
 # 1. Diagnose SSH issues
-gitpersona diagnose --ssh-only --verbose
+gitshift diagnose --ssh-only --verbose
 
 # 2. Test SSH connection manually
 ssh -T git@github.com -i ~/.ssh/id_ed25519_work
@@ -733,7 +733,7 @@ ls -la ~/.ssh/id_ed25519_work
 chmod 600 ~/.ssh/id_ed25519_work
 
 # 5. Verify key is added to GitHub
-gitpersona ssh-keys test work
+gitshift ssh-keys test work
 ```
 
 #### **Account Switch Failures**
@@ -743,14 +743,14 @@ gitpersona ssh-keys test work
 **Solutions**:
 ```bash
 # 1. Force switch with detailed output
-gitpersona switch work --force --verbose
+gitshift switch work --force --verbose
 
 # 2. Validate current configuration
-gitpersona diagnose --accounts-only
+gitshift diagnose --accounts-only
 
 # 3. Reset SSH agent state
-gitpersona ssh-agent --clear
-gitpersona switch work
+gitshift ssh-agent --clear
+gitshift switch work
 
 # 4. Check Git configuration
 git config --global --list
@@ -766,8 +766,8 @@ git config --global --list
 mkdir -p ~/.ssh/socket ~/.ssh/sockets ~/.ssh/control
 chmod 700 ~/.ssh/socket ~/.ssh/sockets ~/.ssh/control
 
-# 2. Let GitPersona fix automatically
-gitpersona diagnose --fix
+# 2. Let gitshift fix automatically
+gitshift diagnose --fix
 
 # 3. Verify directories exist
 ls -la ~/.ssh/socket/
@@ -789,10 +789,10 @@ gh auth login
 gh auth token
 
 # 4. Validate zsh_secrets file
-gitpersona secrets validate
+gitshift secrets validate
 
 # 5. Manually update token
-gitpersona secrets update-token
+gitshift secrets update-token
 ```
 
 ### **Getting Help**
@@ -800,30 +800,30 @@ gitpersona secrets update-token
 #### **Command Help**
 ```bash
 # General help
-gitpersona --help
+gitshift --help
 
 # Command-specific help
-gitpersona diagnose --help
-gitpersona switch --help
-gitpersona ssh-keys --help
+gitshift diagnose --help
+gitshift switch --help
+gitshift ssh-keys --help
 ```
 
 #### **Debug Mode**
 ```bash
 # Enable debug logging
-export GITPERSONA_DEBUG=true
+export gitshift_DEBUG=true
 
 # Run command with verbose output
-gitpersona switch work --verbose
+gitshift switch work --verbose
 
 # Check logs
-tail -f ~/.config/gitpersona/logs/gitpersona.log
+tail -f ~/.config/gitshift/logs/gitshift.log
 ```
 
 #### **System Information**
 ```bash
 # Get system information for bug reports
-gitpersona diagnose --include-system > system-info.txt
+gitshift diagnose --include-system > system-info.txt
 
 # Include in bug reports
 cat system-info.txt
@@ -843,6 +843,6 @@ cat system-info.txt
 
 <div align="center">
 
-**Need help?** Check our [Issues](https://github.com/techishthoughts/GitPersona/issues) or [Discussions](https://github.com/techishthoughts/GitPersona/discussions)!
+**Need help?** Check our [Issues](https://github.com/techishthoughts/gitshift/issues) or [Discussions](https://github.com/techishthoughts/gitshift/discussions)!
 
 </div>

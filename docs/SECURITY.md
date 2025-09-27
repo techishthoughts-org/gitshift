@@ -1,6 +1,6 @@
-# 🔒 GitPersona Security Guide
+# 🔒 gitshift Security Guide
 
-> **Security best practices, considerations, and guidelines for GitPersona**
+> **Security best practices, considerations, and guidelines for gitshift**
 
 ---
 
@@ -23,7 +23,7 @@
 
 ### **Security Principles**
 
-GitPersona is built with security-first principles:
+gitshift is built with security-first principles:
 
 - **🔐 Zero Trust**: Never trust, always verify
 - **🔒 Defense in Depth**: Multiple layers of security
@@ -34,7 +34,7 @@ GitPersona is built with security-first principles:
 
 ### **Security Scope**
 
-GitPersona handles sensitive information including:
+gitshift handles sensitive information including:
 - **SSH Private Keys** - Cryptographic keys for GitHub authentication
 - **GitHub Tokens** - API access tokens for GitHub services
 - **User Credentials** - Email addresses and personal information
@@ -522,8 +522,8 @@ func (s *RealZshSecretsService) processEnvironmentVariables() error {
     // Get environment variables securely
     envVars := []string{
         "GITHUB_TOKEN",
-        "GITPERSONA_CONFIG_PATH",
-        "GITPERSONA_SSH_DIR",
+        "gitshift_CONFIG_PATH",
+        "gitshift_SSH_DIR",
     }
 
     for _, envVar := range envVars {
@@ -579,7 +579,7 @@ func (s *GitHubTokenService) createSecureClient(token string) *github.Client {
     client := github.NewClient(httpClient).WithAuthToken(token)
 
     // Set secure headers
-    client.UserAgent = "GitPersona/1.0.0"
+    client.UserAgent = "gitshift/1.0.0"
 
     return client
 }
@@ -753,31 +753,31 @@ func TestSecurity_InputValidation(t *testing.T) {
 #### **SSH Key Security**
 ```bash
 # 1. Use strong passphrases for SSH keys
-gitpersona ssh-keys generate work --passphrase
+gitshift ssh-keys generate work --passphrase
 
 # 2. Regularly rotate SSH keys
-gitpersona ssh-keys rotate work
+gitshift ssh-keys rotate work
 
 # 3. Use Ed25519 keys (recommended)
-gitpersona ssh-keys generate work --type ed25519
+gitshift ssh-keys generate work --type ed25519
 
 # 4. Monitor key usage
-gitpersona ssh-keys audit
+gitshift ssh-keys audit
 ```
 
 #### **Configuration Security**
 ```bash
 # 1. Secure configuration directory
-chmod 700 ~/.config/gitpersona
+chmod 700 ~/.config/gitshift
 
 # 2. Regular configuration backups
-gitpersona config backup
+gitshift config backup
 
 # 3. Validate configuration security
-gitpersona config validate --security
+gitshift config validate --security
 
 # 4. Monitor configuration changes
-gitpersona config audit
+gitshift config audit
 ```
 
 #### **Token Management**
@@ -786,10 +786,10 @@ gitpersona config audit
 gh auth login
 
 # 2. Regularly refresh tokens
-gitpersona secrets refresh-token
+gitshift secrets refresh-token
 
 # 3. Monitor token usage
-gitpersona secrets audit
+gitshift secrets audit
 
 # 4. Use minimal required permissions
 gh auth refresh -s repo,read:user
@@ -951,11 +951,11 @@ func (s *SecurityService) LogSecurityEvent(ctx context.Context, event *SecurityE
 
 **Security is everyone's responsibility!**
 
-- 🔒 **Report Security Issues**: security@gitpersona.com
+- 🔒 **Report Security Issues**: security@gitshift.com
 - 🛡️ **Follow Best Practices**: Keep your system secure
 - 🔍 **Stay Informed**: Regular security updates
 - 🤝 **Contribute**: Help improve security
 
-**Together, we can make GitPersona more secure!** 🛡️
+**Together, we can make gitshift more secure!** 🛡️
 
 </div>

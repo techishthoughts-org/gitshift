@@ -1,5 +1,5 @@
 # 🐹 Go Build Artifacts
-gitpersona
+gitshift
 gh-switcher
 *.exe
 *.exe~
@@ -59,7 +59,7 @@ secrets.yaml
 secrets.yml
 
 # 📁 Configuration Files
-.gitpersona.yaml
+.gitshift.yaml
 config.yaml
 config.yml
 *.config.yaml

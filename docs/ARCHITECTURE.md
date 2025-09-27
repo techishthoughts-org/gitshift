@@ -1,6 +1,6 @@
-# 🏗️ GitPersona Architecture Guide
+# 🏗️ gitshift Architecture Guide
 
-> **Technical architecture and design principles of GitPersona**
+> **Technical architecture and design principles of gitshift**
 
 ---
 
@@ -24,7 +24,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    GitPersona System                        │
+│                    gitshift System                        │
 ├─────────────────────────────────────────────────────────────┤
 │  CLI Layer (Cobra Commands)                                │
 │  ├─ switch, add-github, diagnose, ssh-keys, etc.          │

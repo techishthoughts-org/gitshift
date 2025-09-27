@@ -1,12 +1,12 @@
-# 📚 GitPersona Documentation
+# 📚 gitshift Documentation
 
-> **Complete documentation for GitPersona - The ultimate GitHub account management tool**
+> **Complete documentation for gitshift - The ultimate GitHub account management tool**
 
 ---
 
-## 🎯 **Welcome to GitPersona Documentation**
+## 🎯 **Welcome to gitshift Documentation**
 
-This documentation provides comprehensive guides for using, configuring, and contributing to GitPersona. Whether you're a new user getting started or an experienced developer looking to contribute, you'll find everything you need here.
+This documentation provides comprehensive guides for using, configuring, and contributing to gitshift. Whether you're a new user getting started or an experienced developer looking to contribute, you'll find everything you need here.
 
 ---
 
@@ -45,7 +45,7 @@ This documentation provides comprehensive guides for using, configuring, and con
 - **[API Documentation](API_DOCUMENTATION.md)** - API reference and examples
 
 ### **🤝 Contributing**
-- **[Contributing Guide](CONTRIBUTING.md)** - How to contribute to GitPersona
+- **[Contributing Guide](CONTRIBUTING.md)** - How to contribute to gitshift
 - **[Development Setup](CONTRIBUTING.md#development-setup)** - Setting up development environment
 - **[Code Style Guidelines](CONTRIBUTING.md#code-style-guidelines)** - Coding standards
 - **[Testing Guidelines](CONTRIBUTING.md#testing-guidelines)** - Testing best practices
@@ -108,7 +108,7 @@ docs/
 2. Run **[Diagnostics](USER_GUIDE.md#diagnostics--health-checks)**
 3. Review **[SSH Configuration](CONFIGURATION.md#ssh-configuration)**
 
-### **Contributing to GitPersona**
+### **Contributing to gitshift**
 1. Read **[Contributing Guide](CONTRIBUTING.md)**
 2. Set up **[Development Environment](CONTRIBUTING.md#development-setup)**
 3. Follow **[Code Style Guidelines](CONTRIBUTING.md#code-style-guidelines)**
@@ -146,15 +146,15 @@ docs/
 - **[Go Documentation](https://golang.org/doc/)** - Go programming language docs
 
 ### **Community Resources**
-- **[GitHub Issues](https://github.com/techishthoughts/GitPersona/issues)** - Bug reports and feature requests
-- **[GitHub Discussions](https://github.com/techishthoughts/GitPersona/discussions)** - Community support
-- **[GitHub Wiki](https://github.com/techishthoughts/GitPersona/wiki)** - Community-maintained documentation
+- **[GitHub Issues](https://github.com/techishthoughts/gitshift/issues)** - Bug reports and feature requests
+- **[GitHub Discussions](https://github.com/techishthoughts/gitshift/discussions)** - Community support
+- **[GitHub Wiki](https://github.com/techishthoughts/gitshift/wiki)** - Community-maintained documentation
 
 ### **Support Channels**
-- **🐛 Bug Reports**: [GitHub Issues](https://github.com/techishthoughts/GitPersona/issues)
-- **💬 Community Support**: [GitHub Discussions](https://github.com/techishthoughts/GitPersona/discussions)
-- **📧 Security Issues**: security@gitpersona.com
-- **📧 General Support**: support@gitpersona.com
+- **🐛 Bug Reports**: [GitHub Issues](https://github.com/techishthoughts/gitshift/issues)
+- **💬 Community Support**: [GitHub Discussions](https://github.com/techishthoughts/gitshift/discussions)
+- **📧 Security Issues**: security@gitshift.com
+- **📧 General Support**: support@gitshift.com
 
 ---
 
@@ -163,7 +163,7 @@ docs/
 ### **Self-Service Resources**
 1. **Check the documentation** - Most questions are answered here
 2. **Search existing issues** - Your problem might already be solved
-3. **Run diagnostics** - Use `gitpersona diagnose` to check your system
+3. **Run diagnostics** - Use `gitshift diagnose` to check your system
 4. **Check troubleshooting guide** - Common issues and solutions
 
 ### **Community Support**
@@ -191,7 +191,7 @@ We value your feedback on our documentation! Help us improve by:
 1. **GitHub Issues** - Report documentation issues
 2. **Pull Requests** - Submit documentation improvements
 3. **Discussions** - Suggest documentation enhancements
-4. **Email** - Send feedback to docs@gitpersona.com
+4. **Email** - Send feedback to docs@gitshift.com
 
 ---
 
@@ -199,8 +199,8 @@ We value your feedback on our documentation! Help us improve by:
 
 **📚 Happy Reading!**
 
-Whether you're just getting started or diving deep into GitPersona's architecture, we hope this documentation helps you succeed.
+Whether you're just getting started or diving deep into gitshift's architecture, we hope this documentation helps you succeed.
 
-**Need help?** Check our [Troubleshooting Guide](TROUBLESHOOTING.md) or [join our community](https://github.com/techishthoughts/GitPersona/discussions)!
+**Need help?** Check our [Troubleshooting Guide](TROUBLESHOOTING.md) or [join our community](https://github.com/techishthoughts/gitshift/discussions)!
 
 </div>

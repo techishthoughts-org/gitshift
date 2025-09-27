@@ -1,6 +1,6 @@
-# GitPersona Token Management
+# gitshift Token Management
 
-GitPersona now includes a complete, self-contained GitHub token management system that eliminates the dependency on GitHub CLI for MCP server authentication.
+gitshift now includes a complete, self-contained GitHub token management system that eliminates the dependency on GitHub CLI for MCP server authentication.
 
 ## Overview
 
@@ -16,16 +16,16 @@ The new token management system provides:
 ### 1. Token Storage Service
 - Encrypts and stores GitHub tokens locally
 - Uses AES-256 encryption with unique keys per installation
-- Stores tokens in `~/.config/gitpersona/tokens/`
+- Stores tokens in `~/.config/gitshift/tokens/`
 
 ### 2. Environment Service
 - Manages MCP server configuration
 - Updates shell environment files
-- Ensures tokens are available to all GitPersona components
+- Ensures tokens are available to all gitshift components
 
 ### 3. Integrated Commands
-- `gitpersona github-token`: Manage GitHub tokens
-- `gitpersona environment`: Configure environment integration
+- `gitshift github-token`: Manage GitHub tokens
+- `gitshift environment`: Configure environment integration
 
 ## Quick Start
 
@@ -33,24 +33,24 @@ The new token management system provides:
 
 ```bash
 # Interactive token entry (recommended)
-gitpersona github-token set --interactive
+gitshift github-token set --interactive
 
 # From environment variable
 export GITHUB_TOKEN="your_token_here"
-gitpersona github-token set --from-env
+gitshift github-token set --from-env
 
 # Direct token (less secure)
-gitpersona github-token set --token "your_token_here"
+gitshift github-token set --token "your_token_here"
 ```
 
 ### 2. Set Up Environment
 
 ```bash
 # Configure both MCP servers and shell environment
-gitpersona environment setup
+gitshift environment setup
 
 # Validate the setup
-gitpersona environment validate
+gitshift environment validate
 ```
 
 ### 3. Restart Claude Code
@@ -64,46 +64,46 @@ After setting up tokens and environment, restart Claude Code to reload MCP serve
 #### Set Token
 ```bash
 # Set token for current account
-gitpersona github-token set --interactive
+gitshift github-token set --interactive
 
 # Set token for specific account
-gitpersona github-token set myaccount --interactive
+gitshift github-token set myaccount --interactive
 
 # Import from GitHub CLI (one-time migration)
-gitpersona github-token import-from-cli
+gitshift github-token import-from-cli
 ```
 
 #### Get Token
 ```bash
 # Show masked token
-gitpersona github-token get
+gitshift github-token get
 
 # Show full token (be careful!)
-gitpersona github-token get --show
+gitshift github-token get --show
 
 # Export as environment variable
-gitpersona github-token get --export
+gitshift github-token get --export
 ```
 
 #### List Tokens
 ```bash
 # Show all stored tokens
-gitpersona github-token list
+gitshift github-token list
 ```
 
 #### Validate Token
 ```bash
 # Validate current account's token
-gitpersona github-token validate
+gitshift github-token validate
 
 # Validate specific account's token
-gitpersona github-token validate myaccount
+gitshift github-token validate myaccount
 ```
 
 #### Delete Token
 ```bash
 # Delete token for specific account
-gitpersona github-token delete myaccount
+gitshift github-token delete myaccount
 ```
 
 ### Environment Commands
@@ -111,49 +111,49 @@ gitpersona github-token delete myaccount
 #### Setup
 ```bash
 # Full environment setup
-gitpersona environment setup
+gitshift environment setup
 
 # MCP servers only
-gitpersona environment setup --mcp-only
+gitshift environment setup --mcp-only
 
 # Shell environment only
-gitpersona environment setup --shell-only
+gitshift environment setup --shell-only
 
 # Force setup (overwrite existing)
-gitpersona environment setup --force
+gitshift environment setup --force
 ```
 
 #### Validate
 ```bash
 # Comprehensive environment validation
-gitpersona environment validate
+gitshift environment validate
 
 # Quick status check
-gitpersona environment status
+gitshift environment status
 ```
 
 #### Cleanup
 ```bash
 # Clean up old configuration files
-gitpersona environment cleanup
+gitshift environment cleanup
 ```
 
 ## File Locations
 
 ### Token Storage
-- **Location**: `~/.config/gitpersona/tokens/`
+- **Location**: `~/.config/gitshift/tokens/`
 - **Files**: `{account}.json` (encrypted token files)
 - **Encryption Key**: `.encryption_key` (automatically generated)
 
 ### Environment Configuration
-- **GitPersona Environment**: `~/.config/gitpersona/environment`
-- **MCP Configuration**: `~/.config/gitpersona/mcp/`
+- **gitshift Environment**: `~/.config/gitshift/environment`
+- **MCP Configuration**: `~/.config/gitshift/mcp/`
 - **Shell Integration**: Added to `~/.zshrc`, `~/.bashrc`, `~/.profile`
 
 ### MCP Server Files
 - **Claude Code**: `~/.config/claude-code/github-token.env`
 - **Claude**: `~/.config/claude/github-token.env`
-- **GitPersona MCP**: `~/.config/gitpersona/mcp/github-token.env`
+- **gitshift MCP**: `~/.config/gitshift/mcp/github-token.env`
 
 ## Security Features
 
@@ -173,13 +173,13 @@ If you're currently using GitHub CLI for authentication:
 
 ```bash
 # 1. Import existing token
-gitpersona github-token import-from-cli
+gitshift github-token import-from-cli
 
 # 2. Set up environment
-gitpersona environment setup
+gitshift environment setup
 
 # 3. Validate everything works
-gitpersona environment validate
+gitshift environment validate
 
 # 4. Restart Claude Code
 ```
@@ -191,16 +191,16 @@ gitpersona environment validate
 **Problem**: Token validation fails
 ```bash
 # Check token format and permissions
-gitpersona github-token validate
+gitshift github-token validate
 
 # Re-import from CLI if needed
-gitpersona github-token import-from-cli
+gitshift github-token import-from-cli
 ```
 
 **Problem**: MCP servers can't access GitHub
 ```bash
 # Validate environment setup
-gitpersona environment validate
+gitshift environment validate
 
 # Restart Claude Code after any changes
 ```
@@ -209,8 +209,8 @@ gitpersona environment validate
 
 **Problem**: Shell doesn't have GitHub token
 ```bash
-# Reload GitPersona environment
-source ~/.config/gitpersona/environment
+# Reload gitshift environment
+source ~/.config/gitshift/environment
 
 # Or restart your shell
 ```
@@ -218,7 +218,7 @@ source ~/.config/gitpersona/environment
 **Problem**: MCP configuration missing
 ```bash
 # Re-setup environment
-gitpersona environment setup --force
+gitshift environment setup --force
 
 # Restart Claude Code
 ```
@@ -229,18 +229,18 @@ gitpersona environment setup --force
 
 ```bash
 # Store tokens for different accounts
-gitpersona github-token set work --interactive
-gitpersona github-token set personal --interactive
+gitshift github-token set work --interactive
+gitshift github-token set personal --interactive
 
 # Switch environment to specific account
-gitpersona environment setup --account work
+gitshift environment setup --account work
 ```
 
 ### Custom Export
 
 ```bash
 # Export token to custom script
-gitpersona github-token get --export > my-github-env.sh
+gitshift github-token get --export > my-github-env.sh
 source my-github-env.sh
 ```
 
@@ -250,13 +250,13 @@ After setup, these variables are available:
 
 - `GITHUB_TOKEN`: Primary GitHub token
 - `GITHUB_PERSONAL_ACCESS_TOKEN`: Same as GITHUB_TOKEN
-- `GITPERSONA_CURRENT_ACCOUNT`: Current account name
-- `GITPERSONA_GITHUB_TOKEN`: GitPersona-managed token
+- `gitshift_CURRENT_ACCOUNT`: Current account name
+- `gitshift_GITHUB_TOKEN`: gitshift-managed token
 
 ## Integration with Other Tools
 
 ### MCP Servers
-GitPersona automatically configures MCP servers to use stored tokens:
+gitshift automatically configures MCP servers to use stored tokens:
 
 ```json
 {
@@ -268,11 +268,11 @@ GitPersona automatically configures MCP servers to use stored tokens:
 ```
 
 ### Shell Scripts
-Use GitPersona tokens in your scripts:
+Use gitshift tokens in your scripts:
 
 ```bash
 #!/bin/bash
-source ~/.config/gitpersona/environment
+source ~/.config/gitshift/environment
 
 # Now GITHUB_TOKEN is available
 curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user
@@ -281,8 +281,8 @@ curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user
 ## Best Practices
 
 1. **Use Interactive Mode**: Always use `--interactive` for secure token entry
-2. **Validate Setup**: Run `gitpersona environment validate` after changes
-3. **Regular Cleanup**: Periodically run `gitpersona environment cleanup`
+2. **Validate Setup**: Run `gitshift environment validate` after changes
+3. **Regular Cleanup**: Periodically run `gitshift environment cleanup`
 4. **Restart Claude Code**: Always restart after token/environment changes
 5. **Secure Storage**: Never commit token files to version control
 
@@ -290,9 +290,9 @@ curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user
 
 For issues with token management:
 
-1. Check token validity: `gitpersona github-token validate`
-2. Validate environment: `gitpersona environment validate`
-3. Check logs in GitPersona's debug output
-4. Re-run setup: `gitpersona environment setup --force`
+1. Check token validity: `gitshift github-token validate`
+2. Validate environment: `gitshift environment validate`
+3. Check logs in gitshift's debug output
+4. Re-run setup: `gitshift environment setup --force`
 
-The new token management system provides a robust, secure, and self-contained way to handle GitHub authentication across all GitPersona components and MCP servers.
+The new token management system provides a robust, secure, and self-contained way to handle GitHub authentication across all gitshift components and MCP servers.

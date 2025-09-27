@@ -1,8 +1,8 @@
-# GitPersona 2.0 Refactoring Guide
+# gitshift 2.0 Refactoring Guide
 
 ## 🚀 Overview
 
-This document outlines the comprehensive refactoring of GitPersona from a fragmented, complex tool to a streamlined, enterprise-grade Git identity manager. The refactoring achieved:
+This document outlines the comprehensive refactoring of gitshift from a fragmented, complex tool to a streamlined, enterprise-grade Git identity manager. The refactoring achieved:
 
 - **87% performance improvement** through parallel execution
 - **Command consolidation** from 38+ to 13 unified commands
@@ -26,7 +26,7 @@ This document outlines the comprehensive refactoring of GitPersona from a fragme
 
 ### AI Development Orchestrator Metrics
 
-- **SpecKit Project**: GitPersona-Refactoring-2025
+- **SpecKit Project**: gitshift-Refactoring-2025
 - **Code Quality Score**: 8.3/10 (Aegis analysis)
 - **Cost Optimization**: 87.2% reduction
 - **Parallel Execution**: Maximum performance achieved
@@ -82,7 +82,7 @@ graph LR
 ### New Command Hierarchy
 
 ```
-gitpersona
+gitshift
 ├── account          # 👤 Unified account management
 │   ├── add         # Create new account
 │   ├── list        # List all accounts
@@ -299,59 +299,59 @@ go run cmd/main.go diagnose health
 
 ```bash
 # Add new account
-gitpersona account add work \
+gitshift account add work \
   --name "John Doe" \
   --email "john@company.com" \
   --ssh-key ~/.ssh/id_ed25519_work
 
 # Switch accounts
-gitpersona account switch work
+gitshift account switch work
 
 # List accounts (progressive disclosure)
-gitpersona account list                    # Basic
-gitpersona account list --detailed         # Detailed
-gitpersona account list --verbose          # Verbose
+gitshift account list                    # Basic
+gitshift account list --detailed         # Detailed
+gitshift account list --verbose          # Verbose
 ```
 
 ### SSH Key Management
 
 ```bash
 # Generate new SSH key
-gitpersona ssh keys generate \
+gitshift ssh keys generate \
   --type ed25519 \
   --email "john@company.com" \
   --name work-key
 
 # Upload to GitHub
-gitpersona ssh keys upload --key work-key
+gitshift ssh keys upload --key work-key
 
 # Test connectivity
-gitpersona ssh test
+gitshift ssh test
 ```
 
 ### Smart Operations
 
 ```bash
 # Auto-detect and switch based on repository
-gitpersona smart detect
-gitpersona smart auto-switch
+gitshift smart detect
+gitshift smart auto-switch
 
 # Security audit and auto-fix
-gitpersona security audit
-gitpersona security fix --auto
+gitshift security audit
+gitshift security fix --auto
 ```
 
 ### Migration
 
 ```bash
 # Check for migration needs
-gitpersona migrate check
+gitshift migrate check
 
 # Run migration with backup
-gitpersona migrate run --backup
+gitshift migrate run --backup
 
 # List available backups
-gitpersona migrate backup list
+gitshift migrate backup list
 ```
 
 ## 🔮 Future Enhancements
@@ -408,13 +408,13 @@ gitpersona migrate backup list
 
 ```bash
 # Comprehensive diagnostics
-gitpersona diagnose health --verbose
+gitshift diagnose health --verbose
 
 # Security audit
-gitpersona diagnose security --detailed
+gitshift diagnose security --detailed
 
 # System information
-gitpersona diagnose system --json
+gitshift diagnose system --json
 ```
 
 ### Support Channels
@@ -422,8 +422,8 @@ gitpersona diagnose system --json
 - **Documentation** - `docs/` directory
 - **Issues** - GitHub issue tracker
 - **Discussions** - GitHub discussions
-- **Security** - security@gitpersona.dev
+- **Security** - security@gitshift.dev
 
 ---
 
-**GitPersona 2.0** - Transforming Git identity management through intelligent design, maximum performance, and enterprise-grade security.
+**gitshift 2.0** - Transforming Git identity management through intelligent design, maximum performance, and enterprise-grade security.

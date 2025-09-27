@@ -1,9 +1,9 @@
-name: 🏷️ Create Release Tag
+name: 🏷️ Tag Release
 
 on:
   # Trigger on successful CI completion
   workflow_run:
-    workflows: ["🚀 GitPersona CI"]
+    workflows: ["🚀 GitShift CI"]
     types:
       - completed
     branches:

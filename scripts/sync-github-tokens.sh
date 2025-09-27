@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# GitPersona GitHub Token Synchronization Script
-# This script automatically syncs GitHub tokens between GitPersona accounts and MCP servers
+# gitshift GitHub Token Synchronization Script
+# This script automatically syncs GitHub tokens between gitshift accounts and MCP servers
 
 set -euo pipefail
 
 # Configuration
 SCRIPT_NAME="sync-github-tokens"
-LOG_LEVEL="${GITPERSONA_LOG_LEVEL:-info}"
+LOG_LEVEL="${gitshift_LOG_LEVEL:-info}"
 DRY_RUN="${DRY_RUN:-false}"
 
 # Colors for output
@@ -39,7 +39,7 @@ log_success() {
 # Help function
 show_help() {
     cat << EOF
-$SCRIPT_NAME - Sync GitHub tokens for GitPersona and MCP servers
+$SCRIPT_NAME - Sync GitHub tokens for gitshift and MCP servers
 
 USAGE:
     $SCRIPT_NAME [OPTIONS]
@@ -54,7 +54,7 @@ OPTIONS:
 
 ENVIRONMENT VARIABLES:
     DRY_RUN               Set to 'true' for dry-run mode
-    GITPERSONA_LOG_LEVEL  Set log level (error, info, debug)
+    gitshift_LOG_LEVEL  Set log level (error, info, debug)
 
 EXAMPLES:
     $SCRIPT_NAME                    # Normal sync
@@ -108,14 +108,14 @@ parse_args() {
     done
 }
 
-# Check if GitPersona is available
-check_gitpersona() {
-    if ! command -v gitpersona >/dev/null 2>&1; then
-        log_error "GitPersona not found in PATH"
+# Check if gitshift is available
+check_gitshift() {
+    if ! command -v gitshift >/dev/null 2>&1; then
+        log_error "gitshift not found in PATH"
         exit 1
     fi
 
-    log_info "GitPersona found: $(which gitpersona)"
+    log_info "gitshift found: $(which gitshift)"
 }
 
 # Check if GitHub CLI is available
@@ -134,14 +134,14 @@ check_github_cli() {
     log_info "GitHub CLI found and authenticated"
 }
 
-# Get current GitPersona account
+# Get current gitshift account
 get_current_account() {
     local current_account
-    current_account=$(gitpersona status --current-account-only 2>/dev/null || echo "")
+    current_account=$(gitshift status --current-account-only 2>/dev/null || echo "")
 
     if [[ -z "$current_account" ]]; then
-        log_error "No current GitPersona account set"
-        log_info "Set an account first: gitpersona switch <account>"
+        log_error "No current gitshift account set"
+        log_info "Set an account first: gitshift switch <account>"
         exit 1
     fi
 
@@ -153,9 +153,9 @@ get_github_token() {
     local token
     local current_account
 
-    # Try to get token from GitPersona first
+    # Try to get token from gitshift first
     current_account=$(get_current_account)
-    token=$(gitpersona github-token get "$current_account" --export 2>/dev/null | grep "export GITHUB_TOKEN" | sed 's/export GITHUB_TOKEN="//' | sed 's/"$//' || echo "")
+    token=$(gitshift github-token get "$current_account" --export 2>/dev/null | grep "export GITHUB_TOKEN" | sed 's/export GITHUB_TOKEN="//' | sed 's/"$//' || echo "")
 
     if [[ -n "$token" ]]; then
         echo "$token"
@@ -163,12 +163,12 @@ get_github_token() {
     fi
 
     # Fallback to GitHub CLI
-    log_info "No GitPersona token found, falling back to GitHub CLI..."
+    log_info "No gitshift token found, falling back to GitHub CLI..."
     token=$(gh auth token 2>/dev/null || echo "")
 
     if [[ -z "$token" ]]; then
-        log_error "Failed to get GitHub token from GitPersona or CLI"
-        log_info "Run 'gitpersona github-token set' to store a token"
+        log_error "Failed to get GitHub token from gitshift or CLI"
+        log_info "Run 'gitshift github-token set' to store a token"
         exit 1
     fi
 
@@ -221,11 +221,11 @@ update_mcp_config() {
 
             # Create environment file
             cat > "$env_file" << EOF
-# GitHub token for GitPersona account: $account
+# GitHub token for gitshift account: $account
 # Generated at: $(date -Iseconds)
-# DO NOT EDIT MANUALLY - Managed by GitPersona
+# DO NOT EDIT MANUALLY - Managed by gitshift
 export GITHUB_TOKEN="$token"
-export GITHUB_TOKEN_GITPERSONA="$token"
+export GITHUB_TOKEN_gitshift="$token"
 EOF
 
             chmod 600 "$env_file"
@@ -249,30 +249,30 @@ update_shell_env() {
 
     for shell_file in "${shell_files[@]}"; do
         if [[ -f "$shell_file" ]]; then
-            # Check if GitPersona token export already exists
-            if ! grep -q "# GitPersona GitHub token export" "$shell_file"; then
+            # Check if gitshift token export already exists
+            if ! grep -q "# gitshift GitHub token export" "$shell_file"; then
                 if [[ "$DRY_RUN" == "true" ]]; then
-                    log_info "[DRY-RUN] Would add GitPersona export to: $shell_file"
+                    log_info "[DRY-RUN] Would add gitshift export to: $shell_file"
                     continue
                 fi
 
-                # Add GitPersona token export section
+                # Add gitshift token export section
                 cat >> "$shell_file" << 'EOF'
 
-# GitPersona GitHub token export
-# This section is managed by GitPersona - do not edit manually
-if command -v gitpersona >/dev/null 2>&1; then
-  CURRENT_TOKEN=$(gitpersona config get-current-token 2>/dev/null || echo '')
+# gitshift GitHub token export
+# This section is managed by gitshift - do not edit manually
+if command -v gitshift >/dev/null 2>&1; then
+  CURRENT_TOKEN=$(gitshift config get-current-token 2>/dev/null || echo '')
   if [ -n "$CURRENT_TOKEN" ]; then
     export GITHUB_TOKEN="$CURRENT_TOKEN"
-    export GITHUB_TOKEN_GITPERSONA="$CURRENT_TOKEN"
+    export GITHUB_TOKEN_gitshift="$CURRENT_TOKEN"
   fi
 fi
 EOF
 
-                log_success "Added GitPersona export to: $shell_file"
+                log_success "Added gitshift export to: $shell_file"
             else
-                log_info "GitPersona export already exists in: $shell_file"
+                log_info "gitshift export already exists in: $shell_file"
             fi
         fi
     done
@@ -288,7 +288,7 @@ update_current_session() {
     fi
 
     export GITHUB_TOKEN="$token"
-    export GITHUB_TOKEN_GITPERSONA="$token"
+    export GITHUB_TOKEN_gitshift="$token"
 
     log_success "Updated environment variables for current session"
 }
@@ -302,7 +302,7 @@ sync_tokens() {
 
     # Get current account
     current_account=$(get_current_account)
-    log_info "Current GitPersona account: $current_account"
+    log_info "Current gitshift account: $current_account"
 
     # Get GitHub token
     github_token=$(get_github_token)
@@ -353,7 +353,7 @@ main() {
     fi
 
     # Check prerequisites
-    check_gitpersona
+    check_gitshift
     check_github_cli
 
     # Run synchronization

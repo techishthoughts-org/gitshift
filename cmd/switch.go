@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/GitPersona/internal/config"
-	"github.com/techishthoughts/GitPersona/internal/models"
-	"github.com/techishthoughts/GitPersona/internal/ssh"
+	"github.com/techishthoughts/gitshift/internal/config"
+	"github.com/techishthoughts/gitshift/internal/models"
+	"github.com/techishthoughts/gitshift/internal/ssh"
 )
 
 // switchCmd represents the switch command
@@ -26,9 +26,9 @@ This command will:
 - Test the connection
 
 Examples:
-  gitpersona switch thukabjj
-  gitpersona switch costaar7 --force
-  gitpersona switch personal --validate-only`,
+  gitshift switch thukabjj
+  gitshift switch costaar7 --force
+  gitshift switch personal --validate-only`,
 	Aliases: []string{"s", "use"},
 	Args:    cobra.ExactArgs(1),
 	RunE:    runSwitchCommand,
@@ -48,7 +48,7 @@ func runSwitchCommand(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Load GitPersona configuration
+	// Load gitshift configuration
 	configManager := config.NewManager()
 	if err := configManager.Load(); err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
@@ -110,7 +110,7 @@ func runSwitchCommand(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		fmt.Printf("ℹ️  No SSH key configured for this account\n")
-		fmt.Printf("   Consider running: gitpersona ssh-keys generate %s\n", accountAlias)
+		fmt.Printf("   Consider running: gitshift ssh-keys generate %s\n", accountAlias)
 	}
 
 	// 2. Update Git configuration
@@ -125,15 +125,15 @@ func runSwitchCommand(cmd *cobra.Command, args []string) error {
 		fmt.Printf("✅ Git configuration updated\n")
 	}
 
-	// 3. Update current account in GitPersona config
-	fmt.Printf("📝 Updating GitPersona configuration...\n")
+	// 3. Update current account in gitshift config
+	fmt.Printf("📝 Updating gitshift configuration...\n")
 	if err := configManager.SetCurrentAccount(accountAlias); err != nil {
 		return fmt.Errorf("failed to set current account: %w", err)
 	}
 	if err := configManager.Save(); err != nil {
 		return fmt.Errorf("failed to save configuration: %w", err)
 	}
-	fmt.Printf("✅ GitPersona configuration updated\n")
+	fmt.Printf("✅ gitshift configuration updated\n")
 
 	// 4. Update GitHub token if using GitHub CLI
 	fmt.Printf("🔐 Switching GitHub CLI authentication...\n")

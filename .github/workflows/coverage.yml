@@ -1,181 +1,159 @@
+---
 name: 📊 Code Coverage & Quality
-
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   schedule:
     # Run weekly on Sundays at 2 AM UTC
-    - cron: '0 2 * * 0'
-
+    - cron: 0 2 * * 0
 env:
   GO_VERSION: '1.23'
-
 jobs:
   # 📊 Code Coverage
   coverage:
     name: 📊 Code Coverage Analysis
     runs-on: ubuntu-latest
-
     steps:
-    - name: 📥 Checkout Code
-      uses: actions/checkout@v4
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: 📦 Cache Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum')
+            }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ env.GO_VERSION }}-
+      - name: 🔄 Download Dependencies
+        run: go mod download
+      - name: 🧪 Run Tests with Coverage
+        run: |
+          go test -v -race -coverprofile=coverage.out -covermode=atomic -timeout 5m ./...
+      - name: 📊 Generate Coverage Report
+        run: |
+          go tool cover -html=coverage.out -o coverage.html
+          go tool cover -func=coverage.out > coverage.txt
 
-    - name: 🐹 Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
+          # Calculate coverage percentage
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "coverage_percentage=$COVERAGE" >> $GITHUB_ENV
+          echo "Coverage: $COVERAGE%"
+      - name: 📈 Upload Coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+      - name: 📊 Coverage Summary
+        run: |
+          echo "## 📊 Code Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Overall Coverage**: ${{ env.coverage_percentage }}%" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
-    - name: 📦 Cache Dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/go/pkg/mod
-          ~/.cache/go-build
-        key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-${{ env.GO_VERSION }}-
-
-    - name: 🔄 Download Dependencies
-      run: go mod download
-
-    - name: 🧪 Run Tests with Coverage
-      run: |
-        go test -v -race -coverprofile=coverage.out -covermode=atomic -timeout 5m ./...
-
-    - name: 📊 Generate Coverage Report
-      run: |
-        go tool cover -html=coverage.out -o coverage.html
-        go tool cover -func=coverage.out > coverage.txt
-
-        # Calculate coverage percentage
-        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
-        echo "coverage_percentage=$COVERAGE" >> $GITHUB_ENV
-        echo "Coverage: $COVERAGE%"
-
-    - name: 📈 Upload Coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./coverage.out
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
-
-    - name: 📊 Coverage Summary
-      run: |
-        echo "## 📊 Code Coverage Report" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Overall Coverage**: ${{ env.coverage_percentage }}%" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-
-        # Coverage thresholds - progressive goals
-        if (( $(echo "${{ env.coverage_percentage }} >= 90" | bc -l) )); then
-          echo "✅ **Status**: Excellent coverage (${{ env.coverage_percentage }}%)" >> $GITHUB_STEP_SUMMARY
-        elif (( $(echo "${{ env.coverage_percentage }} >= 80" | bc -l) )); then
-          echo "🟡 **Status**: Good coverage (${{ env.coverage_percentage }}%) - aim for 90%+" >> $GITHUB_STEP_SUMMARY
-        elif (( $(echo "${{ env.coverage_percentage }} >= 70" | bc -l) )); then
-          echo "🟠 **Status**: Moderate coverage (${{ env.coverage_percentage }}%) - aim for 80%+" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "❌ **Status**: Low coverage (${{ env.coverage_percentage }}%) - must improve to at least 70%" >> $GITHUB_STEP_SUMMARY
-          exit 1
-        fi
-
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 📋 Coverage by Package" >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        cat coverage.txt >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-
-    - name: 📁 Upload Coverage Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage-report
-        path: |
-          coverage.out
-          coverage.html
-          coverage.txt
+          # Coverage thresholds - progressive goals
+          if (( $(echo "${{ env.coverage_percentage }} >= 90" | bc -l) )); then
+            echo "✅ **Status**: Excellent coverage (${{ env.coverage_percentage }}%)" >> $GITHUB_STEP_SUMMARY
+          elif (( $(echo "${{ env.coverage_percentage }} >= 80" | bc -l) )); then
+            echo "🟡 **Status**: Good coverage (${{ env.coverage_percentage }}%) - aim for 90%+" >> $GITHUB_STEP_SUMMARY
+          elif (( $(echo "${{ env.coverage_percentage }} >= 70" | bc -l) )); then
+            echo "🟠 **Status**: Moderate coverage (${{ env.coverage_percentage }}%) - aim for 80%+" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status**: Low coverage (${{ env.coverage_percentage }}%) - must improve to at least 70%" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Coverage by Package" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat coverage.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+      - name: 📁 Upload Coverage Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage.out
+            coverage.html
+            coverage.txt
 
   # 🔍 Code Quality Metrics
   quality-metrics:
     name: 🔍 Code Quality Metrics
     runs-on: ubuntu-latest
-
     steps:
-    - name: 📥 Checkout Code
-      uses: actions/checkout@v4
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: 🔍 Run golangci-lint with Metrics
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          args: --timeout=5m --out-format=json --out-format=tab
+      - name: 📊 Generate Quality Report
+        run: |
+          echo "## 🔍 Code Quality Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
-    - name: 🐹 Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
+          # Count lines of code
+          TOTAL_LINES=$(find . -name "*.go" -not -path "./vendor/*" | xargs wc -l | tail -1 | awk '{print $1}')
+          echo "**Total Lines of Code**: $TOTAL_LINES" >> $GITHUB_STEP_SUMMARY
 
-    - name: 🔍 Run golangci-lint with Metrics
-      uses: golangci/golangci-lint-action@v4
-      with:
-        version: latest
-        args: --timeout=5m --out-format=json --out-format=tab
+          # Count functions
+          TOTAL_FUNCTIONS=$(grep -r "func " --include="*.go" . | wc -l)
+          echo "**Total Functions**: $TOTAL_FUNCTIONS" >> $GITHUB_STEP_SUMMARY
 
-    - name: 📊 Generate Quality Report
-      run: |
-        echo "## 🔍 Code Quality Metrics" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-
-        # Count lines of code
-        TOTAL_LINES=$(find . -name "*.go" -not -path "./vendor/*" | xargs wc -l | tail -1 | awk '{print $1}')
-        echo "**Total Lines of Code**: $TOTAL_LINES" >> $GITHUB_STEP_SUMMARY
-
-        # Count functions
-        TOTAL_FUNCTIONS=$(grep -r "func " --include="*.go" . | wc -l)
-        echo "**Total Functions**: $TOTAL_FUNCTIONS" >> $GITHUB_STEP_SUMMARY
-
-        # Count packages
-        TOTAL_PACKAGES=$(find . -name "*.go" -not -path "./vendor/*" | xargs grep -l "package " | wc -l)
-        echo "**Total Packages**: $TOTAL_PACKAGES" >> $GITHUB_STEP_SUMMARY
-
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 📈 Quality Indicators" >> $GITHUB_STEP_SUMMARY
-        echo "- **Code Style**: Enforced by golangci-lint" >> $GITHUB_STEP_SUMMARY
-        echo "- **Security**: Checked by gosec and govulncheck" >> $GITHUB_STEP_SUMMARY
-        echo "- **Performance**: Analyzed by staticcheck" >> $GITHUB_STEP_SUMMARY
-        echo "- **Documentation**: Required for public functions" >> $GITHUB_STEP_SUMMARY
+          # Count packages
+          TOTAL_PACKAGES=$(find . -name "*.go" -not -path "./vendor/*" | xargs grep -l "package " | wc -l)
+          echo "**Total Packages**: $TOTAL_PACKAGES" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📈 Quality Indicators" >> $GITHUB_STEP_SUMMARY
+          echo "- **Code Style**: Enforced by golangci-lint" >> $GITHUB_STEP_SUMMARY
+          echo "- **Security**: Checked by gosec and govulncheck" >> $GITHUB_STEP_SUMMARY
+          echo "- **Performance**: Analyzed by staticcheck" >> $GITHUB_STEP_SUMMARY
+          echo "- **Documentation**: Required for public functions" >> $GITHUB_STEP_SUMMARY
 
   # 🚀 Performance Benchmarks
   benchmarks:
     name: 🚀 Performance Benchmarks
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-
     steps:
-    - name: 📥 Checkout Code
-      uses: actions/checkout@v4
-
-    - name: 🐹 Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
-
-    - name: 🏃 Run Benchmarks
-      run: |
-        echo "Running performance benchmarks..."
-        go test -bench=. -benchmem -run=^$ ./... > benchmark.txt 2>&1 || true
-
-    - name: 📊 Benchmark Summary
-      run: |
-        echo "## 🚀 Performance Benchmarks" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-
-        if [ -f benchmark.txt ]; then
-          echo "### 📈 Benchmark Results" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          cat benchmark.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-        else
-          echo "No benchmarks found or benchmarks failed to run." >> $GITHUB_STEP_SUMMARY
-        fi
-
-    - name: 📁 Upload Benchmark Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: benchmark-results
-        path: benchmark.txt
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: 🏃 Run Benchmarks
+        run: |
+          echo "Running performance benchmarks..."
+          go test -bench=. -benchmem -run=^$ ./... > benchmark.txt 2>&1 || true
+      - name: 📊 Benchmark Summary
+        run: |
+          echo "## 🚀 Performance Benchmarks" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f benchmark.txt ]; then
+            echo "### 📈 Benchmark Results" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat benchmark.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No benchmarks found or benchmarks failed to run." >> $GITHUB_STEP_SUMMARY
+          fi
+      - name: 📁 Upload Benchmark Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark.txt

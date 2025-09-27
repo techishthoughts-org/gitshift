@@ -1,4 +1,4 @@
-# 🎭 GitPersona
+# 🎭 gitshift
 
 > **SSH-First GitHub Account Management - Clean, Fast, and Isolated**
 
@@ -8,9 +8,9 @@
 
 ---
 
-## 🎯 **What is GitPersona?**
+## 🎯 **What is gitshift?**
 
-GitPersona is a **clean, focused CLI tool** for managing multiple GitHub accounts with **complete SSH isolation**. No GitHub API dependencies, no complex TUI interfaces - just pure SSH-based account management that works.
+gitshift is a **clean, focused CLI tool** for managing multiple GitHub accounts with **complete SSH isolation**. No GitHub API dependencies, no complex TUI interfaces - just pure SSH-based account management that works.
 
 ### **The Problem We Solve**
 - 🔄 **Manual switching** between Git configurations
@@ -21,7 +21,7 @@ GitPersona is a **clean, focused CLI tool** for managing multiple GitHub account
 - 🤔 **Hard-to-manage** known_hosts entries
 
 ### **Our SSH-First Solution**
-**GitPersona** provides **complete isolation** with:
+**gitshift** provides **complete isolation** with:
 - 🔐 **SSH-Only Approach** - No GitHub API dependencies
 - 🔄 **Complete Isolation** - Accounts never interfere
 - 🔑 **Smart SSH Management** - Auto-generates and manages keys
@@ -36,44 +36,44 @@ GitPersona is a **clean, focused CLI tool** for managing multiple GitHub account
 
 ```bash
 # Clone and build
-git clone https://github.com/techishthoughts/GitPersona.git
-cd GitPersona
+git clone https://github.com/techishthoughts/gitshift.git
+cd gitshift
 make build
 ```
 
 Or using Go:
 ```bash
-go install github.com/techishthoughts/GitPersona@latest
+go install github.com/techishthoughts/gitshift@latest
 ```
 
 ### **Basic Usage**
 
 1. **Discover existing SSH keys:**
 ```bash
-gitpersona discover
+gitshift discover
 ```
 
 2. **Generate a new SSH key:**
 ```bash
-gitpersona ssh-keygen work --email work@company.com
-gitpersona ssh-keygen personal --email me@gmail.com --type ed25519
+gitshift ssh-keygen work --email work@company.com
+gitshift ssh-keygen personal --email me@gmail.com --type ed25519
 ```
 
 3. **List accounts:**
 ```bash
-gitpersona list
+gitshift list
 ```
 
 4. **Switch accounts:**
 ```bash
-gitpersona switch work
-gitpersona switch personal
+gitshift switch work
+gitshift switch personal
 ```
 
 5. **Test SSH connectivity:**
 ```bash
-gitpersona ssh-test
-gitpersona ssh-test work --verbose
+gitshift ssh-test
+gitshift ssh-test work --verbose
 ```
 
 ---
@@ -81,40 +81,40 @@ gitpersona ssh-test work --verbose
 ## 🔧 **Core Commands**
 
 ### **Account Management**
-- `gitpersona add` - Add a new account manually
-- `gitpersona list` - List all configured accounts
-- `gitpersona remove` - Remove an account
-- `gitpersona update` - Update account information
-- `gitpersona switch` - Switch to a different account
+- `gitshift add` - Add a new account manually
+- `gitshift list` - List all configured accounts
+- `gitshift remove` - Remove an account
+- `gitshift update` - Update account information
+- `gitshift switch` - Switch to a different account
 
 ### **SSH Key Management**
-- `gitpersona ssh-keygen` - Generate SSH keys with full control
-- `gitpersona ssh-test` - Test and troubleshoot SSH connectivity
-- `gitpersona discover` - Auto-discover accounts from SSH keys
+- `gitshift ssh-keygen` - Generate SSH keys with full control
+- `gitshift ssh-test` - Test and troubleshoot SSH connectivity
+- `gitshift discover` - Auto-discover accounts from SSH keys
 
 ### **SSH Key Generation Options**
 ```bash
 # Ed25519 key (recommended)
-gitpersona ssh-keygen myaccount --email me@example.com
+gitshift ssh-keygen myaccount --email me@example.com
 
 # RSA key with custom size
-gitpersona ssh-keygen myaccount --type rsa --bits 4096
+gitshift ssh-keygen myaccount --type rsa --bits 4096
 
 # With passphrase protection
-gitpersona ssh-keygen myaccount --passphrase "my-secure-password"
+gitshift ssh-keygen myaccount --passphrase "my-secure-password"
 
 # Auto-add to GitHub (requires gh CLI)
-gitpersona ssh-keygen myaccount --add-to-github
+gitshift ssh-keygen myaccount --add-to-github
 
 # Force overwrite existing key
-gitpersona ssh-keygen myaccount --force
+gitshift ssh-keygen myaccount --force
 ```
 
 ---
 
 ## 🏗️ **Architecture**
 
-GitPersona uses a **pure SSH-first approach**:
+gitshift uses a **pure SSH-first approach**:
 
 ### **SSH Isolation Strategy**
 - **Unique SSH keys** per account (`id_ed25519_accountname`)
@@ -138,8 +138,8 @@ GitPersona uses a **pure SSH-first approach**:
 ├── config                   # SSH config with isolation
 └── known_hosts              # GitHub host keys
 
-~/.config/gitpersona/
-└── config.yaml              # GitPersona configuration
+~/.config/gitshift/
+└── config.yaml              # gitshift configuration
 ```
 
 ---
@@ -164,8 +164,8 @@ GitPersona uses a **pure SSH-first approach**:
 
 ### **Build from Source**
 ```bash
-git clone https://github.com/techishthoughts/GitPersona.git
-cd GitPersona
+git clone https://github.com/techishthoughts/gitshift.git
+cd gitshift
 make dev    # Full development build with tests
 ```
 
@@ -173,13 +173,13 @@ make dev    # Full development build with tests
 - `make build` - Build the binary
 - `make test` - Run tests
 - `make dev` - Full development workflow
-- `make demo` - Show GitPersona in action
+- `make demo` - Show gitshift in action
 - `make clean` - Clean build artifacts
 - `make release` - Cross-platform release builds
 
 ### **Project Structure**
 ```
-GitPersona/
+gitshift/
 ├── cmd/                    # CLI commands
 │   ├── add.go             # Account addition
 │   ├── discover.go        # SSH key discovery
@@ -223,4 +223,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**GitPersona: Where SSH simplicity meets GitHub productivity** 🎭✨
+**gitshift: Where SSH simplicity meets GitHub productivity** 🎭✨

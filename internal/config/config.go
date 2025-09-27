@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
-	"github.com/techishthoughts/GitPersona/internal/models"
+	"github.com/techishthoughts/gitshift/internal/models"
 )
 
 const (
-	ConfigDirName     = ".config/gitpersona"
+	ConfigDirName     = ".config/gitshift"
 	ConfigFileName    = "config"
-	ProjectConfigName = ".gitpersona.yaml"
+	ProjectConfigName = ".gitshift.yaml"
 )
 
 type Manager struct {

@@ -1,6 +1,6 @@
-# 🤝 GitPersona Contributing Guide
+# 🤝 gitshift Contributing Guide
 
-> **How to contribute to GitPersona and make it better for everyone**
+> **How to contribute to gitshift and make it better for everyone**
 
 ---
 
@@ -51,18 +51,18 @@
 ```bash
 # 1. Fork the repository on GitHub
 # 2. Clone your fork
-git clone https://github.com/YOUR_USERNAME/GitPersona.git
-cd GitPersona
+git clone https://github.com/YOUR_USERNAME/gitshift.git
+cd gitshift
 
 # 3. Add upstream remote
-git remote add upstream https://github.com/techishthoughts/GitPersona.git
+git remote add upstream https://github.com/techishthoughts/gitshift.git
 
 # 4. Verify remotes
 git remote -v
-# origin    https://github.com/YOUR_USERNAME/GitPersona.git (fetch)
-# origin    https://github.com/YOUR_USERNAME/GitPersona.git (push)
-# upstream  https://github.com/techishthoughts/GitPersona.git (fetch)
-# upstream  https://github.com/techishthoughts/GitPersona.git (push)
+# origin    https://github.com/YOUR_USERNAME/gitshift.git (fetch)
+# origin    https://github.com/YOUR_USERNAME/gitshift.git (push)
+# upstream  https://github.com/techishthoughts/gitshift.git (fetch)
+# upstream  https://github.com/techishthoughts/gitshift.git (push)
 ```
 
 ### **Development Environment**
@@ -72,7 +72,7 @@ git remote -v
 go mod download
 
 # 2. Build the project
-go build -o gitpersona
+go build -o gitshift
 
 # 3. Run tests
 go test ./...
@@ -137,7 +137,7 @@ func NewAccountService() *AccountService {}
 func (s *AccountService) validateAccount() error {}
 
 // Constants: PascalCase or UPPER_CASE
-const DefaultConfigPath = "~/.config/gitpersona"
+const DefaultConfigPath = "~/.config/gitshift"
 const MAX_RETRY_ATTEMPTS = 3
 
 // Variables: camelCase
@@ -221,7 +221,7 @@ import (
     "context"
     "fmt"
 
-    "github.com/techishthoughts/GitPersona/internal/observability"
+    "github.com/techishthoughts/gitshift/internal/observability"
 )
 
 // Type definitions
@@ -451,7 +451,7 @@ go test ./...
 gosec ./...
 
 # Build the project
-go build -o gitpersona
+go build -o gitshift
 ```
 
 4. **Commit your changes**
@@ -534,7 +534,7 @@ Closes #456
 A clear and concise description of what the bug is.
 
 **Steps to Reproduce**
-1. Run command: `gitpersona switch work`
+1. Run command: `gitshift switch work`
 2. See error: `Permission denied (publickey)`
 
 **Expected Behavior**
@@ -545,13 +545,13 @@ Switch fails with SSH authentication error
 
 **Environment**
 - OS: macOS 14.0
-- GitPersona Version: 1.0.0
+- gitshift Version: 1.0.0
 - Go Version: 1.21.0
 - Shell: zsh 5.9
 
 **Debug Information**
 ```
-$ gitpersona diagnose --include-system
+$ gitshift diagnose --include-system
 [Output here]
 ```
 
@@ -595,7 +595,7 @@ Look for issues labeled with:
 
 #### **Code Documentation**
 ```go
-// Package services provides business logic services for GitPersona.
+// Package services provides business logic services for gitshift.
 package services
 
 // AccountService handles account management operations.
@@ -620,17 +620,17 @@ Brief description of what the command does.
 ## Usage
 
 ```bash
-gitpersona command [flags] [arguments]
+gitshift command [flags] [arguments]
 ```
 
 ## Examples
 
 ```bash
 # Basic usage
-gitpersona command example
+gitshift command example
 
 # With flags
-gitpersona command --flag value
+gitshift command --flag value
 ```
 
 ## Options
@@ -743,11 +743,11 @@ We recognize contributors in several ways:
 
 **Ready to contribute?**
 
-- 🐛 **[Report a Bug](https://github.com/techishthoughts/GitPersona/issues)**
-- ✨ **[Request a Feature](https://github.com/techishthoughts/GitPersona/issues)**
-- 💻 **[Submit a Pull Request](https://github.com/techishthoughts/GitPersona/pulls)**
-- 💬 **[Join Discussions](https://github.com/techishthoughts/GitPersona/discussions)**
+- 🐛 **[Report a Bug](https://github.com/techishthoughts/gitshift/issues)**
+- ✨ **[Request a Feature](https://github.com/techishthoughts/gitshift/issues)**
+- 💻 **[Submit a Pull Request](https://github.com/techishthoughts/gitshift/pulls)**
+- 💬 **[Join Discussions](https://github.com/techishthoughts/gitshift/discussions)**
 
-**Thank you for contributing to GitPersona!** 🙏
+**Thank you for contributing to gitshift!** 🙏
 
 </div>

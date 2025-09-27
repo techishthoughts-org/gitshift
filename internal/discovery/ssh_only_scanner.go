@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/techishthoughts/GitPersona/internal/models"
+	"github.com/techishthoughts/gitshift/internal/models"
 )
 
 // SSHOnlyScanner handles SSH-only discovery without any GitHub API/CLI integration

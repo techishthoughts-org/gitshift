@@ -17,7 +17,7 @@ RUN go mod download
 COPY . .
 
 # Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o gitpersona .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o gitshift .
 
 # Final stage
 FROM alpine:latest
@@ -26,27 +26,27 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates git openssh-client
 
 # Create non-root user
-RUN addgroup -g 1001 -S gitpersona && \
-    adduser -u 1001 -S gitpersona -G gitpersona
+RUN addgroup -g 1001 -S gitshift && \
+    adduser -u 1001 -S gitshift -G gitshift
 
 # Set working directory
-WORKDIR /home/gitpersona
+WORKDIR /home/gitshift
 
 # Copy the binary from builder stage
-COPY --from=builder /app/gitpersona /usr/local/bin/gitpersona
+COPY --from=builder /app/gitshift /usr/local/bin/gitshift
 
 # Change ownership
-RUN chown -R gitpersona:gitpersona /home/gitpersona
+RUN chown -R gitshift:gitshift /home/gitshift
 
 # Switch to non-root user
-USER gitpersona
+USER gitshift
 
 # Set up SSH directory
 RUN mkdir -p ~/.ssh && chmod 700 ~/.ssh
 
 # Create config directory
-RUN mkdir -p ~/.config/gitpersona
+RUN mkdir -p ~/.config/gitshift
 
 # Default command
-ENTRYPOINT ["gitpersona"]
+ENTRYPOINT ["gitshift"]
 CMD ["--help"]

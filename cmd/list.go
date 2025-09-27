@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/GitPersona/internal/config"
-	"github.com/techishthoughts/GitPersona/internal/models"
+	"github.com/techishthoughts/gitshift/internal/config"
+	"github.com/techishthoughts/gitshift/internal/models"
 )
 
 // listCmd represents the list command
@@ -21,9 +21,9 @@ The output shows the alias, name, email, and additional information for each acc
 The current active account is marked with an asterisk (*).
 
 Examples:
-  gitpersona list
-  gitpersona list --format table
-  gitpersona list --format json`,
+  gitshift list
+  gitshift list --format table
+  gitshift list --format json`,
 	Aliases: []string{"ls"},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configManager := config.NewManager()
@@ -35,7 +35,7 @@ Examples:
 		pendingAccounts := configManager.ListPendingAccounts()
 
 		if len(accounts) == 0 && len(pendingAccounts) == 0 {
-			fmt.Println("No accounts configured. Use 'gitpersona add' to add an account.")
+			fmt.Println("No accounts configured. Use 'gitshift add' to add an account.")
 			return nil
 		}
 
@@ -69,7 +69,7 @@ Examples:
 				}
 				fmt.Printf("    Missing: %v\n", pending.MissingFields)
 				fmt.Printf("    Source: %s\n", pending.Source)
-				fmt.Printf("    💡 Complete with: gitpersona complete %s --name \"Your Name\" --email \"your@email.com\"\n", pending.Alias)
+				fmt.Printf("    💡 Complete with: gitshift complete %s --name \"Your Name\" --email \"your@email.com\"\n", pending.Alias)
 				fmt.Println()
 			}
 		}

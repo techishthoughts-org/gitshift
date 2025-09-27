@@ -12,9 +12,9 @@ var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "gitpersona",
+	Use:   "gitshift",
 	Short: "🎭 SSH-first GitHub account management",
-	Long: `GitPersona provides SSH-first GitHub identity management with complete isolation.
+	Long: `gitshift provides SSH-first GitHub identity management with complete isolation.
 
 Features:
 - 🔐 SSH-first approach - no GitHub API dependencies
@@ -45,7 +45,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	// Here you will define your flags and configuration settings.
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.config/gitpersona/config.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.config/gitshift/config.yaml)")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
@@ -65,7 +65,7 @@ func initConfig() {
 		cobra.CheckErr(err)
 
 		// Search config in home directory with name "config" (without extension).
-		viper.AddConfigPath(home + "/.config/gitpersona")
+		viper.AddConfigPath(home + "/.config/gitshift")
 		viper.SetConfigType("yaml")
 		viper.SetConfigName("config")
 	}
@@ -80,7 +80,7 @@ func initConfig() {
 
 // showVersion displays version information
 func showVersion() {
-	fmt.Println("🎭 GitPersona - Revolutionary GitHub Identity Management")
+	fmt.Println("🎭 gitshift - Revolutionary GitHub Identity Management")
 	fmt.Println("Version: v0.1.0")
 	fmt.Println("Go Version: go1.23.0")
 	fmt.Println("Build Time: 2025-01-02")
@@ -92,5 +92,5 @@ func showVersion() {
 	fmt.Println("  • Project-based configuration")
 	fmt.Println("  • Beautiful TUI interface")
 	fmt.Println()
-	fmt.Println("📚 Documentation: https://github.com/techishthoughts/GitPersona")
+	fmt.Println("📚 Documentation: https://github.com/techishthoughts/gitshift")
 }

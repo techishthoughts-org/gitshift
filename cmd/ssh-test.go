@@ -8,13 +8,13 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/GitPersona/internal/config"
-	"github.com/techishthoughts/GitPersona/internal/models"
+	"github.com/techishthoughts/gitshift/internal/config"
+	"github.com/techishthoughts/gitshift/internal/models"
 )
 
 var sshTestCmd = &cobra.Command{
 	Use:   "ssh-test [account-alias]",
-	Short: "🧪 Test SSH connectivity for GitPersona accounts",
+	Short: "🧪 Test SSH connectivity for gitshift accounts",
 	Long: `Test SSH connectivity and troubleshoot common SSH issues.
 This command helps with:
 - Testing SSH key authentication to GitHub
@@ -25,16 +25,16 @@ This command helps with:
 
 If no account is specified, it tests the currently active account.`,
 	Example: `  # Test current account
-  gitpersona ssh-test
+  gitshift ssh-test
 
   # Test specific account
-  gitpersona ssh-test costaar7
+  gitshift ssh-test costaar7
 
   # Test with verbose output
-  gitpersona ssh-test costaar7 --verbose
+  gitshift ssh-test costaar7 --verbose
 
   # Fix known_hosts issues
-  gitpersona ssh-test --fix-known-hosts`,
+  gitshift ssh-test --fix-known-hosts`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runSSHTest,
 }
@@ -70,7 +70,7 @@ func runSSHTest(cmd *cobra.Command, args []string) error {
 		// Use current account
 		cfg := configManager.GetConfig()
 		if cfg == nil || cfg.CurrentAccount == "" {
-			return fmt.Errorf("no current account set. Use 'gitpersona switch <account>' or specify account name")
+			return fmt.Errorf("no current account set. Use 'gitshift switch <account>' or specify account name")
 		}
 		accountAlias = cfg.CurrentAccount
 	}

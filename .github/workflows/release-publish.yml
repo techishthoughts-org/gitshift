@@ -1,15 +1,12 @@
+---
 name: 🚀 Publish Release
-
 on:
   # Trigger when a tag is pushed
   push:
-    tags:
-      - 'v*'
-
+    tags: [v*]
 env:
   GO_VERSION: '1.23'
-  BINARY_NAME: gitpersona
-
+  BINARY_NAME: gitshift
 jobs:
   # 🚀 Publish Release
   publish-release:
@@ -17,141 +14,124 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
-    - name: 📥 Checkout Code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 🐹 Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: 📋 Extract Version Info
+        id: version
+        run: |
+          # Extract version from tag
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "Publishing release for tag: $TAG_NAME"
+          echo "version=$TAG_NAME" >> $GITHUB_OUTPUT
 
-    - name: 🐹 Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
-
-    - name: 📋 Extract Version Info
-      id: version
-      run: |
-        # Extract version from tag
-        TAG_NAME=${GITHUB_REF#refs/tags/}
-        echo "Publishing release for tag: $TAG_NAME"
-        echo "version=$TAG_NAME" >> $GITHUB_OUTPUT
-
-        # Get previous tag for changelog
-        PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${TAG_NAME}^ 2>/dev/null || echo "")
-        if [ -n "$PREVIOUS_TAG" ]; then
-          CHANGELOG=$(git log ${PREVIOUS_TAG}..${TAG_NAME} --pretty=format:"- %s (%h)" --reverse)
-        else
-          CHANGELOG=$(git log --pretty=format:"- %s (%h)" --reverse)
-        fi
-
-        echo "changelog<<EOF" >> $GITHUB_OUTPUT
-        echo "$CHANGELOG" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
-
-    - name: 🏗️ Build Release Binaries
-      run: |
-        VERSION=${{ steps.version.outputs.version }}
-        COMMIT=${GITHUB_SHA::8}
-        BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
-
-        mkdir -p dist
-
-        # Build for multiple platforms
-        platforms=("linux/amd64" "linux/arm64" "darwin/amd64" "darwin/arm64" "windows/amd64")
-
-        for platform in "${platforms[@]}"; do
-          IFS='/' read -ra PLATFORM_PARTS <<< "$platform"
-          GOOS=${PLATFORM_PARTS[0]}
-          GOARCH=${PLATFORM_PARTS[1]}
-
-          output_name="${BINARY_NAME}-${GOOS}-${GOARCH}"
-          if [ "$GOOS" = "windows" ]; then
-            output_name="${output_name}.exe"
+          # Get previous tag for changelog
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${TAG_NAME}^ 2>/dev/null || echo "")
+          if [ -n "$PREVIOUS_TAG" ]; then
+            CHANGELOG=$(git log ${PREVIOUS_TAG}..${TAG_NAME} --pretty=format:"- %s (%h)" --reverse)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --reverse)
           fi
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      - name: 🏗️ Build Release Binaries
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          COMMIT=${GITHUB_SHA::8}
+          BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
+          mkdir -p dist
 
-          echo "Building for $GOOS/$GOARCH..."
+          # Build for multiple platforms
+          platforms=("linux/amd64" "linux/arm64" "darwin/amd64" "darwin/arm64" "windows/amd64")
+          for platform in "${platforms[@]}"; do
+            IFS='/' read -ra PLATFORM_PARTS <<< "$platform"
+            GOOS=${PLATFORM_PARTS[0]}
+            GOARCH=${PLATFORM_PARTS[1]}
+            output_name="${BINARY_NAME}-${GOOS}-${GOARCH}"
+            if [ "$GOOS" = "windows" ]; then
+              output_name="${output_name}.exe"
+            fi
+            echo "Building for $GOOS/$GOARCH..."
+            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
+              -ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME} -w -s" \
+              -o "dist/${output_name}" \
+              .
+          done
 
-          CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
-            -ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME} -w -s" \
-            -o "dist/${output_name}" \
-            .
-        done
+          # Create checksums
+          cd dist
+          sha256sum * > checksums.txt
+          ls -la
+      - name: 🚀 Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: 🎉 GitShift ${{ steps.version.outputs.version }}
+          body: |
+            ## 🎉 GitShift Release ${{ steps.version.outputs.version }}
+            **Automated release created after successful CI/CD pipeline** ✅
 
-        # Create checksums
-        cd dist
-        sha256sum * > checksums.txt
-        ls -la
+            ### 📦 Downloads
+            Choose the appropriate binary for your platform:
+            | Platform | Architecture | Download |
+            |----------|-------------|----------|
+            | **Linux** | AMD64 | [`gitshift-linux-amd64`](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/gitshift-linux-amd64) |
+            | **Linux** | ARM64 | [`gitshift-linux-arm64`](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/gitshift-linux-arm64) |
+            | **macOS** | Intel | [`gitshift-darwin-amd64`](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/gitshift-darwin-amd64) |
+            | **macOS** | Apple Silicon | [`gitshift-darwin-arm64`](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/gitshift-darwin-arm64) |
+            | **Windows** | AMD64 | [`gitshift-windows-amd64.exe`](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/gitshift-windows-amd64.exe) |
 
-    - name: 🚀 Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ steps.version.outputs.version }}
-        name: "🎉 GitPersona ${{ steps.version.outputs.version }}"
-        body: |
-          ## 🎉 GitPersona Release ${{ steps.version.outputs.version }}
+            ### 🔐 Quick Installation
+            ```bash
+            # Linux/macOS (replace with your platform)
+            curl -L -o gitshift https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/gitshift-linux-amd64
+            chmod +x gitshift
+            sudo mv gitshift /usr/local/bin/
 
-          **Automated release created after successful CI/CD pipeline** ✅
+            # Verify installation
+            gitshift --version
+            gitshift --help
+            ```
 
-          ### 📦 Downloads
-          Choose the appropriate binary for your platform:
+            ### 🆕 What's Changed
+            ${{ steps.version.outputs.changelog }}
 
-          | Platform | Architecture | Download |
-          |----------|-------------|----------|
-          | **Linux** | AMD64 | [`gitpersona-linux-amd64`](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/gitpersona-linux-amd64) |
-          | **Linux** | ARM64 | [`gitpersona-linux-arm64`](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/gitpersona-linux-arm64) |
-          | **macOS** | Intel | [`gitpersona-darwin-amd64`](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/gitpersona-darwin-amd64) |
-          | **macOS** | Apple Silicon | [`gitpersona-darwin-arm64`](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/gitpersona-darwin-arm64) |
-          | **Windows** | AMD64 | [`gitpersona-windows-amd64.exe`](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/gitpersona-windows-amd64.exe) |
+            ### 🔒 Security
+            - **Checksums**: Verify download integrity using `checksums.txt`
+            - **Ed25519 Keys**: Quantum-resistant SSH key generation
+            - **2025 Security Standards**: Following latest best practices
 
-          ### 🔐 Quick Installation
-          ```bash
-          # Linux/macOS (replace with your platform)
-          curl -L -o gitpersona https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/gitpersona-linux-amd64
-          chmod +x gitpersona
-          sudo mv gitpersona /usr/local/bin/
+            ### 🚀 Quick Start
+            ```bash
+            # Add your GitHub account automatically
+            gitshift add-github YOUR_USERNAME --email your@example.com
 
-          # Verify installation
-          gitpersona --version
-          gitpersona --help
-          ```
+            # Switch accounts instantly
+            gitshift switch work
+            gitshift switch personal
 
-          ### 🆕 What's Changed
-          ${{ steps.version.outputs.changelog }}
-
-          ### 🔒 Security
-          - **Checksums**: Verify download integrity using `checksums.txt`
-          - **Ed25519 Keys**: Quantum-resistant SSH key generation
-          - **2025 Security Standards**: Following latest best practices
-
-          ### 🚀 Quick Start
-          ```bash
-          # Add your GitHub account automatically
-          gitpersona add-github YOUR_USERNAME --email your@example.com
-
-          # Switch accounts instantly
-          gitpersona switch work
-          gitpersona switch personal
-
-          # Enable shell integration
-          echo 'eval "$(gitpersona init)"' >> ~/.zshrc
-          ```
-
-          **Full documentation**: [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)
-
-          ---
-
-          **🎯 Built with ❤️ for developers juggling multiple GitHub accounts**
-        files: |
-          dist/*
-        draft: false
-        prerelease: false
-        generate_release_notes: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: 🎊 Release Published Notification
-      run: |
-        echo "🎉 Successfully published release ${{ steps.version.outputs.version }}"
-        echo "📦 Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.version }}"
-        echo "🚀 GitPersona is ready for the world!"
+            # Enable shell integration
+            echo 'eval "$(gitshift init)"' >> ~/.zshrc
+            ```
+            **Full documentation**: [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)
+            ---
+            **🎯 Built with ❤️ for developers juggling multiple GitHub accounts**
+          files: |
+            dist/*
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 🎊 Release Published Notification
+        run: |-
+          echo "🎉 Successfully published release ${{ steps.version.outputs.version }}"
+          echo "📦 Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.version }}"
+          echo "🚀 GitShift is ready for the world!"

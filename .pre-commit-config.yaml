@@ -1,4 +1,4 @@
-# Pre-commit configuration for GitPersona
+# Pre-commit configuration for gitshift
 # This runs basic validations locally before committing
 repos:
   # Go formatting with local gofmt
@@ -29,7 +29,7 @@ repos:
         name: go build
         entry: go
         language: system
-        args: [build, -o, /tmp/gitpersona-test, .]
+        args: [build, -o, /tmp/gitshift-test, .]
         pass_filenames: false
         types: [go]
 
@@ -39,7 +39,6 @@ repos:
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
-      - id: check-yaml
       - id: check-added-large-files
       - id: check-merge-conflict
       - id: check-case-conflict

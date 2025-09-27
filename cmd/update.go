@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/GitPersona/internal/config"
-	"github.com/techishthoughts/GitPersona/internal/models"
+	"github.com/techishthoughts/gitshift/internal/config"
+	"github.com/techishthoughts/gitshift/internal/models"
 )
 
 // updateCmd represents the update command for modifying account information
@@ -23,10 +23,10 @@ This command allows you to modify:
 - Default account status
 
 Examples:
-  gitpersona update work --name "New Name"
-  gitpersona update personal --email "new@email.com"
-  gitpersona update username --github-username "newusername"
-  gitpersona update work --ssh-key "~/.ssh/new_key" --description "Updated description"`,
+  gitshift update work --name "New Name"
+  gitshift update personal --email "new@email.com"
+  gitshift update username --github-username "newusername"
+  gitshift update work --ssh-key "~/.ssh/new_key" --description "Updated description"`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		alias := args[0]
