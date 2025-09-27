@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -390,13 +391,19 @@ func (m *Manager) GetUserConfig() (name, email string, err error) {
 // ClearSSHConfig removes problematic SSH configurations
 func (m *Manager) ClearSSHConfig() error {
 	// Remove global SSH command
-	exec.Command("git", "config", "--global", "--unset", "core.sshcommand").Run()
+	if err := exec.Command("git", "config", "--global", "--unset", "core.sshcommand").Run(); err != nil {
+		log.Printf("Warning: failed to unset global git config: %v", err)
+	}
 
 	// Remove local SSH command
-	exec.Command("git", "config", "--local", "--unset", "core.sshcommand").Run()
+	if err := exec.Command("git", "config", "--local", "--unset", "core.sshcommand").Run(); err != nil {
+		log.Printf("Warning: failed to unset local git config: %v", err)
+	}
 
 	// Remove any GIT_SSH_COMMAND environment variable
-	os.Unsetenv("GIT_SSH_COMMAND")
+	if err := os.Unsetenv("GIT_SSH_COMMAND"); err != nil {
+		log.Printf("Warning: failed to unset GIT_SSH_COMMAND: %v", err)
+	}
 
 	return nil
 }

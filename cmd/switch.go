@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/techishthoughts/gitshift/internal/config"
@@ -85,16 +86,12 @@ func runSwitchCommand(cmd *cobra.Command, args []string) error {
 			} else {
 				return fmt.Errorf("SSH key not found at %s: %w", targetAccount.SSHKeyPath, err)
 			}
-		} else {
 			fmt.Printf("🔑 Switching SSH configuration with proper isolation...\n")
 			sshManager := ssh.NewManager()
 
-			// Use context for the SSH operations
-			ctx := cmd.Context()
-			if ctx == nil {
-				ctx = context.Background()
-			}
-
+			// Create a context with timeout for SSH operations
+			_, cancel := context.WithTimeout(cmd.Context(), 10*time.Second)
+			defer cancel()
 			if err := sshManager.SwitchToAccount(accountAlias, targetAccount.SSHKeyPath); err != nil {
 				if force {
 					fmt.Printf("⚠️  SSH switch failed: %v (continuing due to --force)\n", err)

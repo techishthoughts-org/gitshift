@@ -6,7 +6,7 @@ import (
 
 // AccountDiscovery handles automatic detection of existing Git accounts
 type AccountDiscovery struct {
-	homeDir string
+	// No fields needed as we're using SSHOnlyScanner for all operations
 }
 
 // NewAccountDiscovery creates a new account discovery service

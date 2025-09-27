@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/techishthoughts/gitshift/internal/models"
 )
 
@@ -147,6 +150,9 @@ func (s *SSHOnlyScanner) generateNameFromEmail(email string) string {
 		return ""
 	}
 
+	// Create a title caser for English
+	titleCaser := cases.Title(language.English)
+
 	// Extract the part before @ symbol
 	parts := strings.Split(email, "@")
 	namePart := parts[0]
@@ -156,11 +162,11 @@ func (s *SSHOnlyScanner) generateNameFromEmail(email string) string {
 		// Split by dots and capitalize each part
 		nameParts := strings.Split(namePart, ".")
 		for i, part := range nameParts {
-			nameParts[i] = strings.Title(strings.ToLower(part))
+			nameParts[i] = titleCaser.String(strings.ToLower(part))
 		}
 		return strings.Join(nameParts, " ")
 	} else {
 		// Just capitalize the single part
-		return strings.Title(strings.ToLower(namePart))
+		return titleCaser.String(strings.ToLower(namePart))
 	}
 }

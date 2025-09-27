@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -31,7 +32,9 @@ Features:
 		}
 
 		// Show help if no command specified
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			log.Printf("Error showing help: %v", err)
+		}
 	},
 }
 

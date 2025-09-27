@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -267,7 +268,11 @@ func (m *SSHKeyManager) SetupKnownHosts() error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Warning: failed to close file: %v", err)
+		}
+	}()
 
 	for _, host := range toAdd {
 		if _, err := file.WriteString(host + "\n"); err != nil {
@@ -350,7 +355,9 @@ func addKeyToGitHub(pubKeyPath, alias string) error {
 func generateKeyID() string {
 	// Generate a short random ID for the key title
 	bytes := make([]byte, 4)
-	rand.Read(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		return ""
+	}
 	hash := sha256.Sum256(bytes)
 	return fmt.Sprintf("%x", hash[:4])
 }
