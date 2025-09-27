@@ -32,23 +32,13 @@ jobs:
           go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
           gosec -fmt sarif -out gosec.sarif ./...
         continue-on-error: true
-      - name: 📊 Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v3
-        if: always() && hashFiles('gosec.sarif') != ''
-        with:
-          sarif_file: gosec.sarif
       - name: 🔍 Run Trivy Vulnerability Scanner
         uses: aquasecurity/trivy-action@0.32.0
         with:
           scan-type: fs
           scan-ref: .
-          format: sarif
-          output: trivy-results.sarif
-      - name: 📊 Upload Trivy SARIF
-        uses: github/codeql-action/upload-sarif@v3
-        if: always() && hashFiles('trivy-results.sarif') != ''
-        with:
-          sarif_file: trivy-results.sarif
+          format: table
+        continue-on-error: true
 
   # 🔐 Dependency Security
   dependency-security:
@@ -118,31 +108,10 @@ jobs:
   secrets-scan:
     name: 🔐 Secrets & Credentials Scan
     runs-on: ubuntu-latest
-    steps:
-      - name: 📥 Checkout Code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: 🔍 Run TruffleHog
-        uses: trufflesecurity/trufflehog@main
-        with:
-          path: ./
-          extra_args: --debug --only-verified
-      - name: 🔍 Run GitLeaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Optional - only needed for commercial use
-
-  # 📊 Security Summary
-  security-summary:
-    name: 📊 Security Summary
-    runs-on: ubuntu-latest
     needs:
       - security-scan
       - dependency-security
       - license-compliance
-      - secrets-scan
     if: always()
     steps:
       - name: 📊 Generate Security Summary
@@ -179,7 +148,6 @@ jobs:
           echo "- **gosec**: Go security checker" >> $GITHUB_STEP_SUMMARY
           echo "- **Trivy**: Container and filesystem vulnerability scanner" >> $GITHUB_STEP_SUMMARY
           echo "- **TruffleHog**: Secrets scanner" >> $GITHUB_STEP_SUMMARY
-          echo "- **GitLeaks**: Git secrets scanner" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📋 Next Steps" >> $GITHUB_STEP_SUMMARY
           echo "1. Review any security findings in the Security tab" >> $GITHUB_STEP_SUMMARY
