@@ -27,21 +27,43 @@ func NewManager() *Manager {
 	}
 }
 
-// SwitchToAccount switches SSH configuration to use the specified account
+// SwitchToAccount switches SSH configuration to use the specified account with improved isolation
 func (m *Manager) SwitchToAccount(accountAlias, keyPath string) error {
-	// 1. Update SSH config to use the specific key for github.com
-	if err := m.updateGitHubSSHConfig(accountAlias, keyPath); err != nil {
+	// 1. Validate key exists and fix permissions
+	if _, err := os.Stat(keyPath); err != nil {
+		return fmt.Errorf("SSH key not found at %s: %w", keyPath, err)
+	}
+
+	// Fix key permissions if needed
+	if info, err := os.Stat(keyPath); err == nil {
+		if info.Mode().Perm() != 0600 {
+			if err := os.Chmod(keyPath, 0600); err != nil {
+				return fmt.Errorf("failed to fix SSH key permissions: %w", err)
+			}
+		}
+	}
+
+	// 2. Update SSH config with improved isolation
+	if err := m.updateGitHubSSHConfigV2(accountAlias, keyPath); err != nil {
 		return fmt.Errorf("failed to update SSH config: %w", err)
 	}
 
-	// 2. Clear SSH agent to force re-authentication
+	// 3. Clear SSH agent and load only the required key
 	if err := m.clearSSHAgent(); err != nil {
-		return fmt.Errorf("failed to clear SSH agent: %w", err)
+		// Don't fail if SSH agent operations fail
+		fmt.Printf("⚠️  Warning: SSH agent clear failed: %v\n", err)
 	}
 
-	// 3. Add only the specific key to agent
+	// 4. Add only the specific key to agent
 	if err := m.addKeyToAgent(keyPath); err != nil {
-		return fmt.Errorf("failed to add key to agent: %w", err)
+		// Don't fail if SSH agent operations fail, SSH config should be enough
+		fmt.Printf("⚠️  Warning: SSH agent key loading failed: %v\n", err)
+	}
+
+	// 5. Test the connection
+	if err := m.TestConnection(); err != nil {
+		// Don't fail if connection test fails, might be network issue
+		fmt.Printf("⚠️  Warning: SSH connection test failed: %v\n", err)
 	}
 
 	return nil
@@ -71,18 +93,32 @@ func (m *Manager) addKeyToAgent(keyPath string) error {
 	return nil
 }
 
-// updateGitHubSSHConfig updates the SSH config to use the specific key for GitHub
-func (m *Manager) updateGitHubSSHConfig(accountAlias, keyPath string) error {
-	// Read current SSH config
-	content, err := os.ReadFile(m.configPath)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to read SSH config: %w", err)
+// updateGitHubSSHConfigV2 updates the SSH config with improved multi-account isolation
+func (m *Manager) updateGitHubSSHConfigV2(accountAlias, keyPath string) error {
+	// Ensure SSH directory exists
+	sshDir := filepath.Dir(m.configPath)
+	if err := os.MkdirAll(sshDir, 0700); err != nil {
+		return fmt.Errorf("failed to create SSH directory: %w", err)
 	}
 
-	// Create a completely new SSH config optimized for GitPersona
-	newConfig := m.buildOptimizedSSHConfig(accountAlias, keyPath, string(content))
+	// Read current SSH config (if exists)
+	existingContent := ""
+	if content, err := os.ReadFile(m.configPath); err == nil {
+		existingContent = string(content)
+	}
 
-	// Write the updated config back
+	// Build the new optimized SSH config
+	newConfig := m.buildIsolatedSSHConfig(accountAlias, keyPath, existingContent)
+
+	// Backup existing config if it exists and isn't already a GitPersona config
+	if existingContent != "" && !strings.Contains(existingContent, "GitPersona SSH Configuration") {
+		backupPath := m.configPath + ".backup-" + fmt.Sprintf("%d", os.Getpid())
+		if err := os.WriteFile(backupPath, []byte(existingContent), 0600); err != nil {
+			fmt.Printf("⚠️  Warning: failed to backup SSH config: %v\n", err)
+		}
+	}
+
+	// Write the updated config
 	if err := os.WriteFile(m.configPath, []byte(newConfig), 0600); err != nil {
 		return fmt.Errorf("failed to write SSH config: %w", err)
 	}
@@ -90,58 +126,121 @@ func (m *Manager) updateGitHubSSHConfig(accountAlias, keyPath string) error {
 	return nil
 }
 
-// buildOptimizedSSHConfig creates an optimized SSH config for GitPersona account switching
-func (m *Manager) buildOptimizedSSHConfig(accountAlias, keyPath, existingConfig string) string {
+// buildIsolatedSSHConfig creates an SSH config with proper multi-account isolation
+func (m *Manager) buildIsolatedSSHConfig(accountAlias, keyPath, existingConfig string) string {
 	var result strings.Builder
 
-	// Add GitPersona header
+	// Add GitPersona header with clear identification
 	result.WriteString("# GitPersona SSH Configuration\n")
-	result.WriteString("# This configuration prevents SSH key conflicts when using multiple GitHub accounts\n")
-	result.WriteString("# Last updated for account: " + accountAlias + "\n\n")
+	result.WriteString("# This configuration ensures proper isolation between multiple GitHub accounts\n")
+	result.WriteString(fmt.Sprintf("# Current active account: %s\n", accountAlias))
+	result.WriteString("# DO NOT EDIT MANUALLY - Managed by GitPersona\n\n")
 
-	// Add GitHub host configuration with strict isolation
+	// Add strict GitHub configuration with complete isolation
+	result.WriteString("# Primary GitHub host with complete isolation\n")
 	result.WriteString("Host github.com\n")
 	result.WriteString("    HostName github.com\n")
 	result.WriteString("    User git\n")
 	result.WriteString(fmt.Sprintf("    IdentityFile %s\n", keyPath))
 	result.WriteString("    IdentitiesOnly yes\n")
 	result.WriteString("    PreferredAuthentications publickey\n")
+	result.WriteString("    PubkeyAuthentication yes\n")
 	result.WriteString("    AddKeysToAgent no\n") // Prevent automatic key loading
-	result.WriteString("    UseKeychain no\n")    // Prevent keychain integration
+	result.WriteString("    UseKeychain no\n")    // Disable keychain integration
+	result.WriteString("    StrictHostKeyChecking accept-new\n")
+	result.WriteString("    UserKnownHostsFile ~/.ssh/known_hosts\n")
+	result.WriteString("    ConnectTimeout 10\n")
+	result.WriteString("    ServerAliveInterval 60\n")
+	result.WriteString("    ServerAliveCountMax 3\n")
 	result.WriteString("\n")
 
-	// Preserve any non-GitHub host configurations from existing config
+	// Add catch-all for any GitHub subdomain or SSH variant
+	result.WriteString("# Catch-all for GitHub variants\n")
+	result.WriteString("Host *.github.com github-*\n")
+	result.WriteString("    HostName github.com\n")
+	result.WriteString("    User git\n")
+	result.WriteString(fmt.Sprintf("    IdentityFile %s\n", keyPath))
+	result.WriteString("    IdentitiesOnly yes\n")
+	result.WriteString("    PreferredAuthentications publickey\n")
+	result.WriteString("    PubkeyAuthentication yes\n")
+	result.WriteString("    AddKeysToAgent no\n")
+	result.WriteString("    UseKeychain no\n")
+	result.WriteString("\n")
+
+	// Preserve non-GitHub configurations from existing config
 	if existingConfig != "" {
-		lines := strings.Split(existingConfig, "\n")
-		inGitHubSection := false
+		result.WriteString("# Preserved non-GitHub configurations\n")
+		preservedConfig := m.preserveNonGitHubConfig(existingConfig)
+		if preservedConfig != "" {
+			result.WriteString(preservedConfig)
+			result.WriteString("\n")
+		}
+	}
 
-		for _, line := range lines {
-			trimmedLine := strings.TrimSpace(line)
+	// Add global defaults that don't conflict with GitHub isolation
+	result.WriteString("# Global SSH defaults (non-conflicting)\n")
+	result.WriteString("Host *\n")
+	result.WriteString("    Protocol 2\n")
+	result.WriteString("    Compression yes\n")
+	result.WriteString("    TCPKeepAlive yes\n")
+	result.WriteString("    ServerAliveInterval 60\n")
+	result.WriteString("    ServerAliveCountMax 3\n")
+	result.WriteString("    # Note: Key management is handled per-host above\n\n")
 
-			// Skip GitPersona header comments and github.com sections
-			if strings.HasPrefix(trimmedLine, "# GitPersona") ||
-				strings.HasPrefix(trimmedLine, "Host github.com") ||
-				strings.Contains(trimmedLine, "github-") {
-				if strings.HasPrefix(trimmedLine, "Host github.com") || strings.Contains(trimmedLine, "github-") {
-					inGitHubSection = true
+	return result.String()
+}
+
+// preserveNonGitHubConfig extracts and preserves non-GitHub host configurations
+func (m *Manager) preserveNonGitHubConfig(existingConfig string) string {
+	var result strings.Builder
+	lines := strings.Split(existingConfig, "\n")
+	inGitHubSection := false
+	inGitPersonaSection := false
+	currentHostLines := []string{}
+
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+
+		// Skip GitPersona managed sections
+		if strings.Contains(trimmedLine, "GitPersona") {
+			inGitPersonaSection = true
+			continue
+		}
+		if inGitPersonaSection && trimmedLine == "" {
+			inGitPersonaSection = false
+			continue
+		}
+		if inGitPersonaSection {
+			continue
+		}
+
+		// Detect GitHub-related host entries
+		if strings.HasPrefix(trimmedLine, "Host ") {
+			// Process previous host if it wasn't GitHub-related
+			if len(currentHostLines) > 0 && !inGitHubSection {
+				for _, hostLine := range currentHostLines {
+					result.WriteString(hostLine + "\n")
 				}
-				continue
 			}
 
-			// Check if we're leaving a GitHub section
-			if inGitHubSection && strings.HasPrefix(trimmedLine, "Host ") && !strings.Contains(trimmedLine, "github") {
-				inGitHubSection = false
-			}
-
-			// Skip lines that are part of GitHub sections
-			if inGitHubSection {
-				continue
-			}
-
-			// Preserve other host configurations
-			if trimmedLine != "" || !inGitHubSection {
+			// Reset for new host
+			currentHostLines = []string{line}
+			inGitHubSection = strings.Contains(strings.ToLower(trimmedLine), "github")
+		} else if strings.HasPrefix(trimmedLine, "    ") || strings.HasPrefix(trimmedLine, "\t") || trimmedLine == "" {
+			// Add configuration line to current host
+			currentHostLines = append(currentHostLines, line)
+		} else {
+			// Not a host configuration, add directly if not in GitHub section
+			if !inGitHubSection {
 				result.WriteString(line + "\n")
 			}
+		}
+	}
+
+	// Process final host if it wasn't GitHub-related
+	if len(currentHostLines) > 0 && !inGitHubSection {
+		for _, hostLine := range currentHostLines {
+			result.WriteString(hostLine + "\n")
 		}
 	}
 

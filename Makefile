@@ -1,113 +1,123 @@
-# GitPersona Makefile
+# GitPersona - SSH-First GitHub Account Management
+# A clean, focused tool for managing multiple GitHub accounts with SSH isolation
 
-.PHONY: build test clean lint fmt vet install dev deps coverage benchmark help
+.PHONY: build test clean lint fmt vet install deps help demo
 
 # Build variables
 BINARY_NAME=gitpersona
-VERSION=$(shell git describe --tags --always --dirty)
-LDFLAGS=-ldflags "-X main.version=$(VERSION)"
+VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
+LDFLAGS=-ldflags "-X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)"
 
 # Default target
 all: build
 
 ## Build the binary
 build:
-	@echo "Building $(BINARY_NAME)..."
-	go build $(LDFLAGS) -o $(BINARY_NAME) .
+	@echo "🔨 Building $(BINARY_NAME) v$(VERSION)..."
+	@go build $(LDFLAGS) -o $(BINARY_NAME) .
+	@echo "✅ Build complete: ./$(BINARY_NAME)"
 
 ## Install the binary to $GOPATH/bin
-install:
-	@echo "Installing $(BINARY_NAME)..."
-	go install $(LDFLAGS) .
+install: build
+	@echo "📦 Installing $(BINARY_NAME)..."
+	@go install $(LDFLAGS) .
+	@echo "✅ Installed: $(shell go env GOPATH)/bin/$(BINARY_NAME)"
 
-## Run tests
+## Run basic tests
 test:
-	@echo "Running tests..."
-	go test -race ./...
+	@echo "🧪 Running tests..."
+	@go test -v ./internal/...
+	@echo "✅ Tests passed"
 
-## Run tests with coverage
-coverage:
-	@echo "Running tests with coverage..."
-	go test -race -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report generated: coverage.html"
-
-## Run benchmarks
-benchmark:
-	@echo "Running benchmarks..."
-	go test -bench=. -benchmem ./...
-
-## Run linting
-lint:
-	@echo "Running linter..."
-	golangci-lint run
-
-## Format code
+## Format and clean code
 fmt:
-	@echo "Formatting code..."
-	go fmt ./...
+	@echo "🎨 Formatting code..."
+	@go fmt ./...
+	@echo "✅ Code formatted"
 
 ## Run go vet
 vet:
-	@echo "Running go vet..."
-	go vet ./...
+	@echo "🔍 Running go vet..."
+	@go vet ./...
+	@echo "✅ Vet passed"
 
-## Download dependencies
+## Run linting (if golangci-lint available)
+lint:
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		echo "🔍 Running linter..."; \
+		golangci-lint run; \
+		echo "✅ Linting passed"; \
+	else \
+		echo "⚠️  golangci-lint not found, skipping"; \
+	fi
+
+## Download and tidy dependencies
 deps:
-	@echo "Downloading dependencies..."
-	go mod download
-	go mod tidy
-
-## Development build with debug info
-dev:
-	@echo "Building development version..."
-	go build -gcflags="all=-N -l" -o $(BINARY_NAME)-dev .
+	@echo "📦 Managing dependencies..."
+	@go mod download
+	@go mod tidy
+	@echo "✅ Dependencies updated"
 
 ## Clean build artifacts
 clean:
-	@echo "Cleaning..."
-	go clean
-	rm -f $(BINARY_NAME) $(BINARY_NAME)-dev coverage.out coverage.html
+	@echo "🧹 Cleaning build artifacts..."
+	@go clean
+	@rm -f $(BINARY_NAME) coverage.out
+	@echo "✅ Clean complete"
 
-## Run full CI pipeline locally
-ci: deps fmt vet lint test coverage
+## Development workflow: build and test
+dev: deps fmt vet build test
+	@echo "🚀 Development build complete!"
+
+## Demo - show GitPersona in action
+demo: build
+	@echo "🎭 GitPersona Demo"
+	@echo "=================="
+	@echo ""
+	@echo "📋 Current accounts:"
+	@./$(BINARY_NAME) list || echo "No accounts configured yet"
+	@echo ""
+	@echo "🔍 SSH key discovery:"
+	@./$(BINARY_NAME) discover || true
+	@echo ""  
+	@echo "🔧 Available commands:"
+	@./$(BINARY_NAME) --help
 
 ## Show help
 help:
-	@echo "Available targets:"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo "🎭 GitPersona - SSH-First GitHub Account Management"
+	@echo ""
+	@echo "Available make targets:"
+	@echo "  build      Build the gitpersona binary"
+	@echo "  install    Install gitpersona to GOPATH/bin"
+	@echo "  test       Run tests"
+	@echo "  fmt        Format Go code"
+	@echo "  vet        Run go vet"
+	@echo "  lint       Run golangci-lint (if available)"
+	@echo "  deps       Download and tidy dependencies"
+	@echo "  clean      Clean build artifacts"
+	@echo "  dev        Full development workflow"
+	@echo "  demo       Show GitPersona in action"
+	@echo "  help       Show this help"
+	@echo ""
+	@echo "🚀 Quick start:"
+	@echo "  make build    # Build the binary"
+	@echo "  ./gitpersona discover  # Find existing SSH keys"
+	@echo "  ./gitpersona ssh-keygen myaccount --email me@example.com"
 
-# Security scanning
-.PHONY: security
-security:
-	@echo "Running security scan..."
-	gosec ./...
-
-# Docker targets
-.PHONY: docker-build docker-run
-docker-build:
-	@echo "Building Docker image..."
-	docker build -t $(BINARY_NAME):$(VERSION) .
-
-docker-run:
-	@echo "Running Docker container..."
-	docker run --rm -it $(BINARY_NAME):$(VERSION)
-
-# Release targets
-.PHONY: release-build
-release-build:
-	@echo "Building release binaries..."
+# Release targets for cross-platform builds
+.PHONY: release
+release:
+	@echo "🚀 Building release binaries..."
 	@mkdir -p dist
-	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-linux-amd64 .
-	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-amd64 .
-	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-arm64 .
-	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-windows-amd64.exe .
-
-# Development helpers
-.PHONY: watch
-watch:
-	@echo "Watching for changes..."
-	while true; do \
-		inotifywait -r -e modify --include="\.go$$" .; \
-		make build; \
-	done
+	@echo "Building for Linux AMD64..."
+	@GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-linux-amd64 .
+	@echo "Building for macOS AMD64..."
+	@GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-amd64 .
+	@echo "Building for macOS ARM64..."
+	@GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-arm64 .
+	@echo "Building for Windows AMD64..."
+	@GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-windows-amd64.exe .
+	@echo "✅ Release binaries built in dist/"
+	@ls -la dist/

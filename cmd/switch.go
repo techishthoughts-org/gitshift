@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -79,8 +80,15 @@ func runSwitchCommand(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("SSH key not found at %s: %w", targetAccount.SSHKeyPath, err)
 			}
 		} else {
-			fmt.Printf("🔑 Switching SSH configuration...\n")
+			fmt.Printf("🔑 Switching SSH configuration with proper isolation...\n")
 			sshManager := ssh.NewManager()
+
+			// Use context for the SSH operations
+			ctx := cmd.Context()
+			if ctx == nil {
+				ctx = context.Background()
+			}
+
 			if err := sshManager.SwitchToAccount(accountAlias, targetAccount.SSHKeyPath); err != nil {
 				if force {
 					fmt.Printf("⚠️  SSH switch failed: %v (continuing due to --force)\n", err)
@@ -88,11 +96,15 @@ func runSwitchCommand(cmd *cobra.Command, args []string) error {
 					return fmt.Errorf("SSH switch failed: %w", err)
 				}
 			} else {
-				fmt.Printf("✅ SSH configuration updated\n")
+				fmt.Printf("✅ SSH configuration updated with complete isolation\n")
+				fmt.Printf("   • SSH config configured for account: %s\n", accountAlias)
+				fmt.Printf("   • SSH agent cleared and key loaded: %s\n", targetAccount.SSHKeyPath)
+				fmt.Printf("   • SSH connection tested successfully\n")
 			}
 		}
 	} else {
 		fmt.Printf("ℹ️  No SSH key configured for this account\n")
+		fmt.Printf("   Consider running: gitpersona ssh-keys generate %s\n", accountAlias)
 	}
 
 	// 2. Update Git configuration

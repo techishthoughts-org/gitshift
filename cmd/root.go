@@ -1,18 +1,11 @@
 package cmd
 
 import (
-	"bufio"
-	"context"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/techishthoughts/GitPersona/internal/config"
-	"github.com/techishthoughts/GitPersona/internal/container"
-	"github.com/techishthoughts/GitPersona/internal/tui"
 )
 
 var cfgFile string
@@ -20,19 +13,16 @@ var cfgFile string
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "gitpersona",
-	Short: "🎭 Revolutionary TUI for seamless GitHub identity management",
-	Long: `GitPersona is a revolutionary Terminal User Interface (TUI) application
-that provides seamless GitHub identity management with enterprise automation
-and beautiful design.
+	Short: "🎭 SSH-first GitHub account management",
+	Long: `GitPersona provides SSH-first GitHub identity management with complete isolation.
 
 Features:
-- 🚀 One-command GitHub account setup with automatic SSH key generation
-- 🎨 Beautiful TUI with modern design and animations
-- 🔄 Instant global account switching
-- 📁 Automatic project-based identity detection
-- 🔐 Enterprise-grade security with Ed25519 keys
-- 🔍 Smart discovery of existing Git configurations
-- 📊 Repository management and insights`,
+- 🔐 SSH-first approach - no GitHub API dependencies
+- 🔄 Complete account isolation using SSH config
+- 🔑 SSH key discovery from ~/.ssh directory
+- ⚡ Fast account switching with proper isolation
+- 📧 Email extraction from SSH keys
+- 🛡️ No key conflicts or cross-contamination`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Check if version flag is set
 		if version, _ := cmd.Flags().GetBool("version"); version {
@@ -40,8 +30,8 @@ Features:
 			return
 		}
 
-		// If no command is specified, show the TUI
-		runTUI()
+		// Show help if no command specified
+		cmd.Help()
 	},
 }
 
@@ -86,64 +76,6 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
 	}
-
-	// Initialize the service container
-	ctx := context.Background()
-	if err := container.InitializeGlobalSimpleContainer(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: Failed to initialize service container: %v\n", err)
-	}
-}
-
-func runTUI() {
-	// Check if this is first run (no accounts configured)
-	if isFirstRun() {
-		fmt.Println("👋 Welcome to GitPersona!")
-		fmt.Println("🔍 It looks like this is your first time running gitpersona.")
-		fmt.Println()
-
-		fmt.Print("Would you like to automatically discover existing Git accounts? [Y/n]: ")
-		reader := bufio.NewReader(os.Stdin)
-		response, _ := reader.ReadString('\n')
-		response = strings.TrimSpace(response)
-
-		if response == "" || strings.ToLower(response) == "y" || strings.ToLower(response) == "yes" {
-			fmt.Println()
-			// Run discovery
-			if err := discoverCmd.RunE(discoverCmd, []string{}); err != nil {
-				fmt.Printf("Warning: Discovery failed: %v\n", err)
-			}
-			fmt.Println()
-			fmt.Println("🚀 Starting TUI...")
-			fmt.Println()
-		}
-	}
-
-	if err := tui.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error running TUI: %v\n", err)
-		os.Exit(1)
-	}
-}
-
-// isFirstRun checks if this is the first time running the application
-func isFirstRun() bool {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return false
-	}
-
-	configFile := filepath.Join(homeDir, ".config", "gitpersona", "config.yaml")
-	if _, err := os.Stat(configFile); os.IsNotExist(err) {
-		return true
-	}
-
-	// Check if config exists but has no accounts
-	configManager := config.NewManager()
-	if err := configManager.Load(); err != nil {
-		return true
-	}
-
-	accounts := configManager.ListAccounts()
-	return len(accounts) == 0
 }
 
 // showVersion displays version information
