@@ -55,6 +55,6 @@ jobs:
 
           # Create release
           gh release create v$VERSION \
-            --title "v$VERSION" \
-            --notes "Release v$VERSION" \
+            --title "gitshift-v$VERSION" \
+            --notes "Release gitshift-v$VERSION" \
             dist/*
