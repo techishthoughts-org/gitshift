@@ -753,16 +753,20 @@ func TestSecurity_InputValidation(t *testing.T) {
 #### **SSH Key Security**
 ```bash
 # 1. Use strong passphrases for SSH keys
-gitshift ssh-keys generate work --passphrase
+gitshift ssh-keygen work --email work@company.com --passphrase
 
-# 2. Regularly rotate SSH keys
+# 2. Use Ed25519 keys (recommended)
+# Automatically adds to ssh-agent and copies to clipboard
+gitshift ssh-keygen work --email work@company.com --type ed25519
+
+# 3. Regularly rotate SSH keys
 gitshift ssh-keys rotate work
-
-# 3. Use Ed25519 keys (recommended)
-gitshift ssh-keys generate work --type ed25519
 
 # 4. Monitor key usage
 gitshift ssh-keys audit
+
+# Note: gitshift automatically adds generated keys to ssh-agent
+# and copies public keys to clipboard for easy GitHub upload
 ```
 
 #### **Configuration Security**

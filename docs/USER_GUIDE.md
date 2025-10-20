@@ -198,13 +198,18 @@ gitshift ssh-keys list --account work
 #### **Generate New SSH Keys**
 ```bash
 # Generate key for specific account
-gitshift ssh-keys generate work
+# Automatically adds to ssh-agent and copies to clipboard
+gitshift ssh-keygen work --email work@company.com
 
 # Generate with custom settings
-gitshift ssh-keys generate work \
+gitshift ssh-keygen work \
   --type ed25519 \
-  --email "work@company.com" \
-  --comment "Work account key"
+  --email "work@company.com"
+
+# Key features:
+# - Automatically adds the key to ssh-agent (no manual ssh-add needed)
+# - Copies public key to clipboard using pbcopy
+# - Displays public key in terminal for verification
 ```
 
 #### **Test SSH Keys**

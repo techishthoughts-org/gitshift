@@ -276,8 +276,8 @@ gitshift config show --account work
 
 #### **Solutions**
 ```bash
-# 1. Generate new SSH key
-gitshift ssh-keys generate work
+# 1. Generate new SSH key (automatically adds to ssh-agent and clipboard)
+gitshift ssh-keygen work --email work@company.com
 
 # 2. Update account configuration
 gitshift config set --account work ssh_key_path "/new/path"

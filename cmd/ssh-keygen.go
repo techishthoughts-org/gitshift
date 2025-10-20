@@ -131,9 +131,16 @@ func runSSHKeygen(cmd *cobra.Command, args []string) error {
 		fmt.Printf("🌐 GitHub added to known hosts\n")
 	}
 
-	// Show public key content
+	// Show public key content and copy to clipboard
 	if err := showPublicKey(keyPath + ".pub"); err != nil {
 		fmt.Printf("⚠️  Warning: Could not display public key: %v\n", err)
+	}
+
+	// Copy public key to clipboard using pbcopy
+	if err := copyToClipboard(keyPath + ".pub"); err != nil {
+		fmt.Printf("⚠️  Warning: Could not copy to clipboard: %v\n", err)
+	} else {
+		fmt.Printf("📋 Public key copied to clipboard!\n")
 	}
 
 	// Add to GitHub if requested
@@ -227,7 +234,24 @@ func (m *SSHKeyManager) GenerateKey(params GenerateKeyParams) (string, error) {
 
 	fmt.Printf("🔒 Set proper key permissions (600 for private, 644 for public)\n")
 
+	// Automatically add the key to ssh-agent
+	if err := m.addKeyToAgent(keyPath); err != nil {
+		fmt.Printf("⚠️  Warning: Failed to add key to ssh-agent: %v\n", err)
+	} else {
+		fmt.Printf("🔑 Key automatically added to ssh-agent\n")
+	}
+
 	return keyPath, nil
+}
+
+// addKeyToAgent adds a key to the SSH agent
+func (m *SSHKeyManager) addKeyToAgent(keyPath string) error {
+	cmd := exec.Command("ssh-add", keyPath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("ssh-add failed: %w\nOutput: %s", err, string(output))
+	}
+	return nil
 }
 
 func (m *SSHKeyManager) SetupKnownHosts() error {
@@ -360,4 +384,36 @@ func generateKeyID() string {
 	}
 	hash := sha256.Sum256(bytes)
 	return fmt.Sprintf("%x", hash[:4])
+}
+
+// copyToClipboard copies the public key content to the clipboard using pbcopy
+func copyToClipboard(pubKeyPath string) error {
+	content, err := os.ReadFile(pubKeyPath)
+	if err != nil {
+		return fmt.Errorf("failed to read public key: %w", err)
+	}
+
+	cmd := exec.Command("pbcopy")
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stdin pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start pbcopy: %w", err)
+	}
+
+	if _, err := stdin.Write(content); err != nil {
+		return fmt.Errorf("failed to write to pbcopy: %w", err)
+	}
+
+	if err := stdin.Close(); err != nil {
+		return fmt.Errorf("failed to close stdin: %w", err)
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("pbcopy failed: %w", err)
+	}
+
+	return nil
 }

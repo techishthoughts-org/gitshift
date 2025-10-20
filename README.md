@@ -95,6 +95,7 @@ gitshift ssh-test work --verbose
 ### **SSH Key Generation Options**
 ```bash
 # Ed25519 key (recommended)
+# Automatically adds key to ssh-agent and copies to clipboard
 gitshift ssh-keygen myaccount --email me@example.com
 
 # RSA key with custom size
@@ -109,6 +110,11 @@ gitshift ssh-keygen myaccount --add-to-github
 # Force overwrite existing key
 gitshift ssh-keygen myaccount --force
 ```
+
+**Features:**
+- 🔑 Automatically adds the generated key to ssh-agent
+- 📋 Copies the public key to clipboard (pbcopy) for easy pasting
+- ✅ Still displays the key in terminal for verification
 
 ---
 
