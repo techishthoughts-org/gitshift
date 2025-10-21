@@ -25,7 +25,7 @@
 #### **From Source**
 ```bash
 # Clone the repository
-git clone https://github.com/techishthoughts/gitshift.git
+git clone https://github.com/techishthoughts-org/gitshift.git
 cd gitshift
 
 # Build the binary
@@ -848,6 +848,6 @@ cat system-info.txt
 
 <div align="center">
 
-**Need help?** Check our [Issues](https://github.com/techishthoughts/gitshift/issues) or [Discussions](https://github.com/techishthoughts/gitshift/discussions)!
+**Need help?** Check our [Issues](https://github.com/techishthoughts-org/gitshift/issues) or [Discussions](https://github.com/techishthoughts-org/gitshift/discussions)!
 
 </div>

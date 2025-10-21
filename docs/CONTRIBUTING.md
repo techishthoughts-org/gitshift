@@ -55,14 +55,14 @@ git clone https://github.com/YOUR_USERNAME/gitshift.git
 cd gitshift
 
 # 3. Add upstream remote
-git remote add upstream https://github.com/techishthoughts/gitshift.git
+git remote add upstream https://github.com/techishthoughts-org/gitshift.git
 
 # 4. Verify remotes
 git remote -v
 # origin    https://github.com/YOUR_USERNAME/gitshift.git (fetch)
 # origin    https://github.com/YOUR_USERNAME/gitshift.git (push)
-# upstream  https://github.com/techishthoughts/gitshift.git (fetch)
-# upstream  https://github.com/techishthoughts/gitshift.git (push)
+# upstream  https://github.com/techishthoughts-org/gitshift.git (fetch)
+# upstream  https://github.com/techishthoughts-org/gitshift.git (push)
 ```
 
 ### **Development Environment**
@@ -743,10 +743,10 @@ We recognize contributors in several ways:
 
 **Ready to contribute?**
 
-- 🐛 **[Report a Bug](https://github.com/techishthoughts/gitshift/issues)**
-- ✨ **[Request a Feature](https://github.com/techishthoughts/gitshift/issues)**
-- 💻 **[Submit a Pull Request](https://github.com/techishthoughts/gitshift/pulls)**
-- 💬 **[Join Discussions](https://github.com/techishthoughts/gitshift/discussions)**
+- 🐛 **[Report a Bug](https://github.com/techishthoughts-org/gitshift/issues)**
+- ✨ **[Request a Feature](https://github.com/techishthoughts-org/gitshift/issues)**
+- 💻 **[Submit a Pull Request](https://github.com/techishthoughts-org/gitshift/pulls)**
+- 💬 **[Join Discussions](https://github.com/techishthoughts-org/gitshift/discussions)**
 
 **Thank you for contributing to gitshift!** 🙏
 

@@ -806,9 +806,9 @@ gitshift health
 ### **Community Support**
 
 #### **GitHub Issues**
-- **[Report Bugs](https://github.com/techishthoughts/gitshift/issues)** - Report issues and bugs
-- **[Feature Requests](https://github.com/techishthoughts/gitshift/issues)** - Request new features
-- **[Discussions](https://github.com/techishthoughts/gitshift/discussions)** - Community support
+- **[Report Bugs](https://github.com/techishthoughts-org/gitshift/issues)** - Report issues and bugs
+- **[Feature Requests](https://github.com/techishthoughts-org/gitshift/issues)** - Request new features
+- **[Discussions](https://github.com/techishthoughts-org/gitshift/discussions)** - Community support
 
 #### **Bug Report Template**
 ```markdown
@@ -869,8 +869,8 @@ For enterprise users requiring professional support:
 
 **Still need help?**
 
-- 🐛 **[Report a Bug](https://github.com/techishthoughts/gitshift/issues)**
-- 💬 **[Join Discussions](https://github.com/techishthoughts/gitshift/discussions)**
-- 📧 **[Contact Support](mailto:support@gitshift.com)**
+- 🐛 **[Report a Bug](https://github.com/techishthoughts-org/gitshift/issues)**
+- 💬 **[Join Discussions](https://github.com/techishthoughts-org/gitshift/discussions)**
+- 📧 **[Contact Support](mailto:techishthoughts@gmail.com)**
 
 </div>

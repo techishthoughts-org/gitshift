@@ -146,15 +146,14 @@ docs/
 - **[Go Documentation](https://golang.org/doc/)** - Go programming language docs
 
 ### **Community Resources**
-- **[GitHub Issues](https://github.com/techishthoughts/gitshift/issues)** - Bug reports and feature requests
-- **[GitHub Discussions](https://github.com/techishthoughts/gitshift/discussions)** - Community support
-- **[GitHub Wiki](https://github.com/techishthoughts/gitshift/wiki)** - Community-maintained documentation
+- **[GitHub Issues](https://github.com/techishthoughts-org/gitshift/issues)** - Bug reports and feature requests
+- **[GitHub Discussions](https://github.com/techishthoughts-org/gitshift/discussions)** - Community support
+- **[GitHub Wiki](https://github.com/techishthoughts-org/gitshift/wiki)** - Community-maintained documentation
 
 ### **Support Channels**
-- **🐛 Bug Reports**: [GitHub Issues](https://github.com/techishthoughts/gitshift/issues)
-- **💬 Community Support**: [GitHub Discussions](https://github.com/techishthoughts/gitshift/discussions)
-- **📧 Security Issues**: security@gitshift.com
-- **📧 General Support**: support@gitshift.com
+- **🐛 Bug Reports**: [GitHub Issues](https://github.com/techishthoughts-org/gitshift/issues)
+- **💬 Community Support**: [GitHub Discussions](https://github.com/techishthoughts-org/gitshift/discussions)
+- **📧 Contact**: techishthoughts@gmail.com
 
 ---
 
@@ -191,7 +190,7 @@ We value your feedback on our documentation! Help us improve by:
 1. **GitHub Issues** - Report documentation issues
 2. **Pull Requests** - Submit documentation improvements
 3. **Discussions** - Suggest documentation enhancements
-4. **Email** - Send feedback to docs@gitshift.com
+4. **Email** - Send feedback to techishthoughts@gmail.com
 
 ---
 
@@ -201,6 +200,6 @@ We value your feedback on our documentation! Help us improve by:
 
 Whether you're just getting started or diving deep into gitshift's architecture, we hope this documentation helps you succeed.
 
-**Need help?** Check our [Troubleshooting Guide](TROUBLESHOOTING.md) or [join our community](https://github.com/techishthoughts/gitshift/discussions)!
+**Need help?** Check our [Troubleshooting Guide](TROUBLESHOOTING.md) or [join our community](https://github.com/techishthoughts-org/gitshift/discussions)!
 
 </div>
