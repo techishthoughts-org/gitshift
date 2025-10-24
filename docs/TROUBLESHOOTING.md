@@ -808,7 +808,6 @@ gitshift health
 #### **GitHub Issues**
 - **[Report Bugs](https://github.com/techishthoughts-org/gitshift/issues)** - Report issues and bugs
 - **[Feature Requests](https://github.com/techishthoughts-org/gitshift/issues)** - Request new features
-- **[Discussions](https://github.com/techishthoughts-org/gitshift/discussions)** - Community support
 
 #### **Bug Report Template**
 ```markdown
@@ -845,7 +844,6 @@ Any other relevant information
 #### **Enterprise Support**
 For enterprise users requiring professional support:
 - **Email**: support@gitshift.com
-- **Documentation**: [Enterprise Guide](ENTERPRISE.md)
 - **SLA**: 24-hour response time
 
 #### **Consulting Services**
@@ -870,7 +868,6 @@ For enterprise users requiring professional support:
 **Still need help?**
 
 - 🐛 **[Report a Bug](https://github.com/techishthoughts-org/gitshift/issues)**
-- 💬 **[Join Discussions](https://github.com/techishthoughts-org/gitshift/discussions)**
 - 📧 **[Contact Support](mailto:techishthoughts@gmail.com)**
 
 </div>

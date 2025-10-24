@@ -848,6 +848,6 @@ cat system-info.txt
 
 <div align="center">
 
-**Need help?** Check our [Issues](https://github.com/techishthoughts-org/gitshift/issues) or [Discussions](https://github.com/techishthoughts-org/gitshift/discussions)!
+**Need help?** Check our [Issues](https://github.com/techishthoughts-org/gitshift/issues)!
 
 </div>

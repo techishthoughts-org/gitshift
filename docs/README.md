@@ -42,7 +42,6 @@ This documentation provides comprehensive guides for using, configuring, and con
 ### **🏗️ Technical Documentation**
 - **[Architecture Guide](ARCHITECTURE.md)** - Technical architecture and design
 - **[Security Guide](SECURITY.md)** - Security best practices and considerations
-- **[API Documentation](API_DOCUMENTATION.md)** - API reference and examples
 
 ### **🤝 Contributing**
 - **[Contributing Guide](CONTRIBUTING.md)** - How to contribute to gitshift
@@ -70,7 +69,6 @@ This documentation provides comprehensive guides for using, configuring, and con
 1. **[Contributing Guide](CONTRIBUTING.md)** - How to contribute
 2. **[Architecture Guide](ARCHITECTURE.md)** - Technical architecture
 3. **[Security Guide](SECURITY.md)** - Security best practices
-4. **[API Documentation](API_DOCUMENTATION.md)** - API reference
 
 ### **🔒 For Security Teams**
 1. **[Security Guide](SECURITY.md)** - Security architecture and practices
@@ -90,8 +88,7 @@ docs/
 ├── TROUBLESHOOTING.md     # Troubleshooting and problem solving
 ├── ARCHITECTURE.md        # Technical architecture and design
 ├── SECURITY.md            # Security best practices and guidelines
-├── CONTRIBUTING.md        # Contributing to the project
-└── API_DOCUMENTATION.md   # API reference and examples
+└── CONTRIBUTING.md        # Contributing to the project
 ```
 
 ---
@@ -142,17 +139,14 @@ docs/
 
 ### **External Documentation**
 - **[GitHub CLI Documentation](https://cli.github.com/manual/)** - GitHub CLI reference
-- **[SSH Documentation](https://www.openssh.com/manual.html)** - SSH protocol documentation
 - **[Go Documentation](https://golang.org/doc/)** - Go programming language docs
 
 ### **Community Resources**
 - **[GitHub Issues](https://github.com/techishthoughts-org/gitshift/issues)** - Bug reports and feature requests
-- **[GitHub Discussions](https://github.com/techishthoughts-org/gitshift/discussions)** - Community support
 - **[GitHub Wiki](https://github.com/techishthoughts-org/gitshift/wiki)** - Community-maintained documentation
 
 ### **Support Channels**
 - **🐛 Bug Reports**: [GitHub Issues](https://github.com/techishthoughts-org/gitshift/issues)
-- **💬 Community Support**: [GitHub Discussions](https://github.com/techishthoughts-org/gitshift/discussions)
 - **📧 Contact**: techishthoughts@gmail.com
 
 ---
@@ -166,9 +160,8 @@ docs/
 4. **Check troubleshooting guide** - Common issues and solutions
 
 ### **Community Support**
-1. **GitHub Discussions** - Ask questions and get help from the community
-2. **GitHub Issues** - Report bugs or request features
-3. **Community Wiki** - Community-maintained tips and tricks
+1. **GitHub Issues** - Report bugs or request features
+2. **Community Wiki** - Community-maintained tips and tricks
 
 ### **Professional Support**
 - **Enterprise Support** - Available for enterprise users
@@ -189,8 +182,7 @@ We value your feedback on our documentation! Help us improve by:
 ### **How to Provide Feedback**
 1. **GitHub Issues** - Report documentation issues
 2. **Pull Requests** - Submit documentation improvements
-3. **Discussions** - Suggest documentation enhancements
-4. **Email** - Send feedback to techishthoughts@gmail.com
+3. **Email** - Send feedback to techishthoughts@gmail.com
 
 ---
 
@@ -200,6 +192,6 @@ We value your feedback on our documentation! Help us improve by:
 
 Whether you're just getting started or diving deep into gitshift's architecture, we hope this documentation helps you succeed.
 
-**Need help?** Check our [Troubleshooting Guide](TROUBLESHOOTING.md) or [join our community](https://github.com/techishthoughts-org/gitshift/discussions)!
+**Need help?** Check our [Troubleshooting Guide](TROUBLESHOOTING.md) or [ask on GitHub](https://github.com/techishthoughts-org/gitshift/issues)!
 
 </div>
