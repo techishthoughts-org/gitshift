@@ -244,17 +244,16 @@ func (m *Manager) SetRemoteURL(remoteName, repoURL string) error {
 
 // normalizeURL ensures the URL uses the appropriate protocol
 func (m *Manager) normalizeURL(url string) string {
-	// Extract the repo path from any format
-	var repoPath string
-
-	if strings.HasPrefix(url, "git@github.com:") {
-		// SSH format: git@github.com:user/repo.git
-		repoPath = strings.TrimPrefix(url, "git@github.com:")
-	} else if strings.HasPrefix(url, "https://github.com/") {
-		// HTTPS format: https://github.com/user/repo.git
-		repoPath = strings.TrimPrefix(url, "https://github.com/")
-	} else {
+	// Detect the platform from the URL
+	domain := m.extractDomain(url)
+	if domain == "" {
 		// Unknown format, return as-is
+		return url
+	}
+
+	// Extract the repo path from any format
+	repoPath := m.extractRepoPath(url, domain)
+	if repoPath == "" {
 		return url
 	}
 
@@ -263,10 +262,58 @@ func (m *Manager) normalizeURL(url string) string {
 
 	// Return in the appropriate format
 	if m.useSSH {
-		return fmt.Sprintf("git@github.com:%s.git", repoPath)
+		return fmt.Sprintf("git@%s:%s.git", domain, repoPath)
 	} else {
-		return fmt.Sprintf("https://github.com/%s.git", repoPath)
+		return fmt.Sprintf("https://%s/%s.git", domain, repoPath)
 	}
+}
+
+// extractDomain extracts the domain from a Git URL
+func (m *Manager) extractDomain(url string) string {
+	// SSH format: git@domain:path
+	if strings.HasPrefix(url, "git@") {
+		parts := strings.Split(url, ":")
+		if len(parts) >= 2 {
+			return strings.TrimPrefix(parts[0], "git@")
+		}
+	}
+
+	// HTTPS format: https://domain/path
+	if strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "http://") {
+		// Parse the URL to extract the host
+		if idx := strings.Index(url[8:], "/"); idx != -1 {
+			return url[8 : 8+idx]
+		}
+	}
+
+	// Common Git hosting platforms
+	commonDomains := []string{"github.com", "gitlab.com", "bitbucket.org"}
+	for _, domain := range commonDomains {
+		if strings.Contains(url, domain) {
+			return domain
+		}
+	}
+
+	return ""
+}
+
+// extractRepoPath extracts the repository path from a URL given a domain
+func (m *Manager) extractRepoPath(url, domain string) string {
+	// SSH format: git@domain:owner/repo.git
+	if strings.HasPrefix(url, fmt.Sprintf("git@%s:", domain)) {
+		return strings.TrimPrefix(url, fmt.Sprintf("git@%s:", domain))
+	}
+
+	// HTTPS format: https://domain/owner/repo.git
+	if strings.HasPrefix(url, fmt.Sprintf("https://%s/", domain)) {
+		return strings.TrimPrefix(url, fmt.Sprintf("https://%s/", domain))
+	}
+
+	if strings.HasPrefix(url, fmt.Sprintf("http://%s/", domain)) {
+		return strings.TrimPrefix(url, fmt.Sprintf("http://%s/", domain))
+	}
+
+	return ""
 }
 
 // GetCurrentRemoteURL gets the current remote URL
@@ -338,14 +385,21 @@ func (m *Manager) SafeFetch(remoteName string) error {
 	return nil
 }
 
-// convertToHTTPS converts any GitHub URL to HTTPS format
+// convertToHTTPS converts any Git SSH URL to HTTPS format
 func (m *Manager) convertToHTTPS(url string) string {
-	if strings.HasPrefix(url, "git@github.com:") {
-		repoPath := strings.TrimPrefix(url, "git@github.com:")
-		repoPath = strings.TrimSuffix(repoPath, ".git")
-		return fmt.Sprintf("https://github.com/%s.git", repoPath)
+	// Extract domain and repo path
+	domain := m.extractDomain(url)
+	if domain == "" {
+		return url
 	}
-	return url
+
+	repoPath := m.extractRepoPath(url, domain)
+	if repoPath == "" {
+		return url
+	}
+
+	repoPath = strings.TrimSuffix(repoPath, ".git")
+	return fmt.Sprintf("https://%s/%s.git", domain, repoPath)
 }
 
 // SetUserConfig sets the git user configuration

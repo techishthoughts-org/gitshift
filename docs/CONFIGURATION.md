@@ -89,7 +89,11 @@ config_version: "1.0.0"
 | `name` | string | ✅ | Git user.name |
 | `email` | string | ✅ | Git user.email (must be valid email) |
 | `ssh_key_path` | string | ❌ | Path to SSH private key file |
-| `github_username` | string | ✅ | GitHub username |
+| `platform` | string | ❌ | Platform type: `github`, `gitlab`, `bitbucket` (default: `github`) |
+| `domain` | string | ❌ | Platform domain (e.g., `github.com`, `gitlab.company.com`) |
+| `username` | string | ✅ | Platform-specific username |
+| `github_username` | string | ⚠️ | **Deprecated:** Use `username` with `platform: github` |
+| `api_endpoint` | string | ❌ | Custom API endpoint for self-hosted platforms |
 | `description` | string | ❌ | Human-readable description |
 | `is_default` | boolean | ❌ | Whether this is the default account |
 | `status` | string | ❌ | Account status (active, pending, disabled) |
@@ -147,6 +151,177 @@ client-project:
   is_default: false
   status: active
   created_at: "2025-01-15T12:00:00Z"
+```
+
+---
+
+## 🌍 **Multi-Platform Configuration**
+
+gitshift supports multiple Git hosting platforms including GitHub, GitLab, GitHub Enterprise, and self-hosted instances.
+
+### **Supported Platforms**
+
+| Platform | Value | SSH Support | API Support | Notes |
+|----------|-------|-------------|-------------|-------|
+| GitHub | `github` | ✅ Full | ✅ Full | Default platform |
+| GitHub Enterprise | `github` | ✅ Full | ✅ Full | Requires custom domain |
+| GitLab | `gitlab` | ✅ Full | ⚠️ Basic | SSH fully functional |
+| GitLab Self-Hosted | `gitlab` | ✅ Full | ⚠️ Basic | Requires custom domain |
+| Bitbucket | `bitbucket` | 🚧 Planned | 🚧 Planned | Coming soon |
+
+### **Platform-Specific Account Examples**
+
+#### **GitHub Account (Default)**
+```yaml
+personal-github:
+  alias: personal-github
+  name: John Doe
+  email: john@personal.com
+  ssh_key_path: ~/.ssh/id_ed25519_github_personal
+  platform: github  # Can be omitted, defaults to github
+  username: johndoe
+  description: Personal GitHub account
+  is_default: true
+```
+
+#### **GitLab Account**
+```yaml
+personal-gitlab:
+  alias: personal-gitlab
+  name: John Doe
+  email: john@personal.com
+  ssh_key_path: ~/.ssh/id_ed25519_gitlab_personal
+  platform: gitlab
+  username: johndoe
+  domain: gitlab.com  # Optional for gitlab.com
+  description: Personal GitLab account
+```
+
+#### **GitHub Enterprise**
+```yaml
+work-github:
+  alias: work-github
+  name: John Doe
+  email: john@company.com
+  ssh_key_path: ~/.ssh/id_ed25519_github_enterprise
+  platform: github
+  username: jdoe
+  domain: github.company.com  # Required for enterprise
+  api_endpoint: https://github.company.com/api/v3  # Optional
+  description: Work GitHub Enterprise account
+```
+
+#### **Self-Hosted GitLab**
+```yaml
+company-gitlab:
+  alias: company-gitlab
+  name: John Doe
+  email: john@company.com
+  ssh_key_path: ~/.ssh/id_ed25519_gitlab_company
+  platform: gitlab
+  username: jdoe
+  domain: gitlab.company.com  # Required for self-hosted
+  api_endpoint: https://gitlab.company.com/api/v4  # Optional
+  description: Company GitLab instance
+```
+
+### **Multi-Platform Configuration Example**
+
+Complete configuration with multiple platforms:
+
+```yaml
+accounts:
+  # GitHub accounts
+  personal-github:
+    alias: personal-github
+    platform: github
+    username: johndoe
+    name: John Doe
+    email: john@personal.com
+    ssh_key_path: ~/.ssh/id_ed25519_github_personal
+    is_default: true
+
+  work-github:
+    alias: work-github
+    platform: github
+    username: jdoe-work
+    name: John Doe
+    email: john@work.com
+    ssh_key_path: ~/.ssh/id_ed25519_github_work
+
+  # GitLab accounts
+  personal-gitlab:
+    alias: personal-gitlab
+    platform: gitlab
+    username: johndoe
+    name: John Doe
+    email: john@personal.com
+    ssh_key_path: ~/.ssh/id_ed25519_gitlab_personal
+
+  # Self-hosted GitLab
+  client-gitlab:
+    alias: client-gitlab
+    platform: gitlab
+    domain: gitlab.client.com
+    username: jdoe
+    name: John Doe
+    email: john@client.com
+    ssh_key_path: ~/.ssh/id_ed25519_gitlab_client
+
+current_account: personal-github
+```
+
+### **Platform Detection**
+
+gitshift automatically detects the platform from repository URLs:
+
+```bash
+# GitHub
+git@github.com:user/repo.git       → Platform: github
+https://github.com/user/repo.git   → Platform: github
+
+# GitLab
+git@gitlab.com:user/repo.git       → Platform: gitlab
+https://gitlab.com/user/repo.git   → Platform: gitlab
+
+# Self-hosted
+git@gitlab.company.com:user/repo.git  → Platform: gitlab (custom domain)
+```
+
+### **Platform Usage Examples**
+
+```bash
+# Add GitHub account
+gitshift add personal --platform github --email john@personal.com
+
+# Add GitLab account
+gitshift add gitlab-personal --platform gitlab --email john@gitlab.com
+
+# Add self-hosted GitLab
+gitshift add company-gitlab \
+  --platform gitlab \
+  --domain gitlab.company.com \
+  --email john@company.com
+
+# Switch between platforms
+gitshift switch personal-github    # GitHub
+gitshift switch gitlab-personal    # GitLab
+gitshift switch company-gitlab     # Self-hosted GitLab
+```
+
+### **Backward Compatibility**
+
+Existing GitHub-only configurations work without changes:
+
+```yaml
+# Old format (still works)
+personal:
+  alias: personal
+  github_username: johndoe  # Automatically mapped to username
+  # platform defaults to github
+```
+
+**Migration:** No action required. Add `platform` and `username` fields when convenient
   last_used: "2025-01-16T07:30:00Z"
 ```
 

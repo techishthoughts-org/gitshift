@@ -19,11 +19,12 @@ This documentation provides comprehensive guides for using, configuring, and con
 
 ### **⚙️ Configuration & Setup**
 - **[Configuration Guide](CONFIGURATION.md)** - Detailed configuration options
+- **[Multi-Platform Configuration](CONFIGURATION.md#-multi-platform-configuration)** - GitHub, GitLab, and more
 - **[Environment Variables](CONFIGURATION.md#environment-variables)** - Environment setup
 - **[SSH Configuration](CONFIGURATION.md#ssh-configuration)** - SSH setup and management
 
 ### **🔧 Usage & Features**
-- **[Account Management](USER_GUIDE.md#account-management)** - Managing GitHub accounts
+- **[Account Management](USER_GUIDE.md#account-management)** - Managing Git accounts across platforms
 - **[SSH Key Management](USER_GUIDE.md#ssh-key-management)** - SSH key operations
 - **[Account Switching](USER_GUIDE.md#account-switching)** - Switching between accounts
 - **[Diagnostics](USER_GUIDE.md#diagnostics--health-checks)** - System health checks
