@@ -1,0 +1,142 @@
+# Example gitshift configuration with multi-platform support
+# This shows how to configure accounts for GitHub, GitLab, and custom Git hosting platforms
+
+config_version: "1.0.0"
+global_git_config: true
+auto_detect: true
+
+accounts:
+  # GitHub account (default platform)
+  personal-github:
+    alias: personal-github
+    name: John Doe
+    email: john@personal.com
+    ssh_key_path: ~/.ssh/id_ed25519_github_personal
+    platform: github  # Explicitly specify GitHub
+    username: johndoe  # GitHub username
+    domain: github.com  # Optional: defaults to github.com for GitHub platform
+    description: Personal GitHub account
+    is_default: true
+    status: active
+    isolation_level: standard
+
+  # Work GitHub account
+  work-github:
+    alias: work-github
+    name: John Doe
+    email: john.doe@company.com
+    ssh_key_path: ~/.ssh/id_ed25519_github_work
+    platform: github
+    username: johndoe-work
+    domain: github.com
+    description: Work GitHub account
+    is_default: false
+    status: active
+    isolation_level: standard
+
+  # GitHub Enterprise account
+  enterprise-github:
+    alias: enterprise-github
+    name: John Doe
+    email: john.doe@enterprise.com
+    ssh_key_path: ~/.ssh/id_ed25519_github_enterprise
+    platform: github
+    username: jdoe
+    domain: github.enterprise.com  # Custom GitHub Enterprise domain
+    api_endpoint: https://github.enterprise.com/api/v3  # Optional: custom API endpoint
+    description: GitHub Enterprise account
+    is_default: false
+    status: active
+    isolation_level: standard
+
+  # GitLab.com account
+  personal-gitlab:
+    alias: personal-gitlab
+    name: John Doe
+    email: john@personal.com
+    ssh_key_path: ~/.ssh/id_ed25519_gitlab_personal
+    platform: gitlab  # GitLab platform
+    username: johndoe
+    domain: gitlab.com  # Optional: defaults to gitlab.com for GitLab platform
+    description: Personal GitLab account
+    is_default: false
+    status: active
+    isolation_level: standard
+
+  # Self-hosted GitLab account
+  company-gitlab:
+    alias: company-gitlab
+    name: John Doe
+    email: john.doe@company.com
+    ssh_key_path: ~/.ssh/id_ed25519_gitlab_company
+    platform: gitlab
+    username: jdoe
+    domain: gitlab.company.com  # Self-hosted GitLab domain
+    api_endpoint: https://gitlab.company.com/api/v4  # Optional: custom API endpoint
+    description: Company self-hosted GitLab
+    is_default: false
+    status: active
+    isolation_level: standard
+
+  # Legacy GitHub account (backward compatibility)
+  # Accounts without platform field default to GitHub
+  legacy-account:
+    alias: legacy-account
+    name: Jane Smith
+    email: jane@example.com
+    ssh_key_path: ~/.ssh/id_rsa_github_legacy
+    github_username: janesmith  # Old field name, still supported
+    description: Legacy GitHub account (backward compatible)
+    is_default: false
+    status: active
+    isolation_level: basic
+
+# Current active account
+current_account: personal-github
+
+---
+
+# Usage Examples:
+
+# 1. Switch to GitHub account:
+#    gitshift switch personal-github
+
+# 2. Switch to GitLab account:
+#    gitshift switch personal-gitlab
+
+# 3. Switch to self-hosted GitLab:
+#    gitshift switch company-gitlab
+
+# 4. Add new GitHub account:
+#    gitshift add work-backup --name "John Doe" --email john@work.com --platform github
+
+# 5. Add new GitLab account:
+#    gitshift add freelance --name "John Doe" --email john@freelance.com --platform gitlab
+
+# 6. Add self-hosted GitLab account:
+#    gitshift add client-gitlab --name "John Doe" --email john@client.com --platform gitlab --domain gitlab.client.com
+
+# 7. List all accounts (shows platform for each):
+#    gitshift list
+
+# 8. Clone repository with specific account (auto-detects platform):
+#    gitshift clone git@github.com:user/repo.git personal-github
+#    gitshift clone git@gitlab.com:user/repo.git personal-gitlab
+
+# Platform Detection:
+# - gitshift automatically detects the platform from repository URLs
+# - SSH URLs: git@github.com:user/repo.git -> GitHub
+# - SSH URLs: git@gitlab.com:user/repo.git -> GitLab
+# - HTTPS URLs: https://github.com/user/repo.git -> GitHub
+# - HTTPS URLs: https://gitlab.com/user/repo.git -> GitLab
+# - Custom domains are detected based on the account configuration
+
+# SSH Configuration:
+# - gitshift creates platform-specific SSH configs for each account
+# - Each platform (GitHub, GitLab, etc.) gets its own SSH Host entry
+# - Multiple accounts on the same platform are managed via SSH key isolation
+
+# Backward Compatibility:
+# - Existing configurations without 'platform' field default to GitHub
+# - 'github_username' field is still supported (mapped to 'username')
+# - All existing gitshift commands continue to work as before

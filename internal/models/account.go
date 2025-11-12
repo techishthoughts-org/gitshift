@@ -22,8 +22,22 @@ type Account struct {
 	// SSHKeyPath is the path to the SSH private key file
 	SSHKeyPath string `json:"ssh_key_path" yaml:"ssh_key_path" mapstructure:"ssh_key_path"`
 
-	// GitHubUsername is the GitHub username (required)
-	GitHubUsername string `json:"github_username" yaml:"github_username" mapstructure:"github_username" validate:"required"`
+	// GitHubUsername is the GitHub username (required for GitHub platform)
+	// Deprecated: Use Username instead with Platform field
+	GitHubUsername string `json:"github_username" yaml:"github_username" mapstructure:"github_username"`
+
+	// Username is the platform-specific username (e.g., GitHub, GitLab username)
+	Username string `json:"username,omitempty" yaml:"username,omitempty" mapstructure:"username"`
+
+	// Platform is the Git hosting platform type (github, gitlab, bitbucket, custom)
+	Platform string `json:"platform,omitempty" yaml:"platform,omitempty" mapstructure:"platform"`
+
+	// Domain is the platform domain (e.g., "github.com", "gitlab.com", "custom-gitlab.company.com")
+	// If empty, defaults to the standard domain for the platform
+	Domain string `json:"domain,omitempty" yaml:"domain,omitempty" mapstructure:"domain"`
+
+	// APIEndpoint is the API endpoint URL for custom installations (optional)
+	APIEndpoint string `json:"api_endpoint,omitempty" yaml:"api_endpoint,omitempty" mapstructure:"api_endpoint"`
 
 	// Description is an optional description of the account
 	Description string `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description"`
@@ -451,4 +465,55 @@ func (a *Account) GetMissingFields() []string {
 		return nil
 	}
 	return a.MissingFields
+}
+
+// GetPlatform returns the platform type, defaulting to GitHub for backward compatibility
+func (a *Account) GetPlatform() string {
+	if a.Platform == "" {
+		return "github" // Default to GitHub for legacy accounts
+	}
+	return a.Platform
+}
+
+// GetDomain returns the platform domain, defaulting to platform-specific domains
+func (a *Account) GetDomain() string {
+	if a.Domain != "" {
+		return a.Domain
+	}
+
+	// Return default domain based on platform
+	switch a.GetPlatform() {
+	case "github":
+		return "github.com"
+	case "gitlab":
+		return "gitlab.com"
+	case "bitbucket":
+		return "bitbucket.org"
+	default:
+		return ""
+	}
+}
+
+// GetUsername returns the username, falling back to GitHubUsername for backward compatibility
+func (a *Account) GetUsername() string {
+	if a.Username != "" {
+		return a.Username
+	}
+	// Fallback to GitHubUsername for backward compatibility
+	return a.GitHubUsername
+}
+
+// SetUsername sets the username and updates GitHubUsername for backward compatibility
+func (a *Account) SetUsername(username string) {
+	a.Username = username
+	// Keep GitHubUsername in sync for backward compatibility
+	if a.GetPlatform() == "github" {
+		a.GitHubUsername = username
+	}
+}
+
+// IsPlatformSupported checks if the account's platform is supported
+func (a *Account) IsPlatformSupported() bool {
+	platform := a.GetPlatform()
+	return platform == "github" || platform == "gitlab" || platform == "bitbucket"
 }

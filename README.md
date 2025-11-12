@@ -2,7 +2,9 @@
 
 <div align="center">
 
-**SSH-First GitHub Account Management - Clean, Fast, and Isolated**
+**SSH-First Multi-Platform Account Management - Clean, Fast, and Isolated**
+
+*Now supporting GitHub, GitLab, and more!*
 
 [![Go Version](https://img.shields.io/badge/Go-1.23+-blue)](https://golang.org/doc/devel/release.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -23,6 +25,7 @@
 - [Overview](#-overview)
 - [The Problem](#-the-problem-we-solve)
 - [Features](#-features)
+- [Multi-Platform Support](#-multi-platform-support)
 - [How It Works](#-how-it-works)
 - [Installation](#-installation)
 - [Quick Start](#-quick-start)
@@ -38,18 +41,19 @@
 
 ## 🎯 Overview
 
-**gitshift** is a clean, focused CLI tool for managing multiple GitHub accounts with **complete SSH isolation**. No GitHub API dependencies, no complex TUI interfaces - just pure SSH-based account management that works.
+**gitshift** is a clean, focused CLI tool for managing multiple Git accounts across **GitHub, GitLab, and other platforms** with **complete SSH isolation**. No complex API dependencies, no TUI interfaces - just pure SSH-based account management that works everywhere.
 
 ### Why gitshift?
 
-Managing multiple GitHub accounts (work, personal, client projects) traditionally requires:
-- Manual SSH config editing
+Managing multiple Git accounts across different platforms (work GitHub, personal GitLab, client projects) traditionally requires:
+- Manual SSH config editing for each platform
 - Complex git configuration management
-- Constant context switching
+- Constant context switching between accounts
 - Risk of pushing to wrong accounts
 - SSH key conflicts and authentication failures
+- Platform-specific authentication setup
 
-**gitshift eliminates all of this** with a simple, SSH-first approach.
+**gitshift eliminates all of this** with a simple, SSH-first, multi-platform approach.
 
 ---
 
@@ -57,10 +61,10 @@ Managing multiple GitHub accounts (work, personal, client projects) traditionall
 
 ```mermaid
 graph TD
-    A[Developer] -->|Switches Context| B{Multiple GitHub Accounts}
-    B -->|Work Account| C[❌ Wrong SSH Key Used]
-    B -->|Personal Account| D[❌ Git Config Conflict]
-    B -->|Client Account| E[❌ Authentication Failure]
+    A[Developer] -->|Switches Context| B{Multiple Git Accounts}
+    B -->|Work GitHub| C[❌ Wrong SSH Key Used]
+    B -->|Personal GitLab| D[❌ Git Config Conflict]
+    B -->|Client GitHub| E[❌ Authentication Failure]
 
     C --> F[😤 Commit to Wrong Account]
     D --> G[😤 Wrong Email in Commits]
@@ -91,13 +95,15 @@ graph TD
 
 ### Core Capabilities
 
-- 🔐 **SSH-Only Approach** - No GitHub API dependencies required
-- 🔄 **Complete Isolation** - Accounts never interfere with each other
-- 🔑 **Smart SSH Management** - Auto-generates and manages SSH keys
+- 🌍 **Multi-Platform Support** - GitHub, GitLab, Bitbucket, and self-hosted
+- 🔐 **SSH-First Approach** - Minimal API dependencies, works everywhere
+- 🔄 **Complete Isolation** - Accounts never interfere across platforms
+- 🔑 **Smart SSH Management** - Auto-generates and manages SSH keys per platform
 - ⚡ **Fast Switching** - Instant account transitions with validation
-- 🛡️ **Secure by Design** - SSH config with `IdentitiesOnly=yes`
-- 🌐 **Known Hosts Management** - Auto-manages GitHub host keys
+- 🛡️ **Secure by Design** - Platform-specific SSH configs with `IdentitiesOnly=yes`
+- 🌐 **Known Hosts Management** - Auto-manages host keys for all platforms
 - 📋 **Auto Key Management** - Adds keys to ssh-agent and clipboard
+- 🔍 **Auto Platform Detection** - Detects platform from repository URLs
 - 🔍 **Account Discovery** - Finds existing SSH keys automatically
 
 ### Implemented Commands
@@ -118,6 +124,42 @@ All features documented below are **verified and implemented** in the codebase:
 
 ---
 
+## 🌍 Multi-Platform Support
+
+gitshift supports multiple Git hosting platforms out of the box:
+
+### Supported Platforms
+
+| Platform | Status | SSH | API | Notes |
+|----------|--------|-----|-----|-------|
+| **GitHub** | ✅ Full | ✅ | ✅ | Complete support |
+| **GitHub Enterprise** | ✅ Full | ✅ | ✅ | Custom domains supported |
+| **GitLab** | ✅ SSH | ✅ | ⚠️ | API in progress |
+| **GitLab Self-Hosted** | ✅ SSH | ✅ | ⚠️ | Custom domains supported |
+| **Bitbucket** | 🚧 Planned | - | - | Coming soon |
+
+### Platform-Specific Examples
+
+```bash
+# Add GitHub account
+gitshift add personal --platform github --email john@personal.com
+
+# Add GitLab account
+gitshift add gitlab-personal --platform gitlab --email john@personal.com
+
+# Add self-hosted GitLab
+gitshift add company-gitlab --platform gitlab --domain gitlab.company.com
+
+# Switch between platforms
+gitshift switch personal          # GitHub account
+gitshift switch gitlab-personal   # GitLab account
+gitshift switch company-gitlab    # Self-hosted GitLab
+```
+
+**See detailed documentation:** [docs/MULTI_PLATFORM_SUPPORT.md](docs/MULTI_PLATFORM_SUPPORT.md)
+
+---
+
 ## 🔄 How It Works
 
 ### Account Switching Flow
@@ -129,16 +171,16 @@ sequenceDiagram
     participant SSH Config
     participant Git Config
     participant SSH Agent
-    participant GitHub
+    participant Platform
 
     User->>gitshift: gitshift switch work
-    gitshift->>gitshift: Validate account exists
-    gitshift->>SSH Config: Update ~/.ssh/config
+    gitshift->>gitshift: Validate account & detect platform
+    gitshift->>SSH Config: Update ~/.ssh/config (platform-specific)
     gitshift->>Git Config: Set user.name & user.email
     gitshift->>SSH Agent: Clear old keys
-    gitshift->>SSH Agent: Load work SSH key
-    gitshift->>GitHub: Test SSH connection
-    GitHub-->>gitshift: Authentication successful
+    gitshift->>SSH Agent: Load account SSH key
+    gitshift->>Platform: Test SSH connection
+    Platform-->>gitshift: Authentication successful
     gitshift-->>User: ✅ Switched to work account
 ```
 
