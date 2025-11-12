@@ -1,6 +1,6 @@
 module github.com/techishthoughts/gitshift
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/cli/go-gh/v2 v2.12.2
