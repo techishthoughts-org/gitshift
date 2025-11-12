@@ -42,7 +42,7 @@
 
 ### **Prerequisites**
 
-- **Go 1.21+** - [Download Go](https://golang.org/dl/)
+- **Go 1.24+** - [Download Go](https://golang.org/dl/)
 - **Git** - [Download Git](https://git-scm.com/downloads)
 - **GitHub CLI** (optional) - [Download gh](https://cli.github.com/)
 

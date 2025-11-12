@@ -1,6 +1,6 @@
 # 📚 gitshift Documentation
 
-> **Complete documentation for gitshift - The ultimate GitHub account management tool**
+> **Complete documentation for gitshift - Multi-platform Git account management**
 
 ---
 
@@ -19,7 +19,8 @@ This documentation provides comprehensive guides for using, configuring, and con
 
 ### **⚙️ Configuration & Setup**
 - **[Configuration Guide](CONFIGURATION.md)** - Detailed configuration options
-- **[Multi-Platform Configuration](CONFIGURATION.md#-multi-platform-configuration)** - GitHub, GitLab, and more
+- **[Multi-Platform Support Guide](MULTI_PLATFORM_SUPPORT.md)** - 🆕 GitHub, GitLab, Enterprise, and self-hosted platforms
+- **[Multi-Platform Configuration](CONFIGURATION.md#-multi-platform-configuration)** - Platform-specific configuration
 - **[Environment Variables](CONFIGURATION.md#environment-variables)** - Environment setup
 - **[SSH Configuration](CONFIGURATION.md#ssh-configuration)** - SSH setup and management
 
@@ -42,7 +43,9 @@ This documentation provides comprehensive guides for using, configuring, and con
 
 ### **🏗️ Technical Documentation**
 - **[Architecture Guide](ARCHITECTURE.md)** - Technical architecture and design
+- **[Platform Abstraction Layer](ARCHITECTURE.md#platform-abstraction-layer-)** - 🆕 Multi-platform architecture
 - **[Security Guide](SECURITY.md)** - Security best practices and considerations
+- **[Changelog](../CHANGELOG.md)** - 🆕 Version history and release notes
 
 ### **🤝 Contributing**
 - **[Contributing Guide](CONTRIBUTING.md)** - How to contribute to gitshift
@@ -83,18 +86,27 @@ This documentation provides comprehensive guides for using, configuring, and con
 
 ```
 docs/
-├── README.md              # This file - documentation index
-├── USER_GUIDE.md          # Complete user documentation
-├── CONFIGURATION.md       # Configuration and setup guide
-├── TROUBLESHOOTING.md     # Troubleshooting and problem solving
-├── ARCHITECTURE.md        # Technical architecture and design
-├── SECURITY.md            # Security best practices and guidelines
-└── CONTRIBUTING.md        # Contributing to the project
+├── README.md                    # This file - documentation index
+├── USER_GUIDE.md                # Complete user documentation
+├── CONFIGURATION.md             # Configuration and setup guide
+├── MULTI_PLATFORM_SUPPORT.md    # 🆕 Multi-platform guide (GitHub, GitLab, etc.)
+├── TROUBLESHOOTING.md           # Troubleshooting and problem solving
+├── ARCHITECTURE.md              # Technical architecture and design
+├── SECURITY.md                  # Security best practices and guidelines
+├── CONTRIBUTING.md              # Contributing to the project
+└── MIGRATION_GUIDE.md           # Migration from other tools
+
+../CHANGELOG.md                  # 🆕 Version history and release notes
 ```
 
 ---
 
 ## 🎯 **Common Use Cases**
+
+### **Setting Up Multi-Platform Accounts** 🆕
+1. Read **[Multi-Platform Support Guide](MULTI_PLATFORM_SUPPORT.md)**
+2. Configure **[Platform-Specific Accounts](MULTI_PLATFORM_SUPPORT.md#platform-configuration)**
+3. Learn **[Platform Detection](MULTI_PLATFORM_SUPPORT.md#platform-detection)**
 
 ### **Setting Up Multiple GitHub Accounts**
 1. Read **[User Guide - Account Management](USER_GUIDE.md#account-management)**

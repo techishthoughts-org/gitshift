@@ -190,6 +190,247 @@ type ZshSecretsService interface {
 - Environment variable management
 - File validation and backup
 
+---
+
+### **Platform Abstraction Layer** 🆕
+
+gitshift v0.2.0 introduces a clean platform abstraction layer to support multiple Git hosting platforms.
+
+#### **Platform Interface**
+
+```go
+// Platform defines the interface for Git hosting platforms
+type Platform interface {
+    // Platform identification
+    Name() string                          // e.g., "github", "gitlab"
+    DefaultDomain() string                 // e.g., "github.com", "gitlab.com"
+
+    // SSH operations
+    GetSSHHost(domain string) string       // SSH hostname for platform
+    TestSSHConnection(ctx context.Context, username string, domain string, keyPath string) error
+
+    // API operations
+    GetAPIEndpoint(domain string) string   // API endpoint URL
+    ValidateCredentials(ctx context.Context, token string, domain string) error
+
+    // Repository operations
+    ParseRepoURL(url string) (*RepoInfo, error)
+    IsValidRepoURL(url string) bool
+}
+```
+
+#### **Platform Implementations**
+
+**GitHub Platform** (`pkg/platform/github.go`):
+```go
+type GitHubPlatform struct {
+    httpClient *http.Client
+}
+
+func (p *GitHubPlatform) Name() string {
+    return "github"
+}
+
+func (p *GitHubPlatform) DefaultDomain() string {
+    return "github.com"
+}
+
+func (p *GitHubPlatform) GetAPIEndpoint(domain string) string {
+    if domain == "github.com" {
+        return "https://api.github.com"
+    }
+    return fmt.Sprintf("https://%s/api/v3", domain)  // GitHub Enterprise
+}
+```
+
+**GitLab Platform** (`pkg/platform/gitlab.go`):
+```go
+type GitLabPlatform struct {
+    httpClient *http.Client
+}
+
+func (p *GitLabPlatform) Name() string {
+    return "gitlab"
+}
+
+func (p *GitLabPlatform) DefaultDomain() string {
+    return "gitlab.com"
+}
+
+func (p *GitLabPlatform) GetAPIEndpoint(domain string) string {
+    return fmt.Sprintf("https://%s/api/v4", domain)  // GitLab API v4
+}
+```
+
+#### **Platform Factory**
+
+```go
+// Factory pattern for creating platform instances
+type PlatformFactory interface {
+    GetPlatform(platformType string) (Platform, error)
+    RegisterPlatform(platformType string, platform Platform) error
+}
+
+type DefaultPlatformFactory struct {
+    platforms map[string]Platform
+}
+
+func NewPlatformFactory() *DefaultPlatformFactory {
+    factory := &DefaultPlatformFactory{
+        platforms: make(map[string]Platform),
+    }
+
+    // Register built-in platforms
+    factory.RegisterPlatform("github", NewGitHubPlatform())
+    factory.RegisterPlatform("gitlab", NewGitLabPlatform())
+
+    return factory
+}
+
+func (f *DefaultPlatformFactory) GetPlatform(platformType string) (Platform, error) {
+    platform, exists := f.platforms[platformType]
+    if !exists {
+        return nil, fmt.Errorf("unsupported platform: %s", platformType)
+    }
+    return platform, nil
+}
+```
+
+#### **Platform Service Integration**
+
+The platform layer integrates with existing services:
+
+```go
+type SSHService interface {
+    // Enhanced with platform support
+    TestPlatformAuthentication(ctx context.Context,
+        platform Platform,
+        username string,
+        domain string,
+        keyPath string) error
+
+    GenerateSSHConfigForPlatform(ctx context.Context,
+        account *models.Account,
+        platform Platform) (string, error)
+}
+
+type AccountService interface {
+    // Platform-aware operations
+    SwitchAccountWithPlatform(ctx context.Context,
+        alias string,
+        platform Platform) error
+
+    DiscoverAccountsForPlatform(ctx context.Context,
+        platform Platform) ([]*models.Account, error)
+}
+```
+
+#### **Platform Detection Flow**
+
+```mermaid
+graph TD
+    A[User provides Git URL] --> B{Parse URL}
+    B --> C[Extract domain]
+    C --> D{Match configured account}
+    D -->|Found| E[Load platform from account]
+    D -->|Not found| F[Detect platform from domain]
+    F -->|github.com| G[Use GitHub Platform]
+    F -->|gitlab.com| H[Use GitLab Platform]
+    F -->|Custom domain| I[Check account configs]
+    E --> J[Apply platform-specific logic]
+    G --> J
+    H --> J
+    I --> J
+    J --> K[Generate SSH config]
+    J --> L[Test connection]
+    J --> M[API operations]
+```
+
+#### **Extended Account Model**
+
+The Account model now includes platform-specific fields:
+
+```go
+type Account struct {
+    // Existing fields
+    Alias          string        `json:"alias" yaml:"alias"`
+    Name           string        `json:"name" yaml:"name"`
+    Email          string        `json:"email" yaml:"email"`
+    SSHKeyPath     string        `json:"ssh_key_path" yaml:"ssh_key_path"`
+
+    // Platform-specific fields (NEW)
+    Platform       string        `json:"platform,omitempty" yaml:"platform,omitempty"`           // github, gitlab, etc.
+    Domain         string        `json:"domain,omitempty" yaml:"domain,omitempty"`               // Custom domain
+    Username       string        `json:"username,omitempty" yaml:"username,omitempty"`           // Platform username
+    APIEndpoint    string        `json:"api_endpoint,omitempty" yaml:"api_endpoint,omitempty"`   // Custom API URL
+
+    // Deprecated (backward compatibility)
+    GitHubUsername string        `json:"github_username,omitempty" yaml:"github_username,omitempty"` // DEPRECATED
+
+    // Other fields
+    Description    string        `json:"description,omitempty" yaml:"description,omitempty"`
+    IsDefault      bool          `json:"is_default" yaml:"is_default"`
+    Status         AccountStatus `json:"status" yaml:"status"`
+    CreatedAt      time.Time     `json:"created_at" yaml:"created_at"`
+    LastUsed       *time.Time    `json:"last_used,omitempty" yaml:"last_used,omitempty"`
+}
+
+// Helper method for backward compatibility
+func (a *Account) GetUsername() string {
+    if a.Username != "" {
+        return a.Username
+    }
+    return a.GitHubUsername  // Fallback to deprecated field
+}
+
+// Helper method for platform detection
+func (a *Account) GetPlatform() string {
+    if a.Platform != "" {
+        return a.Platform
+    }
+    return "github"  // Default to GitHub for backward compatibility
+}
+```
+
+#### **Benefits of Platform Abstraction**
+
+✅ **Extensibility**: Easy to add new platforms (Bitbucket, Gitea, etc.)
+✅ **Maintainability**: Platform-specific logic isolated in dedicated modules
+✅ **Testability**: Mock platforms for testing without external dependencies
+✅ **Backward Compatibility**: Existing GitHub-only configs work without changes
+✅ **Type Safety**: Compile-time verification of platform operations
+✅ **Clean Code**: No platform-specific if/else chains in business logic
+
+#### **Adding New Platforms**
+
+To add support for a new platform:
+
+1. **Implement Platform Interface**:
+   ```go
+   type BitbucketPlatform struct {
+       httpClient *http.Client
+   }
+
+   func (p *BitbucketPlatform) Name() string {
+       return "bitbucket"
+   }
+   // Implement other interface methods...
+   ```
+
+2. **Register with Factory**:
+   ```go
+   factory.RegisterPlatform("bitbucket", NewBitbucketPlatform())
+   ```
+
+3. **Update Documentation**:
+   - Add to supported platforms table
+   - Document platform-specific configuration
+   - Add usage examples
+
+See [Contributing Guide](CONTRIBUTING.md) for detailed platform extension guidelines.
+
+---
+
 ### **Service Communication**
 
 ```go

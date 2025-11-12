@@ -1,6 +1,6 @@
 # ⚙️ gitshift Configuration Guide
 
-> **Complete guide to configuring gitshift for optimal GitHub account management**
+> **Complete guide to configuring gitshift for multi-platform Git account management**
 
 ---
 
@@ -100,6 +100,34 @@ config_version: "1.0.0"
 | `created_at` | timestamp | ❌ | When the account was created |
 | `last_used` | timestamp | ❌ | When the account was last used |
 | `missing_fields` | array | ❌ | List of missing required fields |
+
+### **⚠️ Deprecated Fields**
+
+> **Important:** The following fields are deprecated but still supported for backward compatibility:
+
+- **`github_username`**: Use `username` + `platform: github` instead
+  - **Migration:** Replace `github_username: johndoe` with `platform: github` and `username: johndoe`
+  - **Timeline:** No removal planned - maintained indefinitely for backward compatibility
+  - **Recommendation:** Update new accounts to use `username` + `platform`
+
+**Example Migration:**
+
+```yaml
+# Old format (deprecated but still works)
+personal:
+  alias: personal
+  github_username: johndoe
+  # ... other fields
+
+# New format (recommended)
+personal:
+  alias: personal
+  platform: github
+  username: johndoe
+  # ... other fields
+```
+
+See [Multi-Platform Support Guide](MULTI_PLATFORM_SUPPORT.md#migration-from-github-only) for detailed migration instructions.
 
 ### **Account Status Values**
 

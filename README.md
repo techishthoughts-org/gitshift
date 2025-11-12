@@ -6,7 +6,7 @@
 
 *Now supporting GitHub, GitLab, and more!*
 
-[![Go Version](https://img.shields.io/badge/Go-1.23+-blue)](https://golang.org/doc/devel/release.html)
+[![Go Version](https://img.shields.io/badge/Go-1.24+-blue)](https://golang.org/doc/devel/release.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen)](#)
 
@@ -655,7 +655,7 @@ For complete security documentation, see [SECURITY.md](docs/SECURITY.md)
 
 ### Prerequisites
 
-- **Go 1.23+** - [Download Go](https://golang.org/dl/)
+- **Go 1.24+** - [Download Go](https://golang.org/dl/)
 - **Git** - [Download Git](https://git-scm.com/downloads)
 - **Make** - Build automation
 
