@@ -27,7 +27,10 @@ jobs:
       with:
         fetch-depth: 0
         fetch-tags: true
-        token: ${{ secrets.GITHUB_TOKEN }}
+        # Use PAT if available to trigger downstream workflows, otherwise use GITHUB_TOKEN
+        # Note: GITHUB_TOKEN won't trigger build/publish workflows (GitHub security feature)
+        # To enable automatic releases, create a PAT with 'repo' scope and add as RELEASE_TOKEN secret
+        token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
     - name: 🐹 Setup Go
       uses: actions/setup-go@v5
