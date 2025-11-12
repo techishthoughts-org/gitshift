@@ -3,7 +3,7 @@ name: 🚀 Release Coordinator
 on:
   # Trigger on successful CI completion
   workflow_run:
-    workflows: [🚀 GitShift CI]
+    workflows: ["CI"]
     types: [completed]
     branches: [main]
 jobs:
