@@ -621,7 +621,7 @@ cp ~/.gitshift/config.yaml.backup ~/.gitshift/config.yaml
 If you encounter issues not covered here:
 
 1. Check [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for general issues
-2. Search [GitHub Issues](https://github.com/yourusername/gitshift/issues)
+2. Search [GitHub Issues](https://github.com/techishthoughts-org/gitshift/issues)
 3. Open a new issue with:
    - Platform type (GitHub, GitLab, etc.)
    - Domain (public or custom)
