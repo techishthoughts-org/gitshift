@@ -14,15 +14,26 @@ import (
 // listCmd represents the list command
 var listCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List all configured GitHub accounts",
-	Long: `List all configured GitHub accounts with their details.
+	Short: "List all configured Git platform accounts",
+	Long: `List all configured Git platform accounts with their details.
 
-The output shows the alias, name, email, and additional information for each account.
+The output shows the alias, name, email, platform, and additional information for each account.
 The current active account is marked with an asterisk (*).
 
+Displays accounts from all platforms:
+- GitHub (github.com and GitHub Enterprise)
+- GitLab (gitlab.com and self-hosted)
+- Bitbucket (coming soon)
+- Custom Git platforms
+
 Examples:
+  # List all accounts
   gitshift list
+
+  # List in table format
   gitshift list --format table
+
+  # List in JSON format
   gitshift list --format json`,
 	Aliases: []string{"ls"},
 	RunE: func(cmd *cobra.Command, args []string) error {

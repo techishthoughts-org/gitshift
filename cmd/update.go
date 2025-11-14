@@ -12,20 +12,32 @@ import (
 var updateCmd = &cobra.Command{
 	Use:   "update [alias]",
 	Short: "🔄 Update account information",
-	Long: `Update account information for an existing GitHub account.
+	Long: `Update account information for an existing Git platform account.
 
 This command allows you to modify:
 - Display name
 - Email address
-- GitHub username
+- GitHub username (works for any platform)
 - SSH key path
 - Description
 - Default account status
 
+Works with accounts from all platforms:
+- GitHub (github.com and GitHub Enterprise)
+- GitLab (gitlab.com and self-hosted)
+- Bitbucket (coming soon)
+- Custom Git platforms
+
 Examples:
-  gitshift update work --name "New Name"
-  gitshift update personal --email "new@email.com"
-  gitshift update username --github-username "newusername"
+  # Update GitHub account
+  gitshift update work-github --name "New Name"
+  gitshift update personal-github --email "new@email.com"
+
+  # Update GitLab account
+  gitshift update work-gitlab --name "New Name"
+  gitshift update personal-gitlab --github-username "newusername"
+
+  # Update SSH key
   gitshift update work --ssh-key "~/.ssh/new_key" --description "Updated description"`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {

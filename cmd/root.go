@@ -14,16 +14,23 @@ var cfgFile string
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "gitshift",
-	Short: "🎭 SSH-first GitHub account management",
-	Long: `gitshift provides SSH-first GitHub identity management with complete isolation.
+	Short: "🎭 Multi-platform Git account management (GitHub, GitLab, and more)",
+	Long: `gitshift provides SSH-first Git identity management with complete isolation.
+
+Supported Platforms:
+- GitHub (github.com and GitHub Enterprise)
+- GitLab (gitlab.com and self-hosted)
+- Bitbucket (coming soon)
+- Custom Git platforms
 
 Features:
-- 🔐 SSH-first approach - no GitHub API dependencies
+- 🔐 SSH-first approach - works with any Git platform
 - 🔄 Complete account isolation using SSH config
 - 🔑 SSH key discovery from ~/.ssh directory
 - ⚡ Fast account switching with proper isolation
 - 📧 Email extraction from SSH keys
-- 🛡️ No key conflicts or cross-contamination`,
+- 🛡️ No key conflicts or cross-contamination
+- 🌐 Multi-platform support (GitHub, GitLab, etc.)`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Check if version flag is set
 		if version, _ := cmd.Flags().GetBool("version"); version {
@@ -83,13 +90,19 @@ func initConfig() {
 
 // showVersion displays version information
 func showVersion() {
-	fmt.Println("🎭 gitshift - Revolutionary GitHub Identity Management")
+	fmt.Println("🎭 gitshift - Multi-Platform Git Identity Management")
 	fmt.Println("Version: v0.1.0")
 	fmt.Println("Go Version: go1.23.0")
 	fmt.Println("Build Time: 2025-01-02")
 	fmt.Println()
+	fmt.Println("🌐 Supported Platforms:")
+	fmt.Println("  • GitHub (github.com & Enterprise)")
+	fmt.Println("  • GitLab (gitlab.com & self-hosted)")
+	fmt.Println("  • Bitbucket (coming soon)")
+	fmt.Println("  • Custom Git platforms")
+	fmt.Println()
 	fmt.Println("🚀 Features:")
-	fmt.Println("  • Automatic GitHub account setup")
+	fmt.Println("  • Automatic account setup for any Git platform")
 	fmt.Println("  • Smart account switching")
 	fmt.Println("  • SSH key management")
 	fmt.Println("  • Project-based configuration")

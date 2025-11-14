@@ -12,11 +12,17 @@ import (
 // currentCmd represents the current command
 var currentCmd = &cobra.Command{
 	Use:   "current",
-	Short: "👤 Show the current active GitHub account",
-	Long: `Display the currently active GitHub account configuration.
+	Short: "👤 Show the current active Git account",
+	Long: `Display the currently active Git platform account configuration.
 
 This command shows which account is currently active in gitshift, including
-its alias, name, and email.`,
+its alias, name, email, and platform.
+
+Works with all supported platforms:
+- GitHub (github.com and GitHub Enterprise)
+- GitLab (gitlab.com and self-hosted)
+- Bitbucket (coming soon)
+- Custom Git platforms`,
 	Aliases: []string{"c", "whoami"},
 	RunE:    runCurrentCommand,
 }

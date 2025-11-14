@@ -18,12 +18,25 @@ var discoverCmd = &cobra.Command{
 	Long: `Automatically discover and import existing Git accounts from:
 
 - Git config files in ~/.config/git/
-- SSH keys configured for GitHub
+- SSH keys configured for Git platforms (GitHub, GitLab, etc.)
 - GitHub CLI (gh) authentication
+- GitLab CLI (glab) authentication
+
+Discovers accounts from all platforms:
+- GitHub (github.com and GitHub Enterprise)
+- GitLab (gitlab.com and self-hosted)
+- Bitbucket (coming soon)
+- Custom Git platforms
 
 Examples:
+  # Discover all Git accounts
   gitshift discover
-  gitshift discover --auto-import`,
+
+  # Auto-import discovered accounts
+  gitshift discover --auto-import
+
+  # Dry run to see what would be discovered
+  gitshift discover --dry-run`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configManager := config.NewManager()
 		if err := configManager.Load(); err != nil {

@@ -17,19 +17,35 @@ import (
 // switchCmd represents the switch command
 var switchCmd = &cobra.Command{
 	Use:   "switch [account-alias]",
-	Short: "🔄 Switch to a different GitHub account",
-	Long: `Switch to a different GitHub account with comprehensive configuration.
+	Short: "🔄 Switch to a different Git account (GitHub, GitLab, etc.)",
+	Long: `Switch to a different Git platform account with comprehensive configuration.
 
 This command will:
 - Switch SSH configuration and keys
 - Update Git user.name and user.email
-- Update GitHub token environment
+- Update platform token environment (if applicable)
 - Test the connection
 
+Works with all supported platforms:
+- GitHub (github.com and GitHub Enterprise)
+- GitLab (gitlab.com and self-hosted)
+- Bitbucket (coming soon)
+- Custom Git platforms
+
 Examples:
-  gitshift switch thukabjj
-  gitshift switch costaar7 --force
-  gitshift switch personal --validate-only`,
+  # Switch to GitHub account
+  gitshift switch work-github
+  gitshift switch personal-github --force
+
+  # Switch to GitLab account
+  gitshift switch work-gitlab
+  gitshift switch personal-gitlab --validate-only
+
+  # Switch to self-hosted GitLab
+  gitshift switch company-gitlab
+
+  # Switch to GitHub Enterprise
+  gitshift switch enterprise`,
 	Aliases: []string{"s", "use"},
 	Args:    cobra.ExactArgs(1),
 	RunE:    runSwitchCommand,

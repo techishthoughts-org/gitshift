@@ -10,16 +10,27 @@ import (
 // removeCmd represents the remove command
 var removeCmd = &cobra.Command{
 	Use:   "remove [alias]",
-	Short: "Remove a GitHub account",
-	Long: `Remove a GitHub account from the configuration.
+	Short: "Remove a Git platform account",
+	Long: `Remove a Git platform account from the configuration.
 
 This will permanently delete the account configuration. If the account
 being removed is currently active, the system will automatically switch
 to another account if available.
 
+Works with accounts from all platforms:
+- GitHub (github.com and GitHub Enterprise)
+- GitLab (gitlab.com and self-hosted)
+- Bitbucket (coming soon)
+- Custom Git platforms
+
 Examples:
-  gitshift remove work
-  gitshift remove personal`,
+  # Remove GitHub account
+  gitshift remove work-github
+  gitshift remove personal-github
+
+  # Remove GitLab account
+  gitshift remove work-gitlab
+  gitshift remove personal-gitlab`,
 	Aliases: []string{"rm", "delete", "del"},
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {

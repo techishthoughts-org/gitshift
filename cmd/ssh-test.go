@@ -14,24 +14,36 @@ import (
 
 var sshTestCmd = &cobra.Command{
 	Use:   "ssh-test [account-alias]",
-	Short: "🧪 Test SSH connectivity for gitshift accounts",
+	Short: "🧪 Test SSH connectivity for Git platform accounts",
 	Long: `Test SSH connectivity and troubleshoot common SSH issues.
 This command helps with:
-- Testing SSH key authentication to GitHub
+- Testing SSH key authentication to Git platforms (GitHub, GitLab, etc.)
 - Verifying known_hosts configuration
 - Checking SSH key permissions
 - Troubleshooting SSH agent issues
 - Validating SSH configuration
 
+Works with all supported platforms:
+- GitHub (github.com and GitHub Enterprise)
+- GitLab (gitlab.com and self-hosted)
+- Bitbucket (coming soon)
+- Custom Git platforms
+
 If no account is specified, it tests the currently active account.`,
 	Example: `  # Test current account
   gitshift ssh-test
 
-  # Test specific account
-  gitshift ssh-test costaar7
+  # Test GitHub account
+  gitshift ssh-test work-github
+
+  # Test GitLab account
+  gitshift ssh-test work-gitlab
 
   # Test with verbose output
-  gitshift ssh-test costaar7 --verbose
+  gitshift ssh-test work-github --verbose
+
+  # Test all accounts
+  gitshift ssh-test --all
 
   # Fix known_hosts issues
   gitshift ssh-test --fix-known-hosts`,

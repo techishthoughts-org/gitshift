@@ -473,31 +473,28 @@ gitshift ssh-keygen gitlab-work --email john@company.com
 gitshift add github-personal \
   --name "John Doe" \
   --email "john@personal.com" \
-  --platform github \
-  --username "johndoe"
+  --github-username "johndoe"
 
-# Add GitLab account
+# Add GitLab account (using github-username flag for compatibility)
 gitshift add gitlab-work \
   --name "John Doe" \
   --email "john@company.com" \
-  --platform gitlab \
-  --username "johndoe"
+  --github-username "johndoe"
 
 # Add GitHub Enterprise account
 gitshift add github-enterprise \
   --name "John Doe" \
   --email "john@company.com" \
-  --platform github \
-  --domain "github.company.com" \
-  --username "jdoe"
+  --github-username "jdoe"
 
 # Add self-hosted GitLab
 gitshift add client-gitlab \
   --name "John Doe" \
   --email "john@client.com" \
-  --platform gitlab \
-  --domain "gitlab.client.com" \
-  --username "contractor"
+  --github-username "contractor"
+
+# Note: The --github-username flag works for any Git platform
+# Platform detection is automatic based on SSH configuration
 ```
 
 ### 4. List All Accounts
@@ -580,22 +577,20 @@ gitshift ssh-test client-gitlab --verbose
 ```bash
 # Client A uses GitHub
 gitshift add client-a \
-  --platform github \
-  --username "freelancer-clienta" \
+  --name "Freelancer" \
+  --github-username "freelancer-clienta" \
   --email "freelancer@clienta.com"
 
 # Client B uses self-hosted GitLab
 gitshift add client-b \
-  --platform gitlab \
-  --domain "gitlab.clientb.com" \
-  --username "freelancer" \
+  --name "Freelancer" \
+  --github-username "freelancer" \
   --email "freelancer@clientb.com"
 
 # Client C uses GitHub Enterprise
 gitshift add client-c \
-  --platform github \
-  --domain "github.clientc.com" \
-  --username "contractor" \
+  --name "Freelancer" \
+  --github-username "contractor" \
   --email "freelancer@clientc.com"
 
 # Switch between clients seamlessly
@@ -609,21 +604,20 @@ gitshift switch client-c  # GitHub Enterprise
 ```bash
 # Personal projects on GitHub
 gitshift add personal \
-  --platform github \
-  --username "johndoe" \
+  --name "John Doe" \
+  --github-username "johndoe" \
   --email "john@personal.com"
 
 # Work projects on GitHub Enterprise
 gitshift add work \
-  --platform github \
-  --domain "github.enterprise.com" \
-  --username "jdoe" \
+  --name "John Doe" \
+  --github-username "jdoe" \
   --email "john.doe@company.com"
 
 # Open source contributions on GitLab
 gitshift add oss \
-  --platform gitlab \
-  --username "johndoe" \
+  --name "John Doe" \
+  --github-username "johndoe" \
   --email "john@personal.com"
 
 # Quick switching
@@ -637,22 +631,20 @@ gitshift switch oss       # GitLab contributions
 ```bash
 # Main codebase on GitHub Enterprise
 gitshift add main-repo \
-  --platform github \
-  --domain "github.company.com" \
-  --username "dev-team" \
+  --name "Dev Team" \
+  --github-username "dev-team" \
   --email "team@company.com"
 
 # CI/CD on self-hosted GitLab
 gitshift add ci-cd \
-  --platform gitlab \
-  --domain "gitlab.company.com" \
-  --username "devops" \
+  --name "DevOps" \
+  --github-username "devops" \
   --email "devops@company.com"
 
 # Public docs on GitHub
 gitshift add public-docs \
-  --platform github \
-  --username "company-docs" \
+  --name "Documentation Team" \
+  --github-username "company-docs" \
   --email "docs@company.com"
 
 # Switch based on task
@@ -676,25 +668,21 @@ gitshift add work
 
 # GitHub account
 gitshift add personal \
-  --platform github \
   --name "John Doe" \
   --email "john@personal.com" \
-  --username "johndoe"
+  --github-username "johndoe"
 
 # GitLab account
 gitshift add gitlab-personal \
-  --platform gitlab \
   --name "John Doe" \
   --email "john@personal.com" \
-  --username "johndoe"
+  --github-username "johndoe"
 
 # Self-hosted with custom domain
 gitshift add company-gitlab \
-  --platform gitlab \
-  --domain "gitlab.company.com" \
   --name "John Doe" \
   --email "john@company.com" \
-  --username "jdoe"
+  --github-username "jdoe"
 ```
 
 **Implementation**: [`cmd/add.go`](cmd/add.go)
@@ -754,8 +742,8 @@ Update account information.
 # Update email
 gitshift update work --email "new@company.com"
 
-# Update platform domain
-gitshift update work --domain "github.newcompany.com"
+# Update username
+gitshift update work --github-username "newusername"
 ```
 
 **Implementation**: [`cmd/update.go`](cmd/update.go)

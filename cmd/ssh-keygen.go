@@ -16,7 +16,7 @@ import (
 
 var sshKeygenCmd = &cobra.Command{
 	Use:   "ssh-keygen [account-alias]",
-	Short: "🔑 Generate and manage SSH keys for gitshift accounts",
+	Short: "🔑 Generate and manage SSH keys for Git platform accounts",
 	Long: `Generate SSH keys with proper parameters and manage them within gitshift.
 This command handles:
 - SSH key generation with custom parameters
@@ -25,9 +25,16 @@ This command handles:
 - Known hosts management
 - Integration with gitshift account system
 
-The generated keys will be automatically configured for use with GitHub.`,
-	Example: `  # Generate key for existing account
-  gitshift ssh-keygen costaar7
+The generated keys can be used with any Git platform:
+- GitHub (github.com and GitHub Enterprise)
+- GitLab (gitlab.com and self-hosted)
+- Bitbucket (coming soon)
+- Custom Git platforms`,
+	Example: `  # Generate key for GitHub account
+  gitshift ssh-keygen work-github
+
+  # Generate key for GitLab account
+  gitshift ssh-keygen work-gitlab
 
   # Generate key with custom email
   gitshift ssh-keygen myaccount --email user@company.com
@@ -124,11 +131,11 @@ func runSSHKeygen(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Setup known hosts for GitHub
+	// Setup known hosts for Git platforms
 	if err := keyManager.SetupKnownHosts(); err != nil {
 		fmt.Printf("⚠️  Warning: Failed to setup known hosts: %v\n", err)
 	} else {
-		fmt.Printf("🌐 GitHub added to known hosts\n")
+		fmt.Printf("🌐 Git platforms added to known hosts\n")
 	}
 
 	// Show public key content and copy to clipboard
@@ -152,11 +159,15 @@ func runSSHKeygen(cmd *cobra.Command, args []string) error {
 			fmt.Printf("🚀 SSH key added to GitHub account!\n")
 		}
 	} else {
-		fmt.Printf("\n💡 To add this key to GitHub:\n")
+		fmt.Printf("\n💡 To add this key to your Git platform:\n")
 		fmt.Printf("   1. Copy the public key above\n")
-		fmt.Printf("   2. Go to: https://github.com/settings/keys\n")
+		fmt.Printf("   2. Add it to your platform:\n")
+		fmt.Printf("      • GitHub: https://github.com/settings/keys\n")
+		fmt.Printf("      • GitLab: https://gitlab.com/-/profile/keys\n")
+		fmt.Printf("      • GitHub Enterprise: https://your-domain/settings/keys\n")
+		fmt.Printf("      • GitLab Self-hosted: https://your-domain/-/profile/keys\n")
 		fmt.Printf("   3. Click 'New SSH key' and paste the content\n")
-		fmt.Printf("   OR run: gitshift ssh-keygen %s --add-to-github\n", accountAlias)
+		fmt.Printf("   OR for GitHub: gitshift ssh-keygen %s --add-to-github\n", accountAlias)
 	}
 
 	return nil
@@ -269,6 +280,16 @@ func (m *SSHKeyManager) SetupKnownHosts() error {
 		"github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=",
 	}
 
+	// GitLab's SSH host keys (current as of 2024)
+	gitlabHosts := []string{
+		"gitlab.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAfuCHKVTjquxvt6CM6tdG4SLp1Btn/nOeHHE5UOzRdf",
+		"gitlab.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCsj2bNKTBSpIYDEGk9KxsGh3mySTRgMtXL583qmBpzeQ+jqCMRgBqB98u3z++J1sKlXHWfM9dyhSevkMwSbhoR8XIq/U0tCNyokEi/ueaBMCvbcTHhO7FcwzY92WK4Yt0aGROY5qX2UKSeOvuP4D6TPqKF1onrSzH9bx9XUf2lEdWT/ia1NEKjunUqu1xOB/StKDHMoX4/OKyIzuS0q/T1zOATthvasJFoPrAjkohTyaDUz2LN5JoH839hViyEG82yB+MjcFV5MU3N1l1QL3cVUCh93xSaua1N85qivl+siMkPGbO5xR/En4iEY6K2XPASUEMaieWVNTRCtJ4S8H+9",
+		"gitlab.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBFSMqzJeV9rUzU4kWitGjeR4PWSa29SPqJ1fVkhtj3Hw9xjLVXVYrU9QlYWrOLXBpQ6KWjbjTDTdDkoohFzgbEY=",
+	}
+
+	// Combine all platform hosts
+	allHosts := append(githubHosts, gitlabHosts...)
+
 	// Read existing known_hosts
 	var existingContent string
 	if content, err := os.ReadFile(knownHostsPath); err == nil {
@@ -277,7 +298,7 @@ func (m *SSHKeyManager) SetupKnownHosts() error {
 
 	// Check what needs to be added
 	var toAdd []string
-	for _, host := range githubHosts {
+	for _, host := range allHosts {
 		if !strings.Contains(existingContent, host) {
 			toAdd = append(toAdd, host)
 		}
