@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -97,10 +98,63 @@ func (m *Manager) GetLoadedKeys() ([]string, error) {
 	return keys, nil
 }
 
+// detectShell detects the user's shell and returns shell type and config file path
+func (m *Manager) detectShell() (shellType, configPath string, err error) {
+	// On Windows, we don't update shell config (not reliable)
+	if runtime.GOOS == "windows" {
+		return "", "", fmt.Errorf("shell config update not supported on Windows - please set GIT_SSH_COMMAND environment variable manually:\n" +
+			"  PowerShell: $env:GIT_SSH_COMMAND = 'ssh -i <path> -o IdentitiesOnly=yes'\n" +
+			"  CMD:        set GIT_SSH_COMMAND=ssh -i <path> -o IdentitiesOnly=yes")
+	}
+
+	// Try to detect shell from SHELL environment variable
+	shellEnv := os.Getenv("SHELL")
+
+	// Determine shell type and config file
+	switch {
+	case strings.Contains(shellEnv, "zsh"):
+		// ZSH: check for .zshrc, then .zsh_secrets
+		zshrc := filepath.Join(m.homeDir, ".zshrc")
+		if _, err := os.Stat(zshrc); err == nil {
+			return "zsh", zshrc, nil
+		}
+		// Fall back to .zsh_secrets for backward compatibility
+		return "zsh", filepath.Join(m.homeDir, ".zsh_secrets"), nil
+
+	case strings.Contains(shellEnv, "bash"):
+		// Bash: check for .bashrc on Linux, .bash_profile on macOS
+		if runtime.GOOS == "darwin" {
+			bashProfile := filepath.Join(m.homeDir, ".bash_profile")
+			if _, err := os.Stat(bashProfile); err == nil {
+				return "bash", bashProfile, nil
+			}
+		}
+		bashrc := filepath.Join(m.homeDir, ".bashrc")
+		return "bash", bashrc, nil
+
+	case strings.Contains(shellEnv, "fish"):
+		// Fish shell uses a different directory structure
+		fishConfig := filepath.Join(m.homeDir, ".config", "fish", "config.fish")
+		return "fish", fishConfig, nil
+
+	case strings.Contains(shellEnv, "ksh"):
+		// Korn shell
+		return "ksh", filepath.Join(m.homeDir, ".kshrc"), nil
+
+	default:
+		// Default fallback: try .profile (POSIX standard)
+		profile := filepath.Join(m.homeDir, ".profile")
+		return "posix", profile, nil
+	}
+}
+
 // updateShellConfig updates the shell configuration to set GIT_SSH_COMMAND
 func (m *Manager) updateShellConfig(accountAlias, keyPath string) error {
-	// Path to the shell config file
-	configPath := filepath.Join(m.homeDir, ".zsh_secrets")
+	// Detect shell and get config file path
+	shellType, configPath, err := m.detectShell()
+	if err != nil {
+		return err
+	}
 
 	// Read existing content
 	content, err := os.ReadFile(configPath)
@@ -118,18 +172,31 @@ func (m *Manager) updateShellConfig(accountAlias, keyPath string) error {
 	lines := strings.Split(string(content), "\n")
 	var newLines []string
 	for _, line := range lines {
-		if !strings.HasPrefix(strings.TrimSpace(line), "export GIT_SSH_COMMAND=") {
+		trimmed := strings.TrimSpace(line)
+		// Remove both export and set variants (for fish shell)
+		if !strings.HasPrefix(trimmed, "export GIT_SSH_COMMAND=") &&
+			!strings.HasPrefix(trimmed, "set -x GIT_SSH_COMMAND") {
 			newLines = append(newLines, line)
 		}
 	}
 
-	// Add new GIT_SSH_COMMAND
-	newLines = append(newLines, fmt.Sprintf(`export GIT_SSH_COMMAND="ssh -i %s -o IdentitiesOnly=yes"`, keyPath))
-
-	// Add a newline at the end if the file wasn't empty
-	if len(newLines) > 0 && newLines[len(newLines)-1] != "" {
-		newLines = append(newLines, "")
+	// Add new GIT_SSH_COMMAND based on shell type
+	var commandLine string
+	if shellType == "fish" {
+		// Fish shell uses 'set -x' for environment variables
+		commandLine = fmt.Sprintf(`set -x GIT_SSH_COMMAND "ssh -i %s -o IdentitiesOnly=yes"`, keyPath)
+	} else {
+		// Bash, ZSH, KSH, and POSIX shells use 'export'
+		commandLine = fmt.Sprintf(`export GIT_SSH_COMMAND="ssh -i %s -o IdentitiesOnly=yes"`, keyPath)
 	}
+
+	// Add comment before the command for clarity
+	newLines = append(newLines, "")
+	newLines = append(newLines, "# gitshift: SSH key configuration")
+	newLines = append(newLines, commandLine)
+
+	// Add a newline at the end
+	newLines = append(newLines, "")
 
 	// Write back to file
 	if err := os.WriteFile(configPath, []byte(strings.Join(newLines, "\n")), 0600); err != nil {
@@ -138,13 +205,42 @@ func (m *Manager) updateShellConfig(accountAlias, keyPath string) error {
 		return fmt.Errorf("failed to write shell config: %w", err)
 	}
 
+	// Print helpful message about what was done
+	fmt.Printf("📝 Updated %s config: %s\n", shellType, configPath)
+	fmt.Printf("💡 Run 'source %s' or restart your terminal to apply changes\n", configPath)
+
 	return nil
 }
 
 // SourceShellConfig sources the shell configuration to apply changes
 func (m *Manager) SourceShellConfig() error {
-	configPath := filepath.Join(m.homeDir, ".zsh_secrets")
-	cmd := exec.Command("zsh", "-c", fmt.Sprintf("source %s", configPath))
+	// Detect shell and get config file path
+	shellType, configPath, err := m.detectShell()
+	if err != nil {
+		return err
+	}
+
+	var cmd *exec.Cmd
+
+	// Build the appropriate source command for each shell
+	switch shellType {
+	case "fish":
+		// Fish shell uses 'source' command
+		cmd = exec.Command("fish", "-c", fmt.Sprintf("source %s", configPath))
+	case "bash":
+		// Bash uses 'source' or '.'
+		cmd = exec.Command("bash", "-c", fmt.Sprintf("source %s", configPath))
+	case "zsh":
+		// ZSH uses 'source'
+		cmd = exec.Command("zsh", "-c", fmt.Sprintf("source %s", configPath))
+	case "ksh":
+		// KSH uses '.'
+		cmd = exec.Command("ksh", "-c", fmt.Sprintf(". %s", configPath))
+	default:
+		// POSIX shells use '.'
+		cmd = exec.Command("sh", "-c", fmt.Sprintf(". %s", configPath))
+	}
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

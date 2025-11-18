@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -407,25 +408,56 @@ func generateKeyID() string {
 	return fmt.Sprintf("%x", hash[:4])
 }
 
-// copyToClipboard copies the public key content to the clipboard using pbcopy
+// copyToClipboard copies the public key content to the clipboard (cross-platform)
 func copyToClipboard(pubKeyPath string) error {
 	content, err := os.ReadFile(pubKeyPath)
 	if err != nil {
 		return fmt.Errorf("failed to read public key: %w", err)
 	}
 
-	cmd := exec.Command("pbcopy")
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "darwin":
+		// macOS: use pbcopy
+		cmd = exec.Command("pbcopy")
+
+	case "linux":
+		// Linux: try multiple clipboard tools in order of preference
+		if _, err := exec.LookPath("xclip"); err == nil {
+			cmd = exec.Command("xclip", "-selection", "clipboard")
+		} else if _, err := exec.LookPath("xsel"); err == nil {
+			cmd = exec.Command("xsel", "--clipboard", "--input")
+		} else if _, err := exec.LookPath("wl-copy"); err == nil {
+			// Wayland clipboard
+			cmd = exec.Command("wl-copy")
+		} else {
+			return fmt.Errorf("no clipboard tool found - install xclip (X11), xsel (X11), or wl-clipboard (Wayland)\n" +
+				"  Ubuntu/Debian: sudo apt install xclip\n" +
+				"  Fedora/RHEL:   sudo dnf install xclip\n" +
+				"  Arch:          sudo pacman -S xclip")
+		}
+
+	case "windows":
+		// Windows: use clip command (built-in)
+		cmd = exec.Command("clip")
+
+	default:
+		return fmt.Errorf("clipboard not supported on %s - please copy the key manually", runtime.GOOS)
+	}
+
+	// Set up stdin pipe to write content to clipboard command
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return fmt.Errorf("failed to create stdin pipe: %w", err)
 	}
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start pbcopy: %w", err)
+		return fmt.Errorf("failed to start clipboard command: %w", err)
 	}
 
 	if _, err := stdin.Write(content); err != nil {
-		return fmt.Errorf("failed to write to pbcopy: %w", err)
+		return fmt.Errorf("failed to write to clipboard: %w", err)
 	}
 
 	if err := stdin.Close(); err != nil {
@@ -433,7 +465,7 @@ func copyToClipboard(pubKeyPath string) error {
 	}
 
 	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("pbcopy failed: %w", err)
+		return fmt.Errorf("clipboard command failed: %w", err)
 	}
 
 	return nil
