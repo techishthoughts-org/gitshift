@@ -69,6 +69,7 @@ Examples:
 		description, _ := cmd.Flags().GetString("description")
 		setDefault, _ := cmd.Flags().GetBool("default")
 		nonInteractive, _ := cmd.Flags().GetBool("non-interactive")
+		enableGPG, _ := cmd.Flags().GetBool("enable-gpg")
 
 		// Check if all required fields are provided via flags
 		allRequiredProvided := (len(args) > 0 || alias != "") && name != "" && email != "" && githubUsername != ""
@@ -143,6 +144,13 @@ Examples:
 		account.GitHubUsername = githubUsername
 		account.Description = description
 
+		// Handle GPG signing preference
+		if enableGPG {
+			account.GPGEnabled = true
+			fmt.Printf("🔐 GPG commit signing will be enabled for this account\n")
+			fmt.Printf("   💡 Generate a GPG key with: gitshift gpg-keygen %s\n", alias)
+		}
+
 		// Add the account to configuration
 		if err := configManager.AddAccount(account); err != nil {
 			return fmt.Errorf("failed to add account: %w", err)
@@ -180,6 +188,7 @@ func init() {
 	addCmd.Flags().StringP("description", "d", "", "Account description (optional)")
 	addCmd.Flags().BoolP("default", "", false, "Set as default account")
 	addCmd.Flags().Bool("non-interactive", false, "Run in non-interactive mode (no prompts)")
+	addCmd.Flags().Bool("enable-gpg", false, "Enable GPG commit signing for this account (requires GPG key)")
 }
 
 // promptForInput prompts the user for input and returns the trimmed response

@@ -456,16 +456,27 @@ func copyToClipboard(pubKeyPath string) error {
 		return fmt.Errorf("failed to start clipboard command: %w", err)
 	}
 
-	if _, err := stdin.Write(content); err != nil {
-		return fmt.Errorf("failed to write to clipboard: %w", err)
+	// Ensure process cleanup on any error
+	var writeErr, closeErr, waitErr error
+	defer func() {
+		// If we haven't waited yet and there was an error, kill the process
+		if writeErr != nil || closeErr != nil {
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+		}
+	}()
+
+	if _, writeErr = stdin.Write(content); writeErr != nil {
+		return fmt.Errorf("failed to write to clipboard: %w", writeErr)
 	}
 
-	if err := stdin.Close(); err != nil {
-		return fmt.Errorf("failed to close stdin: %w", err)
+	if closeErr = stdin.Close(); closeErr != nil {
+		return fmt.Errorf("failed to close stdin: %w", closeErr)
 	}
 
-	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("clipboard command failed: %w", err)
+	if waitErr = cmd.Wait(); waitErr != nil {
+		return fmt.Errorf("clipboard command failed: %w", waitErr)
 	}
 
 	return nil

@@ -138,6 +138,32 @@ func runSwitchCommand(cmd *cobra.Command, args []string) error {
 		fmt.Printf("✅ Git configuration updated\n")
 	}
 
+	// 2.5 Update GPG configuration if account has GPG key
+	if targetAccount.HasGPGKey() {
+		fmt.Printf("🔐 Configuring GPG signing...\n")
+		if err := updateGPGConfig(targetAccount); err != nil {
+			if force {
+				fmt.Printf("⚠️  GPG config update failed: %v (continuing due to --force)\n", err)
+			} else {
+				fmt.Printf("⚠️  GPG config update failed: %v\n", err)
+				fmt.Printf("   Git configuration updated but GPG signing may not work\n")
+			}
+		} else {
+			if targetAccount.IsGPGEnabled() {
+				fmt.Printf("✅ GPG signing enabled (key: %s)\n", targetAccount.GPGKeyID)
+			} else {
+				fmt.Printf("ℹ️  GPG key configured but automatic signing is disabled\n")
+				fmt.Printf("   To enable: gitshift gpg-keygen %s --enable\n", accountAlias)
+			}
+		}
+	} else {
+		// No GPG key, disable signing
+		fmt.Printf("🔓 Disabling GPG signing (no GPG key configured)...\n")
+		if err := disableGPGSigning(); err != nil {
+			fmt.Printf("⚠️  Failed to disable GPG signing: %v\n", err)
+		}
+	}
+
 	// 3. Update current account in gitshift config
 	fmt.Printf("📝 Updating gitshift configuration...\n")
 	if err := configManager.SetCurrentAccount(accountAlias); err != nil {
@@ -358,6 +384,68 @@ func getCurrentAccount() (string, error) {
 	}
 
 	return currentAccount, nil
+}
+
+// updateGPGConfig updates Git GPG signing configuration for the account
+func updateGPGConfig(account *models.Account) error {
+	if !account.HasGPGKey() {
+		return fmt.Errorf("account has no GPG key configured")
+	}
+
+	// Set the signing key
+	cmd := exec.Command("git", "config", "--global", "user.signingkey", account.GPGKeyID)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to set user.signingkey: %w", err)
+	}
+
+	// Enable or disable automatic signing based on account preference
+	if account.IsGPGEnabled() {
+		// Enable commit signing
+		cmd = exec.Command("git", "config", "--global", "commit.gpgsign", "true")
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to enable commit.gpgsign: %w", err)
+		}
+
+		// Enable tag signing
+		cmd = exec.Command("git", "config", "--global", "tag.gpgsign", "true")
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to enable tag.gpgsign: %w", err)
+		}
+	} else {
+		// Disable automatic signing but keep the key configured
+		cmd = exec.Command("git", "config", "--global", "commit.gpgsign", "false")
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to disable commit.gpgsign: %w", err)
+		}
+
+		cmd = exec.Command("git", "config", "--global", "tag.gpgsign", "false")
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to disable tag.gpgsign: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// disableGPGSigning disables GPG signing in Git configuration
+func disableGPGSigning() error {
+	// Unset the signing key
+	cmd := exec.Command("git", "config", "--global", "--unset", "user.signingkey")
+	_ = cmd.Run() // Ignore error if key was not set
+
+	// Disable commit signing
+	cmd = exec.Command("git", "config", "--global", "commit.gpgsign", "false")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to disable commit.gpgsign: %w", err)
+	}
+
+	// Disable tag signing
+	cmd = exec.Command("git", "config", "--global", "tag.gpgsign", "false")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to disable tag.gpgsign: %w", err)
+	}
+
+	return nil
 }
 
 func init() {

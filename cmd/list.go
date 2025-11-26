@@ -124,6 +124,20 @@ func printAccountsDefault(accounts []*models.Account, currentAccount string) err
 			fmt.Printf("    SSH Key: %s\n", account.SSHKeyPath)
 		}
 
+		// Display GPG status
+		if account.HasGPGKey() {
+			gpgStatus := "🔐 GPG: Enabled"
+			if !account.IsGPGEnabled() {
+				gpgStatus = "🔓 GPG: Configured (signing disabled)"
+			}
+			fmt.Printf("    %s (%s)\n", gpgStatus, account.GPGKeyID)
+			if account.IsGPGKeyExpired() {
+				fmt.Printf("       ⚠️  Key expired: %s\n", account.GPGKeyExpiry.Format("2006-01-02"))
+			}
+		} else {
+			fmt.Printf("    ⚪ GPG: Not configured\n")
+		}
+
 		if account.Description != "" {
 			fmt.Printf("    Description: %s\n", account.Description)
 		}
@@ -242,6 +256,13 @@ func printAccountsJSON(accounts []*models.Account) error {
 		fmt.Printf("    \"github_username\": \"%s\",\n", account.GitHubUsername)
 		if account.SSHKeyPath != "" {
 			fmt.Printf("    \"ssh_key_path\": \"%s\",\n", account.SSHKeyPath)
+		}
+		if account.HasGPGKey() {
+			fmt.Printf("    \"gpg_key_id\": \"%s\",\n", account.GPGKeyID)
+			fmt.Printf("    \"gpg_enabled\": %t,\n", account.IsGPGEnabled())
+			if account.GPGKeyFingerprint != "" {
+				fmt.Printf("    \"gpg_fingerprint\": \"%s\",\n", account.GPGKeyFingerprint)
+			}
 		}
 		if account.Description != "" {
 			fmt.Printf("    \"description\": \"%s\",\n", account.Description)

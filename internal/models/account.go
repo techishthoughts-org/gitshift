@@ -79,6 +79,26 @@ type Account struct {
 
 	// AccountMetadata stores additional account-specific data
 	AccountMetadata map[string]string `json:"account_metadata,omitempty" yaml:"account_metadata,omitempty" mapstructure:"account_metadata"`
+
+	// === GPG SIGNING SUPPORT ===
+
+	// GPGKeyID is the GPG key ID used for signing commits (e.g., "4BB6D45482678BE3")
+	GPGKeyID string `json:"gpg_key_id,omitempty" yaml:"gpg_key_id,omitempty" mapstructure:"gpg_key_id"`
+
+	// GPGEnabled indicates if automatic GPG signing is enabled for this account
+	GPGEnabled bool `json:"gpg_enabled" yaml:"gpg_enabled" mapstructure:"gpg_enabled"`
+
+	// GPGKeyType is the GPG key algorithm type (RSA, ECC, DSA)
+	GPGKeyType string `json:"gpg_key_type,omitempty" yaml:"gpg_key_type,omitempty" mapstructure:"gpg_key_type"`
+
+	// GPGKeySize is the GPG key size in bits (e.g., 4096 for RSA)
+	GPGKeySize int `json:"gpg_key_size,omitempty" yaml:"gpg_key_size,omitempty" mapstructure:"gpg_key_size"`
+
+	// GPGKeyFingerprint is the full GPG key fingerprint for verification
+	GPGKeyFingerprint string `json:"gpg_key_fingerprint,omitempty" yaml:"gpg_key_fingerprint,omitempty" mapstructure:"gpg_key_fingerprint"`
+
+	// GPGKeyExpiry stores the GPG key expiration date if set
+	GPGKeyExpiry *time.Time `json:"gpg_key_expiry,omitempty" yaml:"gpg_key_expiry,omitempty" mapstructure:"gpg_key_expiry"`
 }
 
 // AccountStatus represents the status of an account
@@ -516,4 +536,43 @@ func (a *Account) SetUsername(username string) {
 func (a *Account) IsPlatformSupported() bool {
 	platform := a.GetPlatform()
 	return platform == "github" || platform == "gitlab" || platform == "bitbucket"
+}
+
+// HasGPGKey returns true if the account has a GPG key configured
+func (a *Account) HasGPGKey() bool {
+	return a.GPGKeyID != ""
+}
+
+// IsGPGEnabled returns true if GPG signing is enabled for this account
+func (a *Account) IsGPGEnabled() bool {
+	return a.GPGEnabled && a.HasGPGKey()
+}
+
+// SetGPGKey sets the GPG key information for this account
+func (a *Account) SetGPGKey(keyID, keyType string, keySize int, fingerprint string, expiry *time.Time) {
+	a.GPGKeyID = keyID
+	a.GPGKeyType = keyType
+	a.GPGKeySize = keySize
+	a.GPGKeyFingerprint = fingerprint
+	a.GPGKeyExpiry = expiry
+}
+
+// EnableGPGSigning enables automatic GPG signing for this account
+func (a *Account) EnableGPGSigning() {
+	if a.HasGPGKey() {
+		a.GPGEnabled = true
+	}
+}
+
+// DisableGPGSigning disables automatic GPG signing for this account
+func (a *Account) DisableGPGSigning() {
+	a.GPGEnabled = false
+}
+
+// IsGPGKeyExpired returns true if the GPG key has expired
+func (a *Account) IsGPGKeyExpired() bool {
+	if a.GPGKeyExpiry == nil {
+		return false // No expiry set, key doesn't expire
+	}
+	return time.Now().After(*a.GPGKeyExpiry)
 }

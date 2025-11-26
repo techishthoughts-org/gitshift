@@ -461,3 +461,118 @@ func (m *Manager) ClearSSHConfig() error {
 
 	return nil
 }
+
+// SetGPGConfig sets the GPG signing configuration for Git
+func (m *Manager) SetGPGConfig(account *models.Account) error {
+	if account == nil {
+		return fmt.Errorf("account cannot be nil")
+	}
+
+	// Only configure GPG if the account has a GPG key
+	if !account.HasGPGKey() {
+		// No GPG key, disable signing
+		return m.DisableGPGSigning()
+	}
+
+	// Set the signing key
+	if err := m.setGPGSigningKey(account.GPGKeyID, true); err != nil {
+		return fmt.Errorf("failed to set GPG signing key: %w", err)
+	}
+
+	// Enable or disable automatic signing based on account preferences
+	if account.IsGPGEnabled() {
+		if err := m.EnableGPGSigning(); err != nil {
+			return fmt.Errorf("failed to enable GPG signing: %w", err)
+		}
+	} else {
+		if err := m.DisableGPGSigning(); err != nil {
+			return fmt.Errorf("failed to disable GPG signing: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// setGPGSigningKey sets the user.signingkey configuration
+func (m *Manager) setGPGSigningKey(keyID string, global bool) error {
+	args := []string{"config"}
+	if global {
+		args = append(args, "--global")
+	}
+	args = append(args, "user.signingkey", keyID)
+
+	cmd := exec.Command("git", args...)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git config failed: %w", err)
+	}
+
+	return nil
+}
+
+// EnableGPGSigning enables automatic GPG commit and tag signing
+func (m *Manager) EnableGPGSigning() error {
+	// Enable commit signing
+	cmd := exec.Command("git", "config", "--global", "commit.gpgsign", "true")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to enable commit.gpgsign: %w", err)
+	}
+
+	// Enable tag signing
+	cmd = exec.Command("git", "config", "--global", "tag.gpgsign", "true")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to enable tag.gpgsign: %w", err)
+	}
+
+	return nil
+}
+
+// DisableGPGSigning disables automatic GPG commit and tag signing
+func (m *Manager) DisableGPGSigning() error {
+	// Disable commit signing
+	cmd := exec.Command("git", "config", "--global", "commit.gpgsign", "false")
+	if err := cmd.Run(); err != nil {
+		log.Printf("Warning: failed to disable commit.gpgsign: %v", err)
+	}
+
+	// Disable tag signing
+	cmd = exec.Command("git", "config", "--global", "tag.gpgsign", "false")
+	if err := cmd.Run(); err != nil {
+		log.Printf("Warning: failed to disable tag.gpgsign: %v", err)
+	}
+
+	return nil
+}
+
+// UnsetGPGConfig removes GPG signing configuration from Git
+func (m *Manager) UnsetGPGConfig() error {
+	// Unset signing key
+	if err := exec.Command("git", "config", "--global", "--unset", "user.signingkey").Run(); err != nil {
+		log.Printf("Warning: failed to unset user.signingkey: %v", err)
+	}
+
+	// Disable signing
+	return m.DisableGPGSigning()
+}
+
+// GetGPGConfig returns the current GPG configuration
+func (m *Manager) GetGPGConfig() (signingKey string, commitSign, tagSign bool, err error) {
+	// Get signing key
+	cmd := exec.Command("git", "config", "--global", "--get", "user.signingkey")
+	if output, err := cmd.Output(); err == nil {
+		signingKey = strings.TrimSpace(string(output))
+	}
+
+	// Get commit.gpgsign
+	cmd = exec.Command("git", "config", "--global", "--get", "commit.gpgsign")
+	if output, err := cmd.Output(); err == nil {
+		commitSign = strings.TrimSpace(string(output)) == "true"
+	}
+
+	// Get tag.gpgsign
+	cmd = exec.Command("git", "config", "--global", "--get", "tag.gpgsign")
+	if output, err := cmd.Output(); err == nil {
+		tagSign = strings.TrimSpace(string(output)) == "true"
+	}
+
+	return signingKey, commitSign, tagSign, nil
+}
