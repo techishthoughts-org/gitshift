@@ -18,11 +18,13 @@ build:
 	@go build $(LDFLAGS) -o $(BINARY_NAME) .
 	@echo "✅ Build complete: ./$(BINARY_NAME)"
 
-## Install the binary to /usr/local/bin
+## Install the binary to GOPATH/bin
 install: build
 	@echo "📦 Installing $(BINARY_NAME)..."
-	@sudo cp $(BINARY_NAME) /usr/local/bin/
-	@echo "✅ Installed: /usr/local/bin/$(BINARY_NAME)"
+	@mkdir -p $${GOPATH:-$$HOME/go}/bin
+	@cp $(BINARY_NAME) $${GOPATH:-$$HOME/go}/bin/
+	@chmod +x $${GOPATH:-$$HOME/go}/bin/$(BINARY_NAME)
+	@echo "✅ Installed: $${GOPATH:-$$HOME/go}/bin/$(BINARY_NAME)"
 
 ## Run basic tests
 test:

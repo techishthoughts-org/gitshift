@@ -279,12 +279,13 @@ Host gitlab.client.com-client-gitlab
 - 🔐 **SSH-First Approach** - Minimal API dependencies, works everywhere
 - 🔄 **Complete Isolation** - Accounts never interfere across platforms
 - 🔑 **Smart SSH Management** - Auto-generates and manages SSH keys per platform
+- 🔏 **GPG Signing Support** - Auto-discovers and configures GPG keys for commit signing
 - ⚡ **Fast Switching** - Instant account transitions with validation
 - 🛡️ **Secure by Design** - Platform-specific SSH configs with `IdentitiesOnly=yes`
 - 🌐 **Known Hosts Management** - Auto-manages host keys for all platforms
 - 📋 **Auto Key Management** - Adds keys to ssh-agent and clipboard
-- 🔍 **Auto Platform Detection** - Detects platform from repository URLs
-- 🔍 **Account Discovery** - Finds existing SSH keys automatically
+- 🔍 **Auto Platform Detection** - Detects platform from repository URLs and email domains
+- 🔍 **Account Discovery** - Finds existing SSH keys and GPG keys automatically
 - 🏢 **Enterprise-Ready** - First-class support for custom domains
 
 ### Implemented Commands
@@ -419,8 +420,8 @@ cd gitshift
 # Build the binary
 make build
 
-# Install system-wide (optional)
-sudo make install
+# Install to $GOPATH/bin (no sudo required)
+make install
 ```
 
 ### Using Go
@@ -443,13 +444,17 @@ gitshift --help
 
 ## ⚡ Quick Start
 
-### 1. Discover Existing SSH Keys
+### 1. Discover Existing SSH Keys and GPG Keys
 
 ```bash
 gitshift discover
 ```
 
-This scans `~/.ssh/` for existing SSH keys and helps you set up accounts for any platform.
+This scans:
+- `~/.ssh/` for existing SSH keys
+- GPG keyring for signing keys
+- Automatically merges SSH and GPG keys by email
+- Detects platform (GitHub/GitLab) from email domain
 
 ### 2. Generate SSH Keys for Different Platforms
 

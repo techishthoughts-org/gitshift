@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/techishthoughts/gitshift/internal/models"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -52,17 +53,15 @@ func (m *Manager) Load() error {
 		return m.Save()
 	}
 
-	// Create a new viper instance for reading
-	v := viper.New()
-	v.SetConfigFile(configFile)
-	v.SetConfigType("yaml")
-
-	if err := v.ReadInConfig(); err != nil {
+	// Read the file directly and use yaml.v3 to unmarshal
+	// This avoids Viper's issue with dots in map keys
+	data, err := os.ReadFile(configFile)
+	if err != nil {
 		return fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	// Unmarshal into our config struct
-	if err := v.Unmarshal(m.config); err != nil {
+	// Unmarshal using yaml.v3 which properly handles map keys with dots
+	if err := yaml.Unmarshal(data, m.config); err != nil {
 		return fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
@@ -105,24 +104,35 @@ func (m *Manager) Load() error {
 func (m *Manager) Save() error {
 	configFile := filepath.Join(m.configPath, ConfigFileName+".yaml")
 
-	// Create a new viper instance for writing
-	v := viper.New()
-	v.SetConfigFile(configFile)
-	v.SetConfigType("yaml")
+	// Use direct YAML marshaling instead of Viper to properly handle map keys with dots
+	// Viper has issues with dots in map keys, treating them as path separators
+	data, err := marshalConfigToYAML(m.config)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
 
-	// Set the config values
-	v.Set("accounts", m.config.Accounts)
-	v.Set("pending_accounts", m.config.PendingAccounts)
-	v.Set("current_account", m.config.CurrentAccount)
-	v.Set("global_git_config", m.config.GlobalGitConfig)
-	v.Set("auto_detect", m.config.AutoDetect)
-	v.Set("config_version", m.config.ConfigVersion)
-
-	if err := v.WriteConfig(); err != nil {
+	// Write to file with proper permissions
+	if err := os.WriteFile(configFile, data, 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
 	return nil
+}
+
+// marshalConfigToYAML marshals the config to YAML format
+// This uses gopkg.in/yaml.v3 directly to properly handle map keys with dots
+func marshalConfigToYAML(config *models.Config) ([]byte, error) {
+	// Using yaml.v3 directly instead of Viper to properly handle map keys with dots
+	// yaml.v3 will automatically quote keys that contain special characters like dots
+
+	// Marshal the entire config struct directly
+	// The yaml.v3 encoder will handle the map keys with dots correctly
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal config to YAML: %w", err)
+	}
+
+	return data, nil
 }
 
 // GetConfig returns the current configuration

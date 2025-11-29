@@ -7,9 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **GPG Key Discovery**: Automatic discovery of GPG signing keys from system keyring
+  - Scans GPG keyring for secret keys with signing capability
+  - Merges SSH and GPG key information by email address
+  - Supports RSA, DSA, and EdDSA key types
+  - Displays GPG key information in discovery output
+- **Enhanced Platform Detection**: Improved automatic platform detection
+  - Corporate email addresses default to GitLab
+  - Personal email domains (gmail, yahoo, etc.) default to GitHub
+  - Domain-based platform detection (gitlab.*, github.* in domain)
+- **SSH Key Switching**: Fixed SSH key isolation when switching accounts
+  - Properly sets `core.sshCommand` with account-specific SSH key
+  - Uses `IdentitiesOnly=yes` for complete SSH isolation
+  - Updates both global and local Git configuration
+
+### Fixed
+- **Configuration Persistence**: Fixed account alias corruption for aliases with dots
+  - Replaced Viper-based config I/O with direct yaml.v3 marshaling
+  - Properly handles account aliases containing special characters
+- **SSH Key Path Configuration**: Account switching now correctly updates SSH command
+  - Fixed bug where Git would use wrong SSH key after account switch
+  - Ensures proper SSH key isolation per account
+- **Make Install Path**: Changed install target from `/usr/local/bin` to `$GOPATH/bin`
+  - No longer requires sudo for installation
+  - Follows Go ecosystem conventions
+- **GitHub Username Validation**: SSH scanner validates GitHub username format
+  - Only sets GitHubUsername if it matches GitHub's format requirements
+  - Prevents invalid usernames from SSH key filenames
+
 ### Changed
 - Updated all documentation to reflect multi-platform support
 - Enhanced documentation structure with new guides
+- Configuration now uses direct YAML marshaling for better reliability
 
 ## [0.2.0] - 2025-11-12
 

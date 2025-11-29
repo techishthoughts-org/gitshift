@@ -98,18 +98,64 @@ func (s *SSHOnlyScanner) createAccountFromSSHKey(privateKeyPath, publicKeyPath s
 
 	fmt.Printf("🔑 Found SSH key: %s -> %s (%s)\n", alias, name, email)
 
+	// Only set GitHubUsername if it's a valid GitHub username format
+	// (alphanumeric and hyphens only, no dots or other special characters)
+	githubUsername := ""
+	if username != "" && s.isValidGitHubUsername(username) {
+		githubUsername = username
+	}
+
+	// Detect platform from email domain
+	platform := s.detectPlatformFromEmail(email)
+
 	return &DiscoveredAccount{
 		Account: &models.Account{
 			Alias:          alias,
 			Name:           name,
 			Email:          email,
-			GitHubUsername: username,
+			GitHubUsername: githubUsername,
 			SSHKeyPath:     privateKeyPath,
+			Platform:       platform,
 			Description:    "Discovered from SSH key",
 		},
 		Source:     "ssh",
 		Confidence: confidence,
 	}
+}
+
+// detectPlatformFromEmail detects the Git platform based on email domain
+func (s *SSHOnlyScanner) detectPlatformFromEmail(email string) string {
+	if email == "" {
+		return "github" // Default
+	}
+
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		return "github"
+	}
+	domain := strings.ToLower(parts[1])
+
+	// Direct platform detection
+	if strings.Contains(domain, "gitlab") {
+		return "gitlab"
+	}
+	if strings.Contains(domain, "github") {
+		return "github"
+	}
+	if strings.Contains(domain, "bitbucket") {
+		return "bitbucket"
+	}
+
+	// Corporate emails likely use GitLab or GitHub Enterprise
+	commonProviders := []string{"gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com"}
+	for _, provider := range commonProviders {
+		if domain == provider {
+			return "github" // Personal email defaults to GitHub
+		}
+	}
+
+	// Corporate email - default to GitLab
+	return "gitlab"
 }
 
 // extractEmailFromPublicKey extracts email from SSH public key comment
@@ -169,4 +215,38 @@ func (s *SSHOnlyScanner) generateNameFromEmail(email string) string {
 		// Just capitalize the single part
 		return titleCaser.String(strings.ToLower(namePart))
 	}
+}
+
+// isValidGitHubUsername validates GitHub username format
+// GitHub username rules:
+// - Can only contain alphanumeric characters and hyphens
+// - Cannot start or end with a hyphen
+// - Cannot have consecutive hyphens
+// - Maximum 39 characters
+func (s *SSHOnlyScanner) isValidGitHubUsername(username string) bool {
+	if username == "" {
+		return false
+	}
+
+	if len(username) > 39 || len(username) < 1 {
+		return false
+	}
+
+	if strings.HasPrefix(username, "-") || strings.HasSuffix(username, "-") {
+		return false
+	}
+
+	if strings.Contains(username, "--") {
+		return false
+	}
+
+	// Must contain only alphanumeric characters and hyphens (no dots or other special chars)
+	for _, char := range username {
+		if !((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') || char == '-') {
+			return false
+		}
+	}
+
+	return true
 }

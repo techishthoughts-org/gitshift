@@ -291,6 +291,15 @@ func updateGitConfig(account *models.Account) error {
 		}
 	}
 
+	// Set SSH command to use the account's SSH key for proper isolation
+	if account.SSHKeyPath != "" {
+		sshCommand := fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes", account.SSHKeyPath)
+		cmd := exec.Command("git", "config", "--global", "core.sshCommand", sshCommand)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to set global git core.sshCommand: %w", err)
+		}
+	}
+
 	// Check if we're in a Git repository and set local config too
 	if isGitRepo() {
 		if account.Name != "" {
@@ -304,6 +313,15 @@ func updateGitConfig(account *models.Account) error {
 			cmd := exec.Command("git", "config", "--local", "user.email", account.Email)
 			if err := cmd.Run(); err != nil {
 				return fmt.Errorf("failed to set local git user.email: %w", err)
+			}
+		}
+
+		// Also set SSH command locally for better isolation
+		if account.SSHKeyPath != "" {
+			sshCommand := fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes", account.SSHKeyPath)
+			cmd := exec.Command("git", "config", "--local", "core.sshCommand", sshCommand)
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("failed to set local git core.sshCommand: %w", err)
 			}
 		}
 	}

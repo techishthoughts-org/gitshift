@@ -1,6 +1,6 @@
 # 📋 gitshift User Guide
 
-> **Complete guide to using gitshift for GitHub account management**
+> **Complete guide to using gitshift for multi-platform Git account management with SSH and GPG support**
 
 ---
 
@@ -9,12 +9,13 @@
 1. [Getting Started](#getting-started)
 2. [Account Management](#account-management)
 3. [SSH Key Management](#ssh-key-management)
-4. [Account Switching](#account-switching)
-5. [Diagnostics & Health Checks](#diagnostics--health-checks)
-6. [Configuration](#configuration)
-7. [Advanced Features](#advanced-features)
-8. [Best Practices](#best-practices)
-9. [Troubleshooting](#troubleshooting)
+4. [GPG Key Management](#-gpg-key-management)
+5. [Account Switching](#account-switching)
+6. [Diagnostics & Health Checks](#diagnostics--health-checks)
+7. [Configuration](#configuration)
+8. [Advanced Features](#advanced-features)
+9. [Best Practices](#best-practices)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -293,6 +294,79 @@ gitshift ssh-config show
 
 ---
 
+## 🔏 **GPG Key Management**
+
+### **GPG Key Discovery**
+
+gitshift automatically discovers GPG signing keys from your system keyring:
+
+```bash
+# Discover accounts with GPG keys
+gitshift discover
+
+# Output example:
+# 🔐 Scanning GPG keyring for secret keys...
+# 🔐 Found GPG key: user -> Full Name (user@example.com) [8A8DD62F25116CF8, active, gitlab]
+# ✅ Found 1 GPG signing key(s)
+```
+
+### **GPG Key Features**
+
+- **Automatic Discovery**: Scans GPG keyring for secret keys with signing capability
+- **Email Matching**: Merges GPG keys with SSH keys by email address
+- **Platform Detection**: Detects platform (GitHub/GitLab) from email domain
+- **Key Validation**: Checks key expiration and capabilities
+- **Multiple Key Types**: Supports RSA, DSA, and EdDSA keys
+
+### **Enabling GPG Signing**
+
+```bash
+# Add account with GPG signing enabled
+gitshift add work \
+  --name "Full Name" \
+  --email "work@company.com" \
+  --enable-gpg
+
+# GPG key will be auto-discovered if it exists for the email
+```
+
+### **What Gets Configured**
+
+When an account has GPG signing enabled:
+
+1. **Git Config**: Sets `commit.gpgsign = true`
+2. **GPG Key ID**: Configures `user.signingkey = <KEY_ID>`
+3. **Key Display**: Shows GPG key info in `gitshift list` output
+4. **Auto-Switching**: GPG configuration updates when switching accounts
+
+### **GPG Key Information**
+
+View GPG key details for accounts:
+
+```bash
+# List accounts shows GPG info
+gitshift list
+
+# Output includes GPG details:
+# 🟢 work (active)
+#    Name: Full Name
+#    Email: work@company.com
+#    Platform: 🦊 gitlab
+#    GPG Key: 8A8DD62F25116CF8 (RSA, 4096 bits)
+#    GPG Fingerprint: A81B4238C518D5CA...
+```
+
+### **GPG Key Requirements**
+
+For a GPG key to be discovered and used:
+
+- ✅ Must be a **secret key** (private key available)
+- ✅ Must have **signing capability** (capability 'S')
+- ✅ Email must match account email
+- ✅ Key must not be expired
+
+---
+
 ## 🔄 **Account Switching**
 
 ### **Basic Switching**
@@ -316,11 +390,12 @@ gitshift switch work --skip-validation
 When you run `gitshift switch work`, the following happens:
 
 1. **Validation**: Checks if the target account exists and is valid
-2. **SSH Validation**: Tests SSH connection to GitHub (unless skipped)
-3. **Git Configuration**: Updates `user.name` and `user.email`
-4. **SSH Key Management**: Loads the account's SSH key into the agent
-5. **GITHUB_TOKEN Update**: Updates `GITHUB_TOKEN` in your `zsh_secrets` file
-6. **Verification**: Confirms the switch was successful
+2. **SSH Validation**: Tests SSH connection to the platform (unless skipped)
+3. **Git Configuration**: Updates `user.name`, `user.email`, and `core.sshCommand`
+4. **SSH Key Isolation**: Configures Git to use account-specific SSH key with `IdentitiesOnly=yes`
+5. **GPG Configuration**: Enables/disables GPG signing and sets signing key (if configured)
+6. **Platform Token Update**: Updates platform-specific tokens (GitHub, GitLab)
+7. **Verification**: Confirms the switch was successful
 
 ### **Switch Options**
 

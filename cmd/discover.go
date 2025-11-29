@@ -17,19 +17,18 @@ var discoverCmd = &cobra.Command{
 	Short: "Auto-discover existing Git accounts on your system",
 	Long: `Automatically discover and import existing Git accounts from:
 
-- Git config files in ~/.config/git/
-- SSH keys configured for Git platforms (GitHub, GitLab, etc.)
-- GitHub CLI (gh) authentication
-- GitLab CLI (glab) authentication
+- SSH keys in ~/.ssh/ directory
+- GPG signing keys from system keyring
+- Matches SSH and GPG keys by email address
 
 Discovers accounts from all platforms:
 - GitHub (github.com and GitHub Enterprise)
 - GitLab (gitlab.com and self-hosted)
-- Bitbucket (coming soon)
+- Bitbucket
 - Custom Git platforms
 
 Examples:
-  # Discover all Git accounts
+  # Discover all Git accounts (SSH + GPG)
   gitshift discover
 
   # Auto-import discovered accounts
@@ -97,9 +96,34 @@ Examples:
 			if account.Email != "" {
 				fmt.Printf("   Email: %s\n", account.Email)
 			}
-			if account.GitHubUsername != "" {
-				fmt.Printf("   GitHub: @%s\n", account.GitHubUsername)
+
+			// Display platform
+			platform := account.GetPlatform()
+			platformEmoji := "🐙" // GitHub octopus
+			if platform == "gitlab" {
+				platformEmoji = "🦊" // GitLab fox
+			} else if platform == "bitbucket" {
+				platformEmoji = "🪣" // Bitbucket bucket
 			}
+			fmt.Printf("   Platform: %s %s\n", platformEmoji, strings.ToUpper(platform[:1])+platform[1:])
+
+			if account.GitHubUsername != "" {
+				fmt.Printf("   Username: @%s\n", account.GitHubUsername)
+			}
+
+			// Display SSH key information
+			if account.SSHKeyPath != "" {
+				fmt.Printf("   SSH Key: %s\n", account.SSHKeyPath)
+			}
+
+			// Display GPG key information
+			if account.GPGKeyID != "" {
+				fmt.Printf("   GPG Key: %s (%s, %d bits)\n", account.GPGKeyID, account.GPGKeyType, account.GPGKeySize)
+				if account.GPGKeyExpiry != nil {
+					fmt.Printf("   GPG Expiry: %s\n", account.GPGKeyExpiry.Format("2006-01-02"))
+				}
+			}
+
 			fmt.Printf("   Source: %s\n", account.Source)
 			fmt.Printf("   Confidence: %d/10\n", account.Confidence)
 
