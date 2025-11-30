@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/techishthoughts/gitshift/internal/config"
+	"github.com/techishthoughts/gitshift/internal/discovery"
 	"github.com/techishthoughts/gitshift/internal/models"
 )
 
@@ -60,36 +62,57 @@ Examples:
 		newGitHubUsername, _ := cmd.Flags().GetString("github-username")
 		newSSHKey, _ := cmd.Flags().GetString("ssh-key")
 		newDescription, _ := cmd.Flags().GetString("description")
+		newPlatform, _ := cmd.Flags().GetString("platform")
+		autoGPG, _ := cmd.Flags().GetBool("auto-gpg")
 		setDefault, _ := cmd.Flags().GetBool("default")
 
 		// Check if any updates were requested
-		if newName == "" && newEmail == "" && newGitHubUsername == "" && newSSHKey == "" && newDescription == "" && !setDefault {
+		if newName == "" && newEmail == "" && newGitHubUsername == "" && newSSHKey == "" && newDescription == "" && newPlatform == "" && !autoGPG && !setDefault {
 			fmt.Printf("📋 Current account information for '%s':\n", alias)
 			fmt.Printf("   Name: %s\n", existingAccount.Name)
 			fmt.Printf("   Email: %s\n", existingAccount.Email)
-			fmt.Printf("   GitHub: @%s\n", existingAccount.GitHubUsername)
+			fmt.Printf("   Platform: %s\n", existingAccount.GetPlatform())
+			if existingAccount.GetUsername() != "" {
+				fmt.Printf("   Username: @%s\n", existingAccount.GetUsername())
+			} else if existingAccount.GitHubUsername != "" {
+				fmt.Printf("   GitHub: @%s\n", existingAccount.GitHubUsername)
+			}
 			if existingAccount.SSHKeyPath != "" {
 				fmt.Printf("   SSH Key: %s\n", existingAccount.SSHKeyPath)
+			}
+			if existingAccount.HasGPGKey() {
+				fmt.Printf("   GPG Key: %s (%s)\n", existingAccount.GPGKeyID, existingAccount.GPGKeyType)
+			} else {
+				fmt.Printf("   GPG Key: Not configured\n")
 			}
 			if existingAccount.Description != "" {
 				fmt.Printf("   Description: %s\n", existingAccount.Description)
 			}
 			fmt.Printf("   Default: %t\n", configManager.GetConfig().CurrentAccount == alias)
 			fmt.Println("\n💡 Use flags to update specific fields:")
-			fmt.Println("   --name, --email, --github-username, --ssh-key, --description, --default")
+			fmt.Println("   --name, --email, --github-username, --ssh-key, --description, --platform, --auto-gpg, --default")
 			return nil
 		}
 
-		// Create updated account
+		// Create updated account - preserve all existing fields including GPG
 		updatedAccount := &models.Account{
-			Alias:          existingAccount.Alias,
-			Name:           existingAccount.Name,
-			Email:          existingAccount.Email,
-			SSHKeyPath:     existingAccount.SSHKeyPath,
-			GitHubUsername: existingAccount.GitHubUsername,
-			Description:    existingAccount.Description,
-			CreatedAt:      existingAccount.CreatedAt,
-			LastUsed:       existingAccount.LastUsed,
+			Alias:              existingAccount.Alias,
+			Name:               existingAccount.Name,
+			Email:              existingAccount.Email,
+			SSHKeyPath:         existingAccount.SSHKeyPath,
+			GitHubUsername:     existingAccount.GitHubUsername,
+			Username:           existingAccount.Username,
+			Platform:           existingAccount.Platform,
+			Domain:             existingAccount.Domain,
+			Description:        existingAccount.Description,
+			CreatedAt:          existingAccount.CreatedAt,
+			LastUsed:           existingAccount.LastUsed,
+			GPGKeyID:           existingAccount.GPGKeyID,
+			GPGKeyFingerprint:  existingAccount.GPGKeyFingerprint,
+			GPGKeyType:         existingAccount.GPGKeyType,
+			GPGKeySize:         existingAccount.GPGKeySize,
+			GPGKeyExpiry:       existingAccount.GPGKeyExpiry,
+			GPGEnabled:         existingAccount.GPGEnabled,
 		}
 
 		// Apply updates
@@ -113,6 +136,31 @@ Examples:
 		if newDescription != "" && newDescription != existingAccount.Description {
 			updatedAccount.Description = newDescription
 			changes = append(changes, fmt.Sprintf("description: %s → %s", existingAccount.Description, newDescription))
+		}
+		if newPlatform != "" && newPlatform != existingAccount.GetPlatform() {
+			updatedAccount.Platform = newPlatform
+			changes = append(changes, fmt.Sprintf("platform: %s → %s", existingAccount.GetPlatform(), newPlatform))
+		}
+
+		// Auto-associate GPG key if requested
+		if autoGPG && updatedAccount.Email != "" {
+			gpgScanner := discovery.NewGPGScanner()
+			gpgAccounts, err := gpgScanner.ScanGPGKeys()
+			if err == nil {
+				// Find GPG key matching the account email
+				for _, gpgAcc := range gpgAccounts {
+					if strings.EqualFold(gpgAcc.Email, updatedAccount.Email) {
+						updatedAccount.GPGKeyID = gpgAcc.GPGKeyID
+						updatedAccount.GPGKeyFingerprint = gpgAcc.GPGKeyFingerprint
+						updatedAccount.GPGKeyType = gpgAcc.GPGKeyType
+						updatedAccount.GPGKeySize = gpgAcc.GPGKeySize
+						updatedAccount.GPGKeyExpiry = gpgAcc.GPGKeyExpiry
+						updatedAccount.GPGEnabled = true
+						changes = append(changes, fmt.Sprintf("GPG key: associated (%s)", gpgAcc.GPGKeyID))
+						break
+					}
+				}
+			}
 		}
 
 		// Validate updated account
@@ -152,9 +200,20 @@ Examples:
 		fmt.Printf("\n📋 Updated account information:\n")
 		fmt.Printf("   Name: %s\n", updatedAccount.Name)
 		fmt.Printf("   Email: %s\n", updatedAccount.Email)
-		fmt.Printf("   GitHub: @%s\n", updatedAccount.GitHubUsername)
+		fmt.Printf("   Platform: %s\n", updatedAccount.GetPlatform())
+		if updatedAccount.GetUsername() != "" {
+			fmt.Printf("   Username: @%s\n", updatedAccount.GetUsername())
+		} else if updatedAccount.GitHubUsername != "" {
+			fmt.Printf("   GitHub: @%s\n", updatedAccount.GitHubUsername)
+		}
 		if updatedAccount.SSHKeyPath != "" {
 			fmt.Printf("   SSH Key: %s\n", updatedAccount.SSHKeyPath)
+		}
+		if updatedAccount.HasGPGKey() {
+			fmt.Printf("   GPG Key: %s (%s)\n", updatedAccount.GPGKeyID, updatedAccount.GPGKeyType)
+			if updatedAccount.IsGPGEnabled() {
+				fmt.Printf("   GPG Signing: Enabled\n")
+			}
 		}
 		if updatedAccount.Description != "" {
 			fmt.Printf("   Description: %s\n", updatedAccount.Description)
@@ -173,5 +232,7 @@ func init() {
 	updateCmd.Flags().StringP("github-username", "g", "", "New GitHub username (without @)")
 	updateCmd.Flags().StringP("ssh-key", "k", "", "New SSH key path")
 	updateCmd.Flags().StringP("description", "d", "", "New description for the account")
+	updateCmd.Flags().StringP("platform", "p", "", "Set platform (github, gitlab, bitbucket)")
+	updateCmd.Flags().Bool("auto-gpg", false, "Automatically find and associate GPG key by email")
 	updateCmd.Flags().Bool("default", false, "Set this account as the default")
 }

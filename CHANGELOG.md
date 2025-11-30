@@ -23,6 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updates both global and local Git configuration
 
 ### Fixed
+- **Switch Command Early Exit Bug**: Fixed premature exit when switching accounts
+  - Removed early exit check that skipped configuration updates
+  - Now always applies SSH and Git configuration when switching accounts
+  - Ensures system configuration stays in sync with gitshift config
+  - Fixes issue where `gitshift switch` would report success but not update SSH/Git configs
+- **Platform Detection in List Command**: Fixed account categorization by platform
+  - Accounts are now properly grouped by platform (GitHub, GitLab, etc.)
+  - Platform field is now set correctly during account discovery
+  - List command displays accounts under correct platform sections
+  - Fixed issue where all accounts showed under "GitHub" regardless of actual platform
 - **Configuration Persistence**: Fixed account alias corruption for aliases with dots
   - Replaced Viper-based config I/O with direct yaml.v3 marshaling
   - Properly handles account aliases containing special characters

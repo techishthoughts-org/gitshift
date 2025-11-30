@@ -96,58 +96,84 @@ func init() {
 }
 
 func printAccountsDefault(accounts []*models.Account, currentAccount string) error {
-	// Sort accounts by alias
-	sort.Slice(accounts, func(i, j int) bool {
-		return accounts[i].Alias < accounts[j].Alias
-	})
+	// Group accounts by platform
+	accountsByPlatform := groupAccountsByPlatform(accounts)
 
-	fmt.Println("Configured GitHub Accounts:")
-	fmt.Println()
+	// Sort platforms for consistent output
+	platforms := make([]string, 0, len(accountsByPlatform))
+	for platform := range accountsByPlatform {
+		platforms = append(platforms, platform)
+	}
+	sort.Strings(platforms)
 
-	for _, account := range accounts {
-		marker := "  "
-		if account.Alias == currentAccount {
-			marker = "* "
-		}
+	// Print accounts grouped by platform
+	for _, platform := range platforms {
+		platformAccounts := accountsByPlatform[platform]
+		// Sort accounts within platform by alias
+		sort.Slice(platformAccounts, func(i, j int) bool {
+			return platformAccounts[i].Alias < platformAccounts[j].Alias
+		})
 
-		fmt.Printf("%s%s\n", marker, account.Alias)
-		fmt.Printf("    Name:  %s\n", account.Name)
-		fmt.Printf("    Email: %s\n", account.Email)
-
-		if account.GitHubUsername != "" {
-			fmt.Printf("    GitHub: @%s\n", account.GitHubUsername)
-		} else {
-			fmt.Printf("    GitHub: (not set)\n")
-		}
-
-		if account.SSHKeyPath != "" {
-			fmt.Printf("    SSH Key: %s\n", account.SSHKeyPath)
-		}
-
-		// Display GPG status
-		if account.HasGPGKey() {
-			gpgStatus := "🔐 GPG: Enabled"
-			if !account.IsGPGEnabled() {
-				gpgStatus = "🔓 GPG: Configured (signing disabled)"
-			}
-			fmt.Printf("    %s (%s)\n", gpgStatus, account.GPGKeyID)
-			if account.IsGPGKeyExpired() {
-				fmt.Printf("       ⚠️  Key expired: %s\n", account.GPGKeyExpiry.Format("2006-01-02"))
-			}
-		} else {
-			fmt.Printf("    ⚪ GPG: Not configured\n")
-		}
-
-		if account.Description != "" {
-			fmt.Printf("    Description: %s\n", account.Description)
-		}
-
-		if account.LastUsed != nil {
-			fmt.Printf("    Last Used: %s\n", formatTime(*account.LastUsed))
-		}
-
-		fmt.Printf("    Created: %s\n", formatTime(account.CreatedAt))
+		platformDisplay := getPlatformDisplay(platform)
+		fmt.Printf("%s\n", platformDisplay)
 		fmt.Println()
+
+		for _, account := range platformAccounts {
+			marker := "  "
+			if account.Alias == currentAccount {
+				marker = "* "
+			}
+
+			fmt.Printf("%s%s\n", marker, account.Alias)
+			fmt.Printf("    Name:  %s\n", account.Name)
+			fmt.Printf("    Email: %s\n", account.Email)
+
+			// Display platform-specific username
+			username := account.GetUsername()
+			if username != "" {
+				platformName := strings.ToUpper(platform[:1]) + platform[1:]
+				fmt.Printf("    %s: @%s\n", platformName, username)
+			} else {
+				platformName := strings.ToUpper(platform[:1]) + platform[1:]
+				fmt.Printf("    %s: (not set)\n", platformName)
+			}
+
+			// Display domain if different from default
+			domain := account.GetDomain()
+			defaultDomain := getDefaultDomain(platform)
+			if domain != "" && domain != defaultDomain {
+				fmt.Printf("    Domain: %s\n", domain)
+			}
+
+			if account.SSHKeyPath != "" {
+				fmt.Printf("    SSH Key: %s\n", account.SSHKeyPath)
+			}
+
+			// Display GPG status
+			if account.HasGPGKey() {
+				gpgStatus := "🔐 GPG: Enabled"
+				if !account.IsGPGEnabled() {
+					gpgStatus = "🔓 GPG: Configured (signing disabled)"
+				}
+				fmt.Printf("    %s (%s)\n", gpgStatus, account.GPGKeyID)
+				if account.IsGPGKeyExpired() {
+					fmt.Printf("       ⚠️  Key expired: %s\n", account.GPGKeyExpiry.Format("2006-01-02"))
+				}
+			} else {
+				fmt.Printf("    ⚪ GPG: Not configured\n")
+			}
+
+			if account.Description != "" {
+				fmt.Printf("    Description: %s\n", account.Description)
+			}
+
+			if account.LastUsed != nil {
+				fmt.Printf("    Last Used: %s\n", formatTime(*account.LastUsed))
+			}
+
+			fmt.Printf("    Created: %s\n", formatTime(account.CreatedAt))
+			fmt.Println()
+		}
 	}
 
 	if currentAccount != "" {
@@ -160,16 +186,22 @@ func printAccountsDefault(accounts []*models.Account, currentAccount string) err
 }
 
 func printAccountsTable(accounts []*models.Account, currentAccount string) error {
-	// Sort accounts by alias
-	sort.Slice(accounts, func(i, j int) bool {
-		return accounts[i].Alias < accounts[j].Alias
-	})
+	// Group accounts by platform
+	accountsByPlatform := groupAccountsByPlatform(accounts)
+
+	// Sort platforms for consistent output
+	platforms := make([]string, 0, len(accountsByPlatform))
+	for platform := range accountsByPlatform {
+		platforms = append(platforms, platform)
+	}
+	sort.Strings(platforms)
 
 	// Calculate column widths
 	aliasWidth := len("ALIAS")
 	nameWidth := len("NAME")
 	emailWidth := len("EMAIL")
-	githubWidth := len("GITHUB")
+	platformWidth := len("PLATFORM")
+	usernameWidth := len("USERNAME")
 	descWidth := len("DESCRIPTION")
 
 	for _, account := range accounts {
@@ -182,12 +214,16 @@ func printAccountsTable(accounts []*models.Account, currentAccount string) error
 		if len(account.Email) > emailWidth {
 			emailWidth = len(account.Email)
 		}
-		githubDisplay := account.GitHubUsername
-		if githubDisplay == "" {
-			githubDisplay = "(not set)"
+		platformDisplay := strings.ToUpper(account.GetPlatform())
+		if len(platformDisplay) > platformWidth {
+			platformWidth = len(platformDisplay)
 		}
-		if len(githubDisplay) > githubWidth {
-			githubWidth = len(githubDisplay)
+		usernameDisplay := account.GetUsername()
+		if usernameDisplay == "" {
+			usernameDisplay = "(not set)"
+		}
+		if len(usernameDisplay) > usernameWidth {
+			usernameWidth = len(usernameDisplay)
 		}
 		if len(account.Description) > descWidth {
 			descWidth = len(account.Description)
@@ -198,37 +234,53 @@ func printAccountsTable(accounts []*models.Account, currentAccount string) error
 	aliasWidth += 2
 	nameWidth += 2
 	emailWidth += 2
-	githubWidth += 2
+	platformWidth += 2
+	usernameWidth += 2
 	descWidth += 2
 
-	// Print header
-	fmt.Printf("%-1s %-*s %-*s %-*s %-*s %-*s\n", "", aliasWidth, "ALIAS", nameWidth, "NAME", emailWidth, "EMAIL", githubWidth, "GITHUB", descWidth, "DESCRIPTION")
-	fmt.Printf("%-1s %s %s %s %s %s\n", "",
-		strings.Repeat("-", aliasWidth),
-		strings.Repeat("-", nameWidth),
-		strings.Repeat("-", emailWidth),
-		strings.Repeat("-", githubWidth),
-		strings.Repeat("-", descWidth))
+	// Print accounts grouped by platform
+	for _, platform := range platforms {
+		platformAccounts := accountsByPlatform[platform]
+		// Sort accounts within platform by alias
+		sort.Slice(platformAccounts, func(i, j int) bool {
+			return platformAccounts[i].Alias < platformAccounts[j].Alias
+		})
 
-	// Print accounts
-	for _, account := range accounts {
-		marker := " "
-		if account.Alias == currentAccount {
-			marker = "*"
+		platformDisplay := getPlatformDisplay(platform)
+		fmt.Printf("\n%s\n", platformDisplay)
+
+		// Print header
+		fmt.Printf("%-1s %-*s %-*s %-*s %-*s %-*s %-*s\n", "", aliasWidth, "ALIAS", nameWidth, "NAME", emailWidth, "EMAIL", platformWidth, "PLATFORM", usernameWidth, "USERNAME", descWidth, "DESCRIPTION")
+		fmt.Printf("%-1s %s %s %s %s %s %s\n", "",
+			strings.Repeat("-", aliasWidth),
+			strings.Repeat("-", nameWidth),
+			strings.Repeat("-", emailWidth),
+			strings.Repeat("-", platformWidth),
+			strings.Repeat("-", usernameWidth),
+			strings.Repeat("-", descWidth))
+
+		// Print accounts
+		for _, account := range platformAccounts {
+			marker := " "
+			if account.Alias == currentAccount {
+				marker = "*"
+			}
+
+			usernameDisplay := account.GetUsername()
+			if usernameDisplay == "" {
+				usernameDisplay = "(not set)"
+			}
+			platformDisplay := strings.ToUpper(account.GetPlatform())
+
+			fmt.Printf("%-1s %-*s %-*s %-*s %-*s %-*s %-*s\n",
+				marker,
+				aliasWidth, account.Alias,
+				nameWidth, account.Name,
+				emailWidth, account.Email,
+				platformWidth, platformDisplay,
+				usernameWidth, usernameDisplay,
+				descWidth, account.Description)
 		}
-
-		githubDisplay := account.GitHubUsername
-		if githubDisplay == "" {
-			githubDisplay = "(not set)"
-		}
-
-		fmt.Printf("%-1s %-*s %-*s %-*s %-*s %-*s\n",
-			marker,
-			aliasWidth, account.Alias,
-			nameWidth, account.Name,
-			emailWidth, account.Email,
-			githubWidth, githubDisplay,
-			descWidth, account.Description)
 	}
 
 	fmt.Println()
@@ -242,45 +294,79 @@ func printAccountsTable(accounts []*models.Account, currentAccount string) error
 }
 
 func printAccountsJSON(accounts []*models.Account) error {
-	// Sort accounts by alias
-	sort.Slice(accounts, func(i, j int) bool {
-		return accounts[i].Alias < accounts[j].Alias
-	})
+	// Group accounts by platform
+	accountsByPlatform := groupAccountsByPlatform(accounts)
 
-	fmt.Println("[")
-	for i, account := range accounts {
-		fmt.Printf("  {\n")
-		fmt.Printf("    \"alias\": \"%s\",\n", account.Alias)
-		fmt.Printf("    \"name\": \"%s\",\n", account.Name)
-		fmt.Printf("    \"email\": \"%s\",\n", account.Email)
-		fmt.Printf("    \"github_username\": \"%s\",\n", account.GitHubUsername)
-		if account.SSHKeyPath != "" {
-			fmt.Printf("    \"ssh_key_path\": \"%s\",\n", account.SSHKeyPath)
-		}
-		if account.HasGPGKey() {
-			fmt.Printf("    \"gpg_key_id\": \"%s\",\n", account.GPGKeyID)
-			fmt.Printf("    \"gpg_enabled\": %t,\n", account.IsGPGEnabled())
-			if account.GPGKeyFingerprint != "" {
-				fmt.Printf("    \"gpg_fingerprint\": \"%s\",\n", account.GPGKeyFingerprint)
+	// Sort platforms for consistent output
+	platforms := make([]string, 0, len(accountsByPlatform))
+	for platform := range accountsByPlatform {
+		platforms = append(platforms, platform)
+	}
+	sort.Strings(platforms)
+
+	fmt.Println("{")
+	platformIndex := 0
+	for _, platform := range platforms {
+		platformAccounts := accountsByPlatform[platform]
+		// Sort accounts within platform by alias
+		sort.Slice(platformAccounts, func(i, j int) bool {
+			return platformAccounts[i].Alias < platformAccounts[j].Alias
+		})
+
+		fmt.Printf("  \"%s\": [\n", platform)
+		for i, account := range platformAccounts {
+			fmt.Printf("    {\n")
+			fmt.Printf("      \"alias\": \"%s\",\n", account.Alias)
+			fmt.Printf("      \"name\": \"%s\",\n", account.Name)
+			fmt.Printf("      \"email\": \"%s\",\n", account.Email)
+			fmt.Printf("      \"platform\": \"%s\",\n", account.GetPlatform())
+			if account.GetDomain() != "" {
+				fmt.Printf("      \"domain\": \"%s\",\n", account.GetDomain())
+			}
+			username := account.GetUsername()
+			if username != "" {
+				fmt.Printf("      \"username\": \"%s\",\n", username)
+			}
+			// Keep github_username for backward compatibility
+			if account.GitHubUsername != "" {
+				fmt.Printf("      \"github_username\": \"%s\",\n", account.GitHubUsername)
+			}
+			if account.SSHKeyPath != "" {
+				fmt.Printf("      \"ssh_key_path\": \"%s\",\n", account.SSHKeyPath)
+			}
+			if account.HasGPGKey() {
+				fmt.Printf("      \"gpg_key_id\": \"%s\",\n", account.GPGKeyID)
+				fmt.Printf("      \"gpg_enabled\": %t,\n", account.IsGPGEnabled())
+				if account.GPGKeyFingerprint != "" {
+					fmt.Printf("      \"gpg_fingerprint\": \"%s\",\n", account.GPGKeyFingerprint)
+				}
+			}
+			if account.Description != "" {
+				fmt.Printf("      \"description\": \"%s\",\n", account.Description)
+			}
+			fmt.Printf("      \"is_default\": %t,\n", account.IsDefault)
+			fmt.Printf("      \"created_at\": \"%s\"", account.CreatedAt.Format(time.RFC3339))
+			if account.LastUsed != nil {
+				fmt.Printf(",\n      \"last_used\": \"%s\"", account.LastUsed.Format(time.RFC3339))
+			}
+			fmt.Printf("\n    }")
+
+			if i < len(platformAccounts)-1 {
+				fmt.Println(",")
+			} else {
+				fmt.Println()
 			}
 		}
-		if account.Description != "" {
-			fmt.Printf("    \"description\": \"%s\",\n", account.Description)
-		}
-		fmt.Printf("    \"is_default\": %t,\n", account.IsDefault)
-		fmt.Printf("    \"created_at\": \"%s\"", account.CreatedAt.Format(time.RFC3339))
-		if account.LastUsed != nil {
-			fmt.Printf(",\n    \"last_used\": \"%s\"", account.LastUsed.Format(time.RFC3339))
-		}
-		fmt.Printf("\n  }")
+		fmt.Printf("  ]")
 
-		if i < len(accounts)-1 {
+		if platformIndex < len(platforms)-1 {
 			fmt.Println(",")
 		} else {
 			fmt.Println()
 		}
+		platformIndex++
 	}
-	fmt.Println("]")
+	fmt.Println("}")
 
 	return nil
 }
@@ -301,4 +387,45 @@ func formatTime(t time.Time) string {
 	}
 
 	return t.Format("Jan 02, 2006")
+}
+
+// groupAccountsByPlatform groups accounts by their platform
+func groupAccountsByPlatform(accounts []*models.Account) map[string][]*models.Account {
+	grouped := make(map[string][]*models.Account)
+	for _, account := range accounts {
+		platform := account.GetPlatform()
+		grouped[platform] = append(grouped[platform], account)
+	}
+	return grouped
+}
+
+// getPlatformDisplay returns a formatted platform header with emoji
+func getPlatformDisplay(platform string) string {
+	platformName := strings.ToUpper(platform[:1]) + platform[1:]
+	var emoji string
+	switch platform {
+	case "github":
+		emoji = "🐙"
+	case "gitlab":
+		emoji = "🦊"
+	case "bitbucket":
+		emoji = "🪣"
+	default:
+		emoji = "🔧"
+	}
+	return fmt.Sprintf("%s %s Accounts", emoji, platformName)
+}
+
+// getDefaultDomain returns the default domain for a platform
+func getDefaultDomain(platform string) string {
+	switch platform {
+	case "github":
+		return "github.com"
+	case "gitlab":
+		return "gitlab.com"
+	case "bitbucket":
+		return "bitbucket.org"
+	default:
+		return ""
+	}
 }

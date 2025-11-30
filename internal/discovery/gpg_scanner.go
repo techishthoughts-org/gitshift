@@ -135,25 +135,32 @@ func (s *GPGScanner) parseGPGOutput(output []byte) ([]GPGKeyInfo, error) {
 			// Start new key
 			currentKey = &GPGKeyInfo{}
 
-			if len(fields) >= 12 {
+			// Need at least 5 fields to get KeyID (field index 4)
+			if len(fields) >= 5 {
 				// Field 5 (index 4): Key ID
-				currentKey.KeyID = fields[4]
+				if fields[4] != "" {
+					currentKey.KeyID = fields[4]
+				}
 
 				// Field 3 (index 2): Key length
-				currentKey.KeySize = parseInt(fields[2])
+				if len(fields) > 2 && fields[2] != "" {
+					currentKey.KeySize = parseInt(fields[2])
+				}
 
 				// Field 4 (index 3): Key algorithm
-				currentKey.KeyType = s.mapKeyAlgorithm(fields[3])
+				if len(fields) > 3 && fields[3] != "" {
+					currentKey.KeyType = s.mapKeyAlgorithm(fields[3])
+				}
 
 				// Field 6 (index 5): Creation date (Unix timestamp)
-				if fields[5] != "" {
+				if len(fields) > 5 && fields[5] != "" {
 					if timestamp := parseInt64(fields[5]); timestamp > 0 {
 						currentKey.CreatedAt = time.Unix(timestamp, 0)
 					}
 				}
 
 				// Field 7 (index 6): Expiration date (Unix timestamp)
-				if fields[6] != "" {
+				if len(fields) > 6 && fields[6] != "" {
 					if timestamp := parseInt64(fields[6]); timestamp > 0 {
 						expiresAt := time.Unix(timestamp, 0)
 						currentKey.ExpiresAt = &expiresAt
@@ -161,7 +168,7 @@ func (s *GPGScanner) parseGPGOutput(output []byte) ([]GPGKeyInfo, error) {
 				}
 
 				// Field 12 (index 11): Key capabilities
-				if len(fields) > 11 {
+				if len(fields) > 11 && fields[11] != "" {
 					currentKey.Capabilities = fields[11]
 				}
 			}
@@ -224,8 +231,14 @@ func (s *GPGScanner) createAccountFromGPGKey(key GPGKeyInfo) *DiscoveredAccount 
 	// Detect platform from email domain
 	platform := s.detectPlatformFromEmail(key.Email)
 
+	// Safely display KeyID (truncate if longer than 16 chars, use full if shorter)
+	keyIDDisplay := key.KeyID
+	if len(key.KeyID) > 16 {
+		keyIDDisplay = key.KeyID[:16]
+	}
+
 	fmt.Printf("🔐 Found GPG key: %s -> %s (%s) [%s, %s, %s]\n",
-		alias, key.Name, key.Email, key.KeyID[:16], status, platform)
+		alias, key.Name, key.Email, keyIDDisplay, status, platform)
 
 	return &DiscoveredAccount{
 		Account: &models.Account{

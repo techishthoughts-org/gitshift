@@ -59,12 +59,6 @@ func runSwitchCommand(cmd *cobra.Command, args []string) error {
 	validateOnly, _ := cmd.Flags().GetBool("validate")
 	force, _ := cmd.Flags().GetBool("force")
 
-	// Check if we're already using the target account
-	if currentAccount, err := getCurrentAccount(); err == nil && currentAccount == accountAlias && !validateOnly && !force {
-		fmt.Printf("ℹ️  Already using account '%s'. No changes made.\n", accountAlias)
-		return nil
-	}
-
 	// Load gitshift configuration
 	configManager := config.NewManager()
 	if err := configManager.Load(); err != nil {
@@ -102,6 +96,8 @@ func runSwitchCommand(cmd *cobra.Command, args []string) error {
 			} else {
 				return fmt.Errorf("SSH key not found at %s: %w", targetAccount.SSHKeyPath, err)
 			}
+		} else {
+			// SSH key exists, proceed with switch
 			fmt.Printf("🔑 Switching SSH configuration with proper isolation...\n")
 			sshManager := ssh.NewManager()
 
