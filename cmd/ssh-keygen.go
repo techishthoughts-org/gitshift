@@ -50,12 +50,11 @@ The generated keys can be used with any Git platform:
 }
 
 var (
-	keyType       string
-	keyBits       int
-	keyEmail      string
-	keyPassphrase string
-	addToGitHub   bool
-	force         bool
+	keyType     string
+	keyBits     int
+	keyEmail    string
+	addToGitHub bool
+	force       bool
 )
 
 func init() {
@@ -64,7 +63,6 @@ func init() {
 	sshKeygenCmd.Flags().StringVar(&keyType, "type", "ed25519", "SSH key type (ed25519, rsa, ecdsa)")
 	sshKeygenCmd.Flags().IntVar(&keyBits, "bits", 0, "Key size in bits (RSA: 2048/4096, ECDSA: 256/384/521)")
 	sshKeygenCmd.Flags().StringVar(&keyEmail, "email", "", "Email for SSH key comment")
-	sshKeygenCmd.Flags().StringVar(&keyPassphrase, "passphrase", "", "Passphrase for private key (empty for no passphrase)")
 	sshKeygenCmd.Flags().BoolVar(&addToGitHub, "add-to-github", false, "Automatically add the public key to GitHub")
 	sshKeygenCmd.Flags().BoolVarP(&force, "force", "f", false, "Overwrite existing SSH key if present")
 }
@@ -105,12 +103,11 @@ func runSSHKeygen(cmd *cobra.Command, args []string) error {
 	// Generate the SSH key
 	keyManager := &SSHKeyManager{}
 	keyPath, err := keyManager.GenerateKey(GenerateKeyParams{
-		Alias:      accountAlias,
-		Email:      keyEmail,
-		Type:       keyType,
-		Bits:       keyBits,
-		Passphrase: keyPassphrase,
-		Force:      force,
+		Alias: accountAlias,
+		Email: keyEmail,
+		Type:  keyType,
+		Bits:  keyBits,
+		Force: force,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to generate SSH key: %w", err)
@@ -175,12 +172,11 @@ func runSSHKeygen(cmd *cobra.Command, args []string) error {
 }
 
 type GenerateKeyParams struct {
-	Alias      string
-	Email      string
-	Type       string
-	Bits       int
-	Passphrase string
-	Force      bool
+	Alias string
+	Email string
+	Type  string
+	Bits  int
+	Force bool
 }
 
 type SSHKeyManager struct{}
@@ -220,12 +216,11 @@ func (m *SSHKeyManager) GenerateKey(params GenerateKeyParams) (string, error) {
 		args = append(args, "-b", fmt.Sprintf("%d", params.Bits))
 	}
 
-	// Add passphrase (empty means no passphrase)
-	if params.Passphrase == "" {
-		args = append(args, "-N", "")
-	} else {
-		args = append(args, "-N", params.Passphrase)
-	}
+	// Generate a passwordless key non-interactively. Passing a passphrase via
+	// argv would expose it to process inspection and shell history. Users who
+	// require passphrase protection should run ssh-keygen interactively, then
+	// attach the resulting key with gitshift update --ssh-key.
+	args = append(args, "-N", "")
 
 	// Execute ssh-keygen
 	cmd := exec.Command("ssh-keygen", args...)

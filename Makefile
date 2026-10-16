@@ -26,10 +26,10 @@ install: build
 	@chmod +x $${GOPATH:-$$HOME/go}/bin/$(BINARY_NAME)
 	@echo "✅ Installed: $${GOPATH:-$$HOME/go}/bin/$(BINARY_NAME)"
 
-## Run basic tests
+## Run all tests
 test:
 	@echo "🧪 Running tests..."
-	@go test -v ./internal/...
+	@go test -v ./...
 	@echo "✅ Tests passed"
 
 ## Format and clean code

@@ -37,9 +37,6 @@ The generated keys can be used with any Git platform:
   # Generate key with 2-year expiration
   gitshift gpg-keygen myaccount --expire-date 2y
 
-  # Generate key with passphrase protection
-  gitshift gpg-keygen myaccount --passphrase "secure-passphrase"
-
   # Enable GPG signing automatically for this account
   gitshift gpg-keygen myaccount --enable`,
 	Args: cobra.ExactArgs(1),
@@ -47,13 +44,12 @@ The generated keys can be used with any Git platform:
 }
 
 var (
-	gpgKeyType       string
-	gpgKeyLength     int
-	gpgKeyEmail      string
-	gpgKeyPassphrase string
-	gpgExpireDate    string
-	gpgEnableSign    bool
-	gpgForce         bool
+	gpgKeyType    string
+	gpgKeyLength  int
+	gpgKeyEmail   string
+	gpgExpireDate string
+	gpgEnableSign bool
+	gpgForce      bool
 )
 
 func init() {
@@ -62,7 +58,6 @@ func init() {
 	gpgKeygenCmd.Flags().StringVar(&gpgKeyType, "type", "RSA", "GPG key type (RSA, ECC, DSA)")
 	gpgKeygenCmd.Flags().IntVar(&gpgKeyLength, "bits", 4096, "Key size in bits (RSA: 2048/4096, ignored for ECC)")
 	gpgKeygenCmd.Flags().StringVar(&gpgKeyEmail, "email", "", "Email for GPG key (must match verified email on Git platform)")
-	gpgKeygenCmd.Flags().StringVar(&gpgKeyPassphrase, "passphrase", "", "Passphrase for private key (empty for no passphrase)")
 	gpgKeygenCmd.Flags().StringVar(&gpgExpireDate, "expire-date", "0", "Key expiration (0=never, 1y=1 year, 2y=2 years, etc.)")
 	gpgKeygenCmd.Flags().BoolVar(&gpgEnableSign, "enable", false, "Automatically enable GPG commit signing for this account")
 	gpgKeygenCmd.Flags().BoolVarP(&gpgForce, "force", "f", false, "Overwrite existing GPG key if present")
@@ -118,12 +113,16 @@ func runGPGKeygen(cmd *cobra.Command, args []string) error {
 
 	// Generate the GPG key
 	keyInfo, err := gpgManager.GenerateKey(gpg.GenerateKeyParams{
-		Alias:      accountAlias,
-		Name:       name,
-		Email:      email,
-		KeyType:    gpgKeyType,
-		KeyLength:  gpgKeyLength,
-		Passphrase: gpgKeyPassphrase,
+		Alias:     accountAlias,
+		Name:      name,
+		Email:     email,
+		KeyType:   gpgKeyType,
+		KeyLength: gpgKeyLength,
+		// gitshift batch generation is deliberately passwordless. Supplying a
+		// passphrase to the existing GPG batch API would place it in a temporary
+		// parameter file. Generate protected keys with GPG's interactive UI and
+		// configure the resulting key manually instead.
+		Passphrase: "",
 		ExpireDate: gpgExpireDate,
 		Force:      gpgForce,
 	})
