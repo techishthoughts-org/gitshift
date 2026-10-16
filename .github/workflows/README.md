@@ -7,7 +7,6 @@ This inventory describes the checked-in workflows and whether their findings blo
 | `ci.yml` | Push or pull request targeting `main`/`develop` | Downloads modules, runs race-enabled tests, vet, and a normal build |
 | `docs.yml` | Documentation changes on `main`; manual | Checks documentation links, required files, and metrics |
 | `security.yml` | Push, PR, daily schedule, manual | Runs `govulncheck`; gosec and Trivy are non-blocking; dependency review runs on PRs; license output is informational |
-| `dependency-update.yml` | Mondays; manual | Reports available module updates, opens an issue, and tests broad updates in an isolated job |
 | `release.yml` | Manual only | Validates an explicit stable semver, tests, builds, verifies, tags, and publishes one release |
 
 ## Release ownership
