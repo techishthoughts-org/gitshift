@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/gitshift/internal/config"
 )
 
 // currentCmd represents the current command
@@ -29,19 +28,14 @@ Works with all supported platforms:
 
 // runCurrentCommand executes the current command
 func runCurrentCommand(cmd *cobra.Command, args []string) error {
-	// Get the current account alias
-	alias, err := getCurrentAccount()
-	if err != nil {
-		return fmt.Errorf("failed to get current account: %w", err)
+	configManager := newConfigManager()
+	if err := configManager.Load(); err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Load the configuration
-	configManager := config.NewManager()
-
-	// Get the account details
-	account, err := configManager.GetAccount(alias)
+	account, err := configManager.GetCurrentAccount()
 	if err != nil {
-		return fmt.Errorf("failed to get account details: %w", err)
+		return fmt.Errorf("failed to get current account: %w", err)
 	}
 
 	// Check if we should output JSON

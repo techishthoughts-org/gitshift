@@ -20,42 +20,65 @@ const (
 
 type Manager struct {
 	configPath string
+	configFile string
 	config     *models.Config
 	mu         sync.RWMutex
 }
 
 // NewManager creates a new configuration manager
 func NewManager() *Manager {
+	if configuredFile := viper.ConfigFileUsed(); configuredFile != "" {
+		return NewManagerWithPath(configuredFile)
+	}
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		panic(fmt.Sprintf("failed to get user home directory: %v", err))
 	}
 
-	configPath := filepath.Join(homeDir, ConfigDirName)
+	configFile := filepath.Join(homeDir, ConfigDirName, ConfigFileName+".yaml")
+	return NewManagerWithPath(configFile)
+}
+
+// NewManagerWithPath creates a manager for the exact configuration file path.
+func NewManagerWithPath(configFile string) *Manager {
+	if configFile == "" {
+		return NewManager()
+	}
+
+	configFile = filepath.Clean(configFile)
 	return &Manager{
-		configPath: configPath,
+		configPath: filepath.Dir(configFile),
+		configFile: configFile,
 		config:     models.NewConfig(),
 	}
 }
 
 // Load loads the configuration from file
 func (m *Manager) Load() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	// Ensure config directory exists
-	if err := os.MkdirAll(m.configPath, 0755); err != nil {
+	if err := m.ensureConfigDirectory(); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	configFile := filepath.Join(m.configPath, ConfigFileName+".yaml")
-
 	// Check if config file exists
-	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+	if _, err := os.Stat(m.configFile); os.IsNotExist(err) {
 		// Create a default config file
-		return m.Save()
+		return m.saveLocked()
+	} else if err != nil {
+		return fmt.Errorf("failed to inspect config file: %w", err)
+	}
+
+	if err := os.Chmod(m.configFile, 0600); err != nil {
+		return fmt.Errorf("failed to secure config file permissions: %w", err)
 	}
 
 	// Read the file directly and use yaml.v3 to unmarshal
 	// This avoids Viper's issue with dots in map keys
-	data, err := os.ReadFile(configFile)
+	data, err := os.ReadFile(m.configFile)
 	if err != nil {
 		return fmt.Errorf("failed to read config file: %w", err)
 	}
@@ -94,7 +117,7 @@ func (m *Manager) Load() error {
 
 	// Save the config if we made any fixes
 	if needsSave {
-		return m.Save()
+		return m.saveLocked()
 	}
 
 	return nil
@@ -102,7 +125,22 @@ func (m *Manager) Load() error {
 
 // Save saves the current configuration to file
 func (m *Manager) Save() error {
-	configFile := filepath.Join(m.configPath, ConfigFileName+".yaml")
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.saveLocked()
+}
+
+func (m *Manager) ensureConfigDirectory() error {
+	if err := os.MkdirAll(m.configPath, 0700); err != nil {
+		return err
+	}
+	return os.Chmod(m.configPath, 0700)
+}
+
+func (m *Manager) saveLocked() error {
+	if err := m.ensureConfigDirectory(); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
 
 	// Use direct YAML marshaling instead of Viper to properly handle map keys with dots
 	// Viper has issues with dots in map keys, treating them as path separators
@@ -111,10 +149,37 @@ func (m *Manager) Save() error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	// Write to file with proper permissions
-	if err := os.WriteFile(configFile, data, 0644); err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
+	tempFile, err := os.CreateTemp(m.configPath, ".config-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary config file: %w", err)
 	}
+	tempName := tempFile.Name()
+	removeTemp := true
+	defer func() {
+		if removeTemp {
+			_ = os.Remove(tempName)
+		}
+	}()
+
+	if err := tempFile.Chmod(0600); err != nil {
+		_ = tempFile.Close()
+		return fmt.Errorf("failed to secure temporary config file: %w", err)
+	}
+	if _, err := tempFile.Write(data); err != nil {
+		_ = tempFile.Close()
+		return fmt.Errorf("failed to write temporary config file: %w", err)
+	}
+	if err := tempFile.Sync(); err != nil {
+		_ = tempFile.Close()
+		return fmt.Errorf("failed to sync temporary config file: %w", err)
+	}
+	if err := tempFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary config file: %w", err)
+	}
+	if err := os.Rename(tempName, m.configFile); err != nil {
+		return fmt.Errorf("failed to replace config file: %w", err)
+	}
+	removeTemp = false
 
 	return nil
 }
@@ -164,7 +229,86 @@ func (m *Manager) AddAccount(account *models.Account) error {
 	}
 
 	m.config.Accounts[account.Alias] = account
-	return m.Save()
+	return m.saveLocked()
+}
+
+// UpdateAccount validates and replaces an existing account in one save. Callers
+// should start from a complete copy of the existing account so fields that are
+// not being edited remain unchanged.
+func (m *Manager) UpdateAccount(account *models.Account) error {
+	if account == nil {
+		return fmt.Errorf("cannot update nil account")
+	}
+	if err := account.Validate(); err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	previous, exists := m.config.Accounts[account.Alias]
+	if !exists {
+		return models.ErrAccountNotFound
+	}
+
+	if account.IsDefault {
+		for _, existing := range m.config.Accounts {
+			existing.IsDefault = false
+		}
+		m.config.CurrentAccount = account.Alias
+	} else if previous.IsDefault {
+		account.IsDefault = true
+	}
+
+	m.config.Accounts[account.Alias] = account
+	return m.saveLocked()
+}
+
+// ReplaceAccounts atomically replaces active and pending account state. The
+// rest of the application configuration is retained.
+func (m *Manager) ReplaceAccounts(accounts []*models.Account, pendingAccounts []*models.PendingAccount) error {
+	active := make(map[string]*models.Account, len(accounts))
+	pending := make(map[string]*models.PendingAccount, len(pendingAccounts))
+
+	var defaultAlias string
+	for _, account := range accounts {
+		if account == nil {
+			return fmt.Errorf("cannot replace accounts with a nil account")
+		}
+		if err := account.Validate(); err != nil {
+			return fmt.Errorf("invalid account %q: %w", account.Alias, err)
+		}
+		if _, exists := active[account.Alias]; exists {
+			return fmt.Errorf("duplicate account alias %q", account.Alias)
+		}
+		if defaultAlias == "" && account.IsDefault {
+			defaultAlias = account.Alias
+		}
+		active[account.Alias] = account
+	}
+	for _, account := range pendingAccounts {
+		if account == nil || account.Alias == "" {
+			return fmt.Errorf("pending account must have an alias")
+		}
+		if _, exists := pending[account.Alias]; exists {
+			return fmt.Errorf("duplicate pending account alias %q", account.Alias)
+		}
+		pending[account.Alias] = account
+	}
+
+	if defaultAlias == "" && len(accounts) > 0 {
+		defaultAlias = accounts[0].Alias
+	}
+	for _, account := range active {
+		account.IsDefault = account.Alias == defaultAlias
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.config.Accounts = active
+	m.config.PendingAccounts = pending
+	m.config.CurrentAccount = defaultAlias
+	return m.saveLocked()
 }
 
 // RemoveAccount removes an account from the configuration
@@ -194,7 +338,7 @@ func (m *Manager) RemoveAccount(alias string) error {
 		}
 	}
 
-	return m.Save()
+	return m.saveLocked()
 }
 
 // GetAccount returns an account by alias
@@ -223,31 +367,43 @@ func (m *Manager) ListAccounts() []*models.Account {
 
 // ClearAllAccounts removes all accounts from the configuration
 func (m *Manager) ClearAllAccounts() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.config.Accounts = make(map[string]*models.Account)
 	m.config.PendingAccounts = make(map[string]*models.PendingAccount)
 	m.config.CurrentAccount = ""
-	return m.Save()
+	return m.saveLocked()
 }
 
 // SetCurrentAccount sets the current active account
 func (m *Manager) SetCurrentAccount(alias string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	account, exists := m.config.Accounts[alias]
 	if !exists {
 		return models.ErrAccountNotFound
 	}
 
 	m.config.CurrentAccount = alias
+	for _, existing := range m.config.Accounts {
+		existing.IsDefault = false
+	}
+	account.IsDefault = true
 	account.MarkAsUsed()
-	return m.Save()
+	return m.saveLocked()
 }
 
 // GetCurrentAccount returns the current active account
 func (m *Manager) GetCurrentAccount() (*models.Account, error) {
-	if m.config.CurrentAccount == "" {
+	m.mu.RLock()
+	alias := m.config.CurrentAccount
+	m.mu.RUnlock()
+	if alias == "" {
 		return nil, models.ErrNoDefaultAccount
 	}
 
-	return m.GetAccount(m.config.CurrentAccount)
+	return m.GetAccount(alias)
 }
 
 // LoadProjectConfig loads project-specific configuration
@@ -301,12 +457,16 @@ func (m *Manager) AddPendingAccount(pending *models.PendingAccount) error {
 		return fmt.Errorf("pending account must have an alias")
 	}
 
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.config.PendingAccounts[pending.Alias] = pending
-	return m.Save()
+	return m.saveLocked()
 }
 
 // GetPendingAccount returns a pending account by alias
 func (m *Manager) GetPendingAccount(alias string) (*models.PendingAccount, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	pending, exists := m.config.PendingAccounts[alias]
 	if !exists {
 		return nil, models.ErrAccountNotFound
@@ -316,6 +476,8 @@ func (m *Manager) GetPendingAccount(alias string) (*models.PendingAccount, error
 
 // ListPendingAccounts returns all pending accounts
 func (m *Manager) ListPendingAccounts() []*models.PendingAccount {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	pending := make([]*models.PendingAccount, 0, len(m.config.PendingAccounts))
 	for _, account := range m.config.PendingAccounts {
 		pending = append(pending, account)
@@ -325,6 +487,8 @@ func (m *Manager) ListPendingAccounts() []*models.PendingAccount {
 
 // CompletePendingAccount converts a pending account to an active account
 func (m *Manager) CompletePendingAccount(alias string, name, email string) (*models.Account, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	pending, exists := m.config.PendingAccounts[alias]
 	if !exists {
 		return nil, models.ErrAccountNotFound
@@ -355,7 +519,7 @@ func (m *Manager) CompletePendingAccount(alias string, name, email string) (*mod
 	delete(m.config.PendingAccounts, alias)
 
 	// Save configuration
-	if err := m.Save(); err != nil {
+	if err := m.saveLocked(); err != nil {
 		return nil, fmt.Errorf("failed to save completed account: %w", err)
 	}
 
@@ -364,16 +528,20 @@ func (m *Manager) CompletePendingAccount(alias string, name, email string) (*mod
 
 // RemovePendingAccount removes a pending account
 func (m *Manager) RemovePendingAccount(alias string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if _, exists := m.config.PendingAccounts[alias]; !exists {
 		return models.ErrAccountNotFound
 	}
 
 	delete(m.config.PendingAccounts, alias)
-	return m.Save()
+	return m.saveLocked()
 }
 
 // ClearAllPendingAccounts removes all pending accounts
 func (m *Manager) ClearAllPendingAccounts() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.config.PendingAccounts = make(map[string]*models.PendingAccount)
-	return m.Save()
+	return m.saveLocked()
 }

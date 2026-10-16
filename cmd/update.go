@@ -5,9 +5,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/gitshift/internal/config"
 	"github.com/techishthoughts/gitshift/internal/discovery"
-	"github.com/techishthoughts/gitshift/internal/models"
 )
 
 // updateCmd represents the update command for modifying account information
@@ -45,7 +43,7 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		alias := args[0]
 
-		configManager := config.NewManager()
+		configManager := newConfigManager()
 		if err := configManager.Load(); err != nil {
 			return fmt.Errorf("failed to load configuration: %w", err)
 		}
@@ -94,26 +92,8 @@ Examples:
 			return nil
 		}
 
-		// Create updated account - preserve all existing fields including GPG
-		updatedAccount := &models.Account{
-			Alias:              existingAccount.Alias,
-			Name:               existingAccount.Name,
-			Email:              existingAccount.Email,
-			SSHKeyPath:         existingAccount.SSHKeyPath,
-			GitHubUsername:     existingAccount.GitHubUsername,
-			Username:           existingAccount.Username,
-			Platform:           existingAccount.Platform,
-			Domain:             existingAccount.Domain,
-			Description:        existingAccount.Description,
-			CreatedAt:          existingAccount.CreatedAt,
-			LastUsed:           existingAccount.LastUsed,
-			GPGKeyID:           existingAccount.GPGKeyID,
-			GPGKeyFingerprint:  existingAccount.GPGKeyFingerprint,
-			GPGKeyType:         existingAccount.GPGKeyType,
-			GPGKeySize:         existingAccount.GPGKeySize,
-			GPGKeyExpiry:       existingAccount.GPGKeyExpiry,
-			GPGEnabled:         existingAccount.GPGEnabled,
-		}
+		// Copy the complete account so fields unknown to this command are retained.
+		updatedAccount := *existingAccount
 
 		// Apply updates
 		changes := []string{}
@@ -163,27 +143,18 @@ Examples:
 			}
 		}
 
+		if setDefault && !updatedAccount.IsDefault {
+			updatedAccount.IsDefault = true
+			changes = append(changes, "set as default account")
+		}
+
 		// Validate updated account
 		if err := updatedAccount.Validate(); err != nil {
 			return fmt.Errorf("updated account validation failed: %w", err)
 		}
 
-		// Remove old account and add updated one
-		if err := configManager.RemoveAccount(alias); err != nil {
-			return fmt.Errorf("failed to remove old account: %w", err)
-		}
-
-		if err := configManager.AddAccount(updatedAccount); err != nil {
-			return fmt.Errorf("failed to add updated account: %w", err)
-		}
-
-		// Set as default if requested
-		if setDefault {
-			if err := configManager.SetCurrentAccount(alias); err != nil {
-				fmt.Printf("⚠️  Failed to set as default: %v\n", err)
-			} else {
-				changes = append(changes, "set as default account")
-			}
+		if err := configManager.UpdateAccount(&updatedAccount); err != nil {
+			return fmt.Errorf("failed to update account: %w", err)
 		}
 
 		// Show summary of changes
