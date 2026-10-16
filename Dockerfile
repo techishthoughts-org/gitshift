@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.23-alpine AS builder
+FROM golang:1.26.0-alpine AS builder
 
 # Install git and ca-certificates
 RUN apk add --no-cache git ca-certificates
@@ -17,7 +17,11 @@ RUN go mod download
 COPY . .
 
 # Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o gitshift .
+ARG VERSION=dev
+ARG BUILD_TIME=unknown
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
+    -ldflags "-X github.com/techishthoughts/gitshift/cmd.version=${VERSION} -X github.com/techishthoughts/gitshift/cmd.buildTime=${BUILD_TIME}" \
+    -o gitshift .
 
 # Final stage
 FROM alpine:latest

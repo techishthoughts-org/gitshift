@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/gitshift/internal/config"
 	"github.com/techishthoughts/gitshift/internal/models"
 )
 
@@ -25,8 +24,6 @@ The current active account is marked with an asterisk (*).
 Displays accounts from all platforms:
 - GitHub (github.com and GitHub Enterprise)
 - GitLab (gitlab.com and self-hosted)
-- Bitbucket (coming soon)
-- Custom Git platforms
 
 Examples:
   # List all accounts
@@ -39,7 +36,7 @@ Examples:
   gitshift list --format json`,
 	Aliases: []string{"ls"},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		configManager := config.NewManager()
+		configManager := newConfigManager()
 		if err := configManager.Load(); err != nil {
 			return fmt.Errorf("failed to load configuration: %w", err)
 		}
@@ -82,7 +79,7 @@ Examples:
 				}
 				fmt.Printf("    Missing: %v\n", pending.MissingFields)
 				fmt.Printf("    Source: %s\n", pending.Source)
-				fmt.Printf("    💡 Complete with: gitshift complete %s --name \"Your Name\" --email \"your@email.com\"\n", pending.Alias)
+				fmt.Printf("    💡 Recreate with: gitshift add %s --name \"Your Name\" --email \"your@email.com\" --username USERNAME\n", pending.Alias)
 				fmt.Println()
 			}
 		}
@@ -313,6 +310,32 @@ type accountJSON struct {
 	LastUsed          string `json:"last_used,omitempty"`
 }
 
+func newAccountJSON(account *models.Account) accountJSON {
+	entry := accountJSON{
+		Alias:          account.Alias,
+		Name:           account.Name,
+		Email:          account.Email,
+		Platform:       account.GetPlatform(),
+		Domain:         account.GetDomain(),
+		Username:       account.GetUsername(),
+		GitHubUsername: account.GitHubUsername,
+		SSHKeyPath:     account.SSHKeyPath,
+		Description:    account.Description,
+		IsDefault:      account.IsDefault,
+		CreatedAt:      account.CreatedAt.Format(time.RFC3339),
+	}
+	if account.HasGPGKey() {
+		entry.GPGKeyID = account.GPGKeyID
+		gpgEnabled := account.IsGPGEnabled()
+		entry.GPGEnabled = &gpgEnabled
+		entry.GPGKeyFingerprint = account.GPGKeyFingerprint
+	}
+	if account.LastUsed != nil {
+		entry.LastUsed = account.LastUsed.Format(time.RFC3339)
+	}
+	return entry
+}
+
 func printAccountsJSON(w io.Writer, accounts []*models.Account) error {
 	// Group accounts by platform
 	accountsByPlatform := groupAccountsByPlatform(accounts)
@@ -333,29 +356,7 @@ func printAccountsJSON(w io.Writer, accounts []*models.Account) error {
 		})
 
 		for _, account := range platformAccounts {
-			entry := accountJSON{
-				Alias:          account.Alias,
-				Name:           account.Name,
-				Email:          account.Email,
-				Platform:       account.GetPlatform(),
-				Domain:         account.GetDomain(),
-				Username:       account.GetUsername(),
-				GitHubUsername: account.GitHubUsername,
-				SSHKeyPath:     account.SSHKeyPath,
-				Description:    account.Description,
-				IsDefault:      account.IsDefault,
-				CreatedAt:      account.CreatedAt.Format(time.RFC3339),
-			}
-			if account.HasGPGKey() {
-				entry.GPGKeyID = account.GPGKeyID
-				gpgEnabled := account.IsGPGEnabled()
-				entry.GPGEnabled = &gpgEnabled
-				entry.GPGKeyFingerprint = account.GPGKeyFingerprint
-			}
-			if account.LastUsed != nil {
-				entry.LastUsed = account.LastUsed.Format(time.RFC3339)
-			}
-			output[platform] = append(output[platform], entry)
+			output[platform] = append(output[platform], newAccountJSON(account))
 		}
 	}
 

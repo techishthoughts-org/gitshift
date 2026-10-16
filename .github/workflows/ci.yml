@@ -3,23 +3,21 @@ name: CI
 on:
   push:
     branches: [main, develop]
-    tags:
-      - 'v*'  # Match version tags
   pull_request:
     branches: [main, develop]
 
 env:
-  GO_VERSION: '1.24'
+  GO_VERSION: '1.26.0'
 
 jobs:
-  test:
-    name: Test
+  verify:
+    name: Test, Vet, and Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -28,33 +26,8 @@ jobs:
           go mod download
           go test -v -race ./...
 
-  build:
-    name: Build
-    needs: test
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
+      - name: Run vet
+        run: go vet ./...
 
       - name: Build
-        run: |
-          mkdir -p dist
-
-          # Get version from tag
-          VERSION=${GITHUB_REF#refs/tags/v}
-
-          # Build for common platforms
-          GOOS=linux GOARCH=amd64 go build -o dist/gitshift-linux-amd64 .
-          GOOS=darwin GOARCH=amd64 go build -o dist/gitshift-darwin-amd64 .
-
-          # Create release
-          gh release create v$VERSION \
-            --title "gitshift-v$VERSION" \
-            --notes "Release gitshift-v$VERSION" \
-            dist/*
+        run: go build ./...

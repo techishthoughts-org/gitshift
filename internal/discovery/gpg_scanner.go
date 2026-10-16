@@ -32,14 +32,14 @@ func NewGPGScanner() *GPGScanner {
 
 // GPGKeyInfo represents discovered GPG key information
 type GPGKeyInfo struct {
-	KeyID       string
-	Fingerprint string
-	KeyType     string
-	KeySize     int
-	CreatedAt   time.Time
-	ExpiresAt   *time.Time
-	Email       string
-	Name        string
+	KeyID        string
+	Fingerprint  string
+	KeyType      string
+	KeySize      int
+	CreatedAt    time.Time
+	ExpiresAt    *time.Time
+	Email        string
+	Name         string
 	Capabilities string // Signing capabilities
 }
 
@@ -242,17 +242,17 @@ func (s *GPGScanner) createAccountFromGPGKey(key GPGKeyInfo) *DiscoveredAccount 
 
 	return &DiscoveredAccount{
 		Account: &models.Account{
-			Alias:              alias,
-			Name:               key.Name,
-			Email:              key.Email,
-			GPGKeyID:           key.KeyID,
-			GPGKeyFingerprint:  key.Fingerprint,
-			GPGKeyType:         key.KeyType,
-			GPGKeySize:         key.KeySize,
-			GPGKeyExpiry:       key.ExpiresAt,
-			GPGEnabled:         true,
-			Platform:           platform,
-			Description:        "Discovered from GPG keyring",
+			Alias:             alias,
+			Name:              key.Name,
+			Email:             key.Email,
+			GPGKeyID:          key.KeyID,
+			GPGKeyFingerprint: key.Fingerprint,
+			GPGKeyType:        key.KeyType,
+			GPGKeySize:        key.KeySize,
+			GPGKeyExpiry:      key.ExpiresAt,
+			GPGEnabled:        true,
+			Platform:          platform,
+			Description:       "Discovered from GPG keyring",
 		},
 		Source:     "gpg",
 		Confidence: confidence,
@@ -261,37 +261,7 @@ func (s *GPGScanner) createAccountFromGPGKey(key GPGKeyInfo) *DiscoveredAccount 
 
 // detectPlatformFromEmail detects the Git platform based on email domain
 func (s *GPGScanner) detectPlatformFromEmail(email string) string {
-	if email == "" {
-		return "github" // Default
-	}
-
-	parts := strings.Split(email, "@")
-	if len(parts) != 2 {
-		return "github"
-	}
-	domain := strings.ToLower(parts[1])
-
-	// Direct platform detection
-	if strings.Contains(domain, "gitlab") {
-		return "gitlab"
-	}
-	if strings.Contains(domain, "github") {
-		return "github"
-	}
-	if strings.Contains(domain, "bitbucket") {
-		return "bitbucket"
-	}
-
-	// Corporate emails likely use GitLab or GitHub Enterprise
-	commonProviders := []string{"gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com"}
-	for _, provider := range commonProviders {
-		if domain == provider {
-			return "github" // Personal email defaults to GitHub
-		}
-	}
-
-	// Corporate email - default to GitLab
-	return "gitlab"
+	return detectPlatform(email)
 }
 
 // parseUID extracts name and email from GPG UID string

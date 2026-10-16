@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file.
 
+Historical entries record what releases announced at the time and may mention behavior that was later changed or never reached the published binaries. Use the current README, command help, and `docs/` guides for supported behavior. The latest public asset compatibility issue is documented in [Installation](docs/INSTALLATION.md).
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
@@ -50,6 +52,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated all documentation to reflect multi-platform support
 - Enhanced documentation structure with new guides
 - Configuration now uses direct YAML marshaling for better reliability
+
+### Documentation
+- Added verified Linux, macOS, and Windows release download and checksum instructions
+- Added upgrade, uninstall, command reference, configuration recovery, and release-compatibility guidance
+- Corrected unsupported provider, cloning, workflow, security-scan, and release-automation claims
+- Documented Git/SSH/GPG/GitHub CLI side effects, validation scope, and rollback limits
+
+### Delivery
+- Replaced competing automatic tag/build/publish workflows with one manually dispatched release workflow
+- Made an explicit validated `vMAJOR.MINOR.PATCH` input the sole release-version authority
+- Added pre-tag tests, vet, five-platform builds, checksum/version verification, and post-publish asset checks
+- Removed the stale unused `VERSION` file and personal-token workflow chaining
 
 ## [0.2.0] - 2025-11-12
 

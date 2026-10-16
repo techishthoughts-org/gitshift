@@ -1,6 +1,10 @@
 package config
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,6 +12,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"github.com/techishthoughts/gitshift/internal/autoswitch"
 	"github.com/techishthoughts/gitshift/internal/models"
 	"gopkg.in/yaml.v3"
 )
@@ -18,11 +23,16 @@ const (
 	ProjectConfigName = ".gitshift.yaml"
 )
 
+// ErrConfigChanged prevents a stale manager from overwriting a newer file.
+var ErrConfigChanged = errors.New("configuration changed on disk; reload and retry")
+
 type Manager struct {
 	configPath string
 	configFile string
 	config     *models.Config
 	mu         sync.RWMutex
+	loadedHash [sha256.Size]byte
+	loaded     bool
 }
 
 // NewManager creates a new configuration manager
@@ -59,21 +69,12 @@ func (m *Manager) Load() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Ensure config directory exists
-	if err := m.ensureConfigDirectory(); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
 	// Check if config file exists
 	if _, err := os.Stat(m.configFile); os.IsNotExist(err) {
 		// Create a default config file
 		return m.saveLocked()
 	} else if err != nil {
 		return fmt.Errorf("failed to inspect config file: %w", err)
-	}
-
-	if err := os.Chmod(m.configFile, 0600); err != nil {
-		return fmt.Errorf("failed to secure config file permissions: %w", err)
 	}
 
 	// Read the file directly and use yaml.v3 to unmarshal
@@ -83,10 +84,25 @@ func (m *Manager) Load() error {
 		return fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	// Unmarshal using yaml.v3 which properly handles map keys with dots
-	if err := yaml.Unmarshal(data, m.config); err != nil {
+	// Unmarshal into a zero value so an omitted version can be distinguished
+	// from the current version supplied by NewConfig.
+	loaded := &models.Config{}
+	if err := yaml.Unmarshal(data, loaded); err != nil {
 		return fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+	needsSave, err := configVersionMigration(loaded.ConfigVersion)
+	if err != nil {
+		return err
+	}
+	if needsSave {
+		loaded.ConfigVersion = "1.1.0"
+	}
+	if err := os.Chmod(m.configFile, 0600); err != nil {
+		return fmt.Errorf("failed to secure config file permissions: %w", err)
+	}
+	m.config = loaded
+	m.loadedHash = sha256.Sum256(data)
+	m.loaded = true
 
 	// Initialize accounts map if nil
 	if m.config.Accounts == nil {
@@ -99,7 +115,6 @@ func (m *Manager) Load() error {
 	}
 
 	// Fix accounts with zero CreatedAt values (migration fix)
-	needsSave := false
 	for _, account := range m.config.Accounts {
 		if account.CreatedAt.IsZero() {
 			account.CreatedAt = time.Now()
@@ -123,6 +138,57 @@ func (m *Manager) Load() error {
 	return nil
 }
 
+// LoadReadOnly loads configuration without creating directories or files,
+// changing permissions, or persisting migrations. A missing file is treated as
+// an empty configuration. This is intended for report-only commands.
+func (m *Manager) LoadReadOnly() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	data, err := os.ReadFile(m.configFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			m.config = models.NewConfig()
+			m.loaded = false
+			return nil
+		}
+		return fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	loaded := &models.Config{}
+	if err := yaml.Unmarshal(data, loaded); err != nil {
+		return fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+	needsMigration, err := configVersionMigration(loaded.ConfigVersion)
+	if err != nil {
+		return err
+	}
+	if needsMigration {
+		loaded.ConfigVersion = "1.1.0"
+	}
+	if loaded.Accounts == nil {
+		loaded.Accounts = make(map[string]*models.Account)
+	}
+	if loaded.PendingAccounts == nil {
+		loaded.PendingAccounts = make(map[string]*models.PendingAccount)
+	}
+	m.config = loaded
+	m.loadedHash = sha256.Sum256(data)
+	m.loaded = true
+	return nil
+}
+
+func configVersionMigration(version string) (bool, error) {
+	switch version {
+	case "1.1.0":
+		return false, nil
+	case "", "1.0.0":
+		return true, nil
+	default:
+		return false, fmt.Errorf("unsupported configuration version %q; supported version is 1.1.0", version)
+	}
+}
+
 // Save saves the current configuration to file
 func (m *Manager) Save() error {
 	m.mu.Lock()
@@ -140,6 +206,29 @@ func (m *Manager) ensureConfigDirectory() error {
 func (m *Manager) saveLocked() error {
 	if err := m.ensureConfigDirectory(); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	release, err := m.acquireSaveLock()
+	if err != nil {
+		return err
+	}
+	defer release()
+
+	if m.loaded {
+		current, err := os.ReadFile(m.configFile)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return ErrConfigChanged
+			}
+			return fmt.Errorf("failed to verify config before saving: %w", err)
+		}
+		if sha256.Sum256(current) != m.loadedHash {
+			return ErrConfigChanged
+		}
+	} else if _, err := os.Stat(m.configFile); err == nil {
+		return ErrConfigChanged
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to verify config before saving: %w", err)
 	}
 
 	// Use direct YAML marshaling instead of Viper to properly handle map keys with dots
@@ -176,12 +265,69 @@ func (m *Manager) saveLocked() error {
 	if err := tempFile.Close(); err != nil {
 		return fmt.Errorf("failed to close temporary config file: %w", err)
 	}
-	if err := os.Rename(tempName, m.configFile); err != nil {
+	if err := replaceConfigFile(tempName, m.configFile); err != nil {
 		return fmt.Errorf("failed to replace config file: %w", err)
 	}
 	removeTemp = false
+	m.loadedHash = sha256.Sum256(data)
+	m.loaded = true
+
+	if err := syncConfigDirectory(m.configPath); err != nil {
+		return err
+	}
 
 	return nil
+}
+
+func (m *Manager) acquireSaveLock() (func(), error) {
+	return m.acquireFileLock(m.configFile+".lock", "config")
+}
+
+// AcquireSwitchLock serializes the complete global-state switch transaction
+// across gitshift processes. Callers must release it after all external and
+// configuration mutations finish.
+func (m *Manager) AcquireSwitchLock() (func(), error) {
+	if err := m.ensureConfigDirectory(); err != nil {
+		return nil, fmt.Errorf("failed to create config directory: %w", err)
+	}
+	return m.acquireFileLock(m.configFile+".switch.lock", "switch")
+}
+
+func (m *Manager) acquireFileLock(lockPath, kind string) (func(), error) {
+	tokenBytes := make([]byte, 16)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return nil, fmt.Errorf("failed to create %s lock token: %w", kind, err)
+	}
+	token := []byte(hex.EncodeToString(tokenBytes))
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		lock, err := os.OpenFile(lockPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if err == nil {
+			if _, writeErr := lock.Write(token); writeErr != nil {
+				_ = lock.Close()
+				_ = os.Remove(lockPath)
+				return nil, fmt.Errorf("failed to write %s lock: %w", kind, writeErr)
+			}
+			if closeErr := lock.Close(); closeErr != nil {
+				_ = os.Remove(lockPath)
+				return nil, fmt.Errorf("failed to close %s lock: %w", kind, closeErr)
+			}
+			return func() {
+				currentToken, readErr := os.ReadFile(lockPath)
+				if readErr == nil && string(currentToken) == string(token) {
+					_ = os.Remove(lockPath)
+				}
+			}, nil
+		}
+		if !os.IsExist(err) {
+			return nil, fmt.Errorf("failed to create %s lock: %w", kind, err)
+		}
+
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("timed out waiting for %s lock %q; remove it only if no gitshift process is running", kind, lockPath)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 // marshalConfigToYAML marshals the config to YAML format
@@ -222,8 +368,12 @@ func (m *Manager) AddAccount(account *models.Account) error {
 		return models.ErrAccountExists
 	}
 
-	// If this is the first account, make it default
-	if len(m.config.Accounts) == 0 {
+	// The first account, or an explicitly default account, becomes current in
+	// the same persistence transaction as the add.
+	if len(m.config.Accounts) == 0 || account.IsDefault {
+		for _, existing := range m.config.Accounts {
+			existing.IsDefault = false
+		}
 		account.IsDefault = true
 		m.config.CurrentAccount = account.Alias
 	}
@@ -307,6 +457,13 @@ func (m *Manager) ReplaceAccounts(accounts []*models.Account, pendingAccounts []
 	defer m.mu.Unlock()
 	m.config.Accounts = active
 	m.config.PendingAccounts = pending
+	keptRules := m.config.AutoSwitch.Rules[:0]
+	for _, rule := range m.config.AutoSwitch.Rules {
+		if _, exists := active[rule.Account]; exists {
+			keptRules = append(keptRules, rule)
+		}
+	}
+	m.config.AutoSwitch.Rules = keptRules
 	m.config.CurrentAccount = defaultAlias
 	return m.saveLocked()
 }
@@ -322,6 +479,13 @@ func (m *Manager) RemoveAccount(alias string) error {
 	}
 
 	delete(m.config.Accounts, alias)
+	keptRules := m.config.AutoSwitch.Rules[:0]
+	for _, rule := range m.config.AutoSwitch.Rules {
+		if rule.Account != alias {
+			keptRules = append(keptRules, rule)
+		}
+	}
+	m.config.AutoSwitch.Rules = keptRules
 
 	// If we removed the current account, clear it
 	if m.config.CurrentAccount == alias {
@@ -372,7 +536,66 @@ func (m *Manager) ClearAllAccounts() error {
 	m.config.Accounts = make(map[string]*models.Account)
 	m.config.PendingAccounts = make(map[string]*models.PendingAccount)
 	m.config.CurrentAccount = ""
+	m.config.AutoSwitch.Rules = nil
 	return m.saveLocked()
+}
+
+// AddAutoSwitchRule adds or replaces the rule for a canonical existing directory.
+func (m *Manager) AddAutoSwitchRule(path, alias string) (models.AutoSwitchRule, error) {
+	canonical, err := autoswitch.CanonicalDirectory(path)
+	if err != nil {
+		return models.AutoSwitchRule{}, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, exists := m.config.Accounts[alias]; !exists {
+		return models.AutoSwitchRule{}, models.ErrAccountNotFound
+	}
+	rule := models.AutoSwitchRule{Path: canonical, Account: alias, CreatedAt: time.Now().UTC()}
+	for i := range m.config.AutoSwitch.Rules {
+		if m.config.AutoSwitch.Rules[i].Path == canonical {
+			rule.CreatedAt = m.config.AutoSwitch.Rules[i].CreatedAt
+			m.config.AutoSwitch.Rules[i] = rule
+			return rule, m.saveLocked()
+		}
+	}
+	m.config.AutoSwitch.Rules = append(m.config.AutoSwitch.Rules, rule)
+	return rule, m.saveLocked()
+}
+
+// RemoveAutoSwitchRule removes a canonical rule, including a stale rule whose
+// directory no longer exists when its exact stored absolute path is supplied.
+func (m *Manager) RemoveAutoSwitchRule(path string) error {
+	canonical, err := autoswitch.CanonicalDirectory(path)
+	if err != nil {
+		// A configured root may have been deleted. In that case its physical
+		// path can no longer be re-resolved, so permit the exact cleaned,
+		// absolute path printed by `auto list`.
+		canonical, err = filepath.Abs(path)
+		if err != nil {
+			return fmt.Errorf("make rule path absolute: %w", err)
+		}
+		canonical = filepath.Clean(canonical)
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range m.config.AutoSwitch.Rules {
+		if m.config.AutoSwitch.Rules[i].Path == canonical {
+			m.config.AutoSwitch.Rules = append(m.config.AutoSwitch.Rules[:i], m.config.AutoSwitch.Rules[i+1:]...)
+			return m.saveLocked()
+		}
+	}
+	return fmt.Errorf("no auto-switch rule exists for %q", canonical)
+}
+
+// ListAutoSwitchRules returns a defensive copy of configured rules.
+func (m *Manager) ListAutoSwitchRules() []models.AutoSwitchRule {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	rules := make([]models.AutoSwitchRule, len(m.config.AutoSwitch.Rules))
+	copy(rules, m.config.AutoSwitch.Rules)
+	autoswitch.SortRules(rules)
+	return rules
 }
 
 // SetCurrentAccount sets the current active account

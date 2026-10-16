@@ -1,149 +1,41 @@
-# GitHub Actions Workflows
+# GitHub Actions workflows
 
-This directory contains GitHub Actions workflows organized by Single Responsibility Principle.
+This inventory describes the checked-in workflows and whether their findings block a job.
 
-## 🔄 Workflow Overview
+| Workflow | Trigger | Current behavior |
+| --- | --- | --- |
+| `ci.yml` | Push or pull request targeting `main`/`develop` | Downloads modules, runs race-enabled tests, vet, and a normal build |
+| `docs.yml` | Documentation changes on `main`; manual | Checks documentation links, required files, and metrics |
+| `security.yml` | Push, PR, daily schedule, manual | Runs `govulncheck`; gosec and Trivy are non-blocking; dependency review runs on PRs; license output is informational |
+| `dependency-update.yml` | Mondays; manual | Reports available module updates, opens an issue, and tests broad updates in an isolated job |
+| `release.yml` | Manual only | Validates an explicit stable semver, tests, builds, verifies, tags, and publishes one release |
 
-### Core CI/CD Workflows
+## Release ownership
 
-| Workflow | Purpose | Trigger |
-|----------|---------|---------|
-| `ci.yml` | Main CI pipeline (test, build, lint, security) | Push to main/develop, PRs |
-| `security.yml` | Security scanning and compliance | Daily schedule, push, PRs |
-| `coverage.yml` | Code coverage and quality metrics | Push, PRs, weekly schedule |
-| `docs.yml` | Documentation validation and deployment | Push to main, manual |
+`release.yml` is the only workflow allowed to create tags or GitHub Releases. There is no commit-message version inference, tag-push workflow chain, personal access token, or second publisher.
 
-### Release Workflows (Single Responsibility)
+A maintainer supplies an exact `vMAJOR.MINOR.PATCH` value, such as `v1.5.0`. The workflow rejects malformed, existing, equal, or lower versions; dispatches outside `main`; stale `main` commits; and histories where the highest stable tag is not an ancestor.
 
-| Workflow | Responsibility | Trigger |
-|----------|----------------|---------|
-| `release-coordinator.yml` | **Coordinate** release process | After successful CI |
-| `release-tag.yml` | **Create** version tags | After successful CI |
-| `release-build.yml` | **Build** multi-platform binaries | Tag push |
-| `release-publish.yml` | **Publish** GitHub releases | Tag push |
+The release job has `contents: write`; all other workflow permissions remain job-specific or default. Release runs are serialized and never auto-cancelled.
 
-### Maintenance Workflows
+## Release assets
 
-| Workflow | Purpose | Trigger |
-|----------|---------|---------|
-| `dependency-update.yml` | Check for dependency updates | Weekly schedule, manual |
+The release contract is exactly:
 
-## 🚀 Release Process Flow
+- `gitshift-linux-amd64`
+- `gitshift-linux-arm64`
+- `gitshift-darwin-amd64`
+- `gitshift-darwin-arm64`
+- `gitshift-windows-amd64.exe`
+- `checksums.txt`
 
-```mermaid
-graph TD
-    A[Push to main] --> B[CI Pipeline]
-    B --> C{CI Success?}
-    C -->|Yes| D[Release Coordinator]
-    C -->|No| E[❌ Stop]
-    D --> F[Create Tag]
-    F --> G[Build Binaries]
-    G --> H[Publish Release]
-    H --> I[✅ Release Complete]
-```
+Before creating a tag, the workflow verifies tests, vet, checksums, file presence, the runnable Linux version, and the linker version embedded in every binary. After publishing, it verifies the annotated tag target and exact remote asset-name set.
 
-### Release Workflow Responsibilities
+## Known limitations
 
-1. **🎯 Release Coordinator** (`release-coordinator.yml`)
-   - Checks if release is needed
-   - Coordinates the release process
-   - Provides status updates
+- gosec and Trivy use `continue-on-error: true`; their findings do not independently fail the security job.
+- The license job lists modules and fixed summary text; it is not a complete policy scanner.
+- No checked-in workflow currently runs a dedicated secret scanner, publishes a documentation site, uploads code coverage, or signs release artifacts.
+- `make release` is a local convenience path and is not the release authority. Docker version metadata comes from its explicit `VERSION` build argument. Git tags supply local Makefile build metadata.
 
-2. **🏷️ Tag Creation** (`release-tag.yml`)
-   - Calculates new version based on commits
-   - Creates and pushes git tags
-   - Generates changelog
-
-3. **🏗️ Binary Building** (`release-build.yml`)
-   - Builds binaries for all platforms
-   - Creates checksums
-   - Uploads build artifacts
-
-4. **🚀 Release Publishing** (`release-publish.yml`)
-   - Creates GitHub release
-   - Uploads binaries and checksums
-   - Generates release notes
-
-## 🛠️ Manual Release
-
-To create a manual release:
-
-```bash
-# Create and push a tag
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-This will trigger:
-1. `release-build.yml` - Build binaries
-2. `release-publish.yml` - Publish release
-
-## 📋 Workflow Features
-
-### Security & Quality
-- ✅ Multi-tool security scanning (govulncheck, gosec, Trivy)
-- ✅ Dependency vulnerability checking
-- ✅ License compliance verification
-- ✅ Secrets scanning (TruffleHog, GitLeaks)
-- ✅ Code coverage analysis
-- ✅ Performance benchmarking
-
-### Release Management
-- ✅ Automatic semantic versioning
-- ✅ Multi-platform binary builds (Linux, macOS, Windows)
-- ✅ SHA256 checksums for security
-- ✅ Rich release notes with installation instructions
-- ✅ Changelog generation from git commits
-
-### Documentation
-- ✅ Markdown link validation
-- ✅ Documentation structure verification
-- ✅ GitHub Pages deployment
-- ✅ Documentation analytics
-
-### Maintenance
-- ✅ Automated dependency update checking
-- ✅ Weekly security scans
-- ✅ Performance monitoring
-- ✅ Code quality metrics
-
-## 🔧 Configuration
-
-### Required Secrets
-- `GITHUB_TOKEN` - Automatically provided by GitHub
-- `GITLEAKS_LICENSE` - Optional, only for commercial GitLeaks use
-
-### Environment Variables
-- `GO_VERSION` - Go version for builds (currently 1.23)
-- `BINARY_NAME` - Binary name (currently gitshift)
-
-## 📊 Monitoring
-
-All workflows provide detailed summaries and notifications:
-- GitHub Actions step summaries
-- Security scan results
-- Coverage reports
-- Release status updates
-- Build artifacts and logs
-
-## 🚨 Troubleshooting
-
-### Common Issues
-
-1. **Release not triggered**: Check if CI pipeline passed
-2. **Build failures**: Verify Go version compatibility
-3. **Security scan failures**: Review vulnerability reports
-4. **Tag conflicts**: Ensure unique version numbers
-
-### Debug Commands
-
-```bash
-# Check latest tag
-git describe --tags --abbrev=0
-
-# View commit history since last tag
-git log $(git describe --tags --abbrev=0)..HEAD --oneline
-
-# Check workflow status
-gh run list --workflow="release-coordinator.yml"
-```
+See [the release process](../RELEASE_PROCESS.md) for dispatch and recovery instructions.

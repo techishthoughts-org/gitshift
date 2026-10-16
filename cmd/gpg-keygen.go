@@ -6,7 +6,6 @@ import (
 	"runtime"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/gitshift/internal/config"
 	"github.com/techishthoughts/gitshift/internal/gpg"
 )
 
@@ -23,7 +22,6 @@ This command handles:
 The generated keys can be used with any Git platform:
 - GitHub (github.com and GitHub Enterprise)
 - GitLab (gitlab.com and self-hosted)
-- Bitbucket (coming soon)
 - Any Git platform supporting GPG signatures`,
 	Example: `  # Generate GPG key for GitHub account
   gitshift gpg-keygen work-github
@@ -69,7 +67,7 @@ func runGPGKeygen(cmd *cobra.Command, args []string) error {
 	fmt.Printf("🔐 Generating GPG key for account: %s\n", accountAlias)
 
 	// Load configuration to check if account exists
-	configManager := config.NewManager()
+	configManager := newConfigManager()
 	if err := configManager.Load(); err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
@@ -142,6 +140,8 @@ func runGPGKeygen(cmd *cobra.Command, args []string) error {
 	}
 
 	// Update account with GPG key information
+	updated := *account
+	account = &updated
 	account.SetGPGKey(keyInfo.KeyID, keyInfo.KeyType, keyInfo.KeySize, keyInfo.Fingerprint, keyInfo.ExpiresAt)
 
 	// Enable GPG signing if requested
@@ -151,17 +151,10 @@ func runGPGKeygen(cmd *cobra.Command, args []string) error {
 	}
 
 	// Save the updated account configuration
-	if err := configManager.RemoveAccount(accountAlias); err != nil {
-		fmt.Printf("⚠️  Warning: Failed to remove old account config: %v\n", err)
-		fmt.Printf("   GPG key generated successfully, but account config may not be updated\n")
-		fmt.Printf("   You may need to manually update the account configuration\n")
+	if err := configManager.UpdateAccount(account); err != nil {
+		return fmt.Errorf("GPG key %s was generated, but failed to update account: %w", keyInfo.KeyID, err)
 	} else {
-		if err := configManager.AddAccount(account); err != nil {
-			fmt.Printf("⚠️  Warning: Failed to update account with GPG key: %v\n", err)
-			fmt.Printf("   GPG key generated successfully, but not saved to account config\n")
-		} else {
-			fmt.Printf("💾 Updated account '%s' with GPG key information\n", accountAlias)
-		}
+		fmt.Printf("💾 Updated account '%s' with GPG key information\n", accountAlias)
 	}
 
 	// Export public key to file

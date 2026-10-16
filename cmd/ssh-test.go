@@ -29,8 +29,6 @@ This command helps with:
 Works with all supported platforms:
 - GitHub (github.com and GitHub Enterprise)
 - GitLab (gitlab.com and self-hosted)
-- Bitbucket (coming soon)
-- Custom Git platforms
 
 If no account is specified, it tests the currently active account.`,
 	Example: `  # Test current account
@@ -46,10 +44,7 @@ If no account is specified, it tests the currently active account.`,
   gitshift ssh-test work-github --verbose
 
   # Test all accounts
-  gitshift ssh-test --all
-
-  # Fix known_hosts issues
-  gitshift ssh-test --fix-known-hosts`,
+  gitshift ssh-test --all`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runSSHTest,
 }
@@ -65,6 +60,7 @@ func init() {
 
 	sshTestCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show verbose SSH output")
 	sshTestCmd.Flags().BoolVar(&fixKnownHosts, "fix-known-hosts", false, "Deprecated: ssh-test no longer modifies known_hosts")
+	_ = sshTestCmd.Flags().MarkHidden("fix-known-hosts")
 	sshTestCmd.Flags().BoolVar(&testAll, "all", false, "Test all configured accounts")
 }
 
@@ -72,7 +68,7 @@ func runSSHTest(cmd *cobra.Command, args []string) error {
 	if fixKnownHosts {
 		return fmt.Errorf("--fix-known-hosts is no longer supported; ssh-test is read-only")
 	}
-	configManager := config.NewManager()
+	configManager := newConfigManager()
 	if err := configManager.Load(); err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
@@ -321,7 +317,7 @@ func (t *SSHTester) testPlatformConnection(keyPath, domain string) bool {
 			fmt.Printf("   💡 Permission denied - check if key is added to GitHub\n")
 		}
 		if strings.Contains(outputStr, "Host key verification failed") {
-			fmt.Printf("   💡 Host key issue - try --fix-known-hosts\n")
+			fmt.Printf("   💡 Verify the provider fingerprint, then update ~/.ssh/known_hosts with ssh-keygen/ssh-keyscan\n")
 		}
 	}
 

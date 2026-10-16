@@ -1,18 +1,36 @@
-# Maintenance guide
+# Maintainer guide
 
-An earlier refactoring proposal described service containers, nested commands,
-security audit/auto-fix commands, migrations, token storage, and performance
-frameworks. Those proposals were not implemented and are intentionally not
-documented as current behavior.
+Keep refactors behavior-preserving unless a user-visible change is explicitly intended and documented.
 
-Keep command behavior in sync with `--help`, README examples, and the user
-guide. New platform behavior belongs behind the platform abstraction rather
-than hostname conditionals spread across commands.
+## Boundaries
 
-For changes that touch configuration or switching:
+- `cmd/`: CLI parsing, prompts, presentation, and orchestration
+- `internal/config`: durable configuration and concurrency safety
+- `internal/git`: Git configuration adapter
+- `internal/ssh`: SSH files, keys, agent, and connectivity
+- `internal/gpg`: signing-key integration
+- `pkg/gh`: GitHub API helper integration
+- `pkg/platform`: provider validation and defaults
 
-1. Preserve fields not explicitly modified.
-2. Validate all inputs before changing external state.
-3. Return required subprocess failures.
-4. Avoid secrets in command arguments, files, logs, and test fixtures.
-5. Add isolated tests and run `go test ./...` plus `go vet ./...`.
+Do not hide external mutations in model or formatting code. Keep validation separate from mutation so `switch --validate` remains meaningful.
+
+## Required switch invariants
+
+- No external changes before required validation succeeds unless force mode explicitly permits it.
+- Capture rollback state before the corresponding mutation.
+- Roll back completed steps in reverse order.
+- Persist `current_account` only after external changes succeed.
+- Preserve the original failure while also reporting rollback failures.
+- Document that process termination cannot be compensated.
+
+## Configuration invariants
+
+- Treat `--config` as an exact file path.
+- Use owner-only directory, file, lock, and temporary-file permissions where supported.
+- Detect stale writers instead of silently overwriting them.
+- Use platform-aware atomic replacement and sync durable state where possible.
+- Test Unix and Windows-specific replacement helpers.
+
+## Review checklist
+
+Run formatting, vet, race-enabled tests, and builds. Check command help, docs, examples, workflow claims, migration behavior, and failure tests. A builder should not be the sole approver of security-sensitive or persistence changes.

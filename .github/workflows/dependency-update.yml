@@ -6,19 +6,9 @@ on:
     # Run every Monday at 9 AM UTC
     - cron: '0 9 * * 1'  # noqa: 4.1
   workflow_dispatch:
-    inputs:
-      update_type:
-        description: 'Type of update to perform'
-        required: true
-        default: 'minor'
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
 
 env:
-  GO_VERSION: '1.24'
+  GO_VERSION: '1.26.0'
 
 jobs:
   check-updates:
@@ -30,10 +20,10 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -46,17 +36,19 @@ jobs:
           go list -m -u all > current_deps.txt
 
           # Check for updates
-          UPDATES=$(go list -m -u all | grep '\\[u\\]' || true)
+          UPDATES=$(go list -m -u all | grep '\[u\]' || true)
 
           if [ -n "$UPDATES" ]; then
-            echo "has-updates=true" >> $GITHUB_OUTPUT
-            echo "update-summary<<EOF" >> $GITHUB_OUTPUT
-            echo "$UPDATES" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+            {
+              echo "has-updates=true"
+              echo "update-summary<<EOF"
+              echo "$UPDATES"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
             echo "Found dependency updates:"
             echo "$UPDATES"
           else
-            echo "has-updates=false" >> $GITHUB_OUTPUT
+            echo "has-updates=false" >> "$GITHUB_OUTPUT"
             echo "No dependency updates found"
           fi
 
@@ -72,41 +64,43 @@ jobs:
     steps:
       - name: Create Dependency Update Issue
         uses: actions/github-script@v7
+        env:
+          UPDATE_SUMMARY: ${{ needs.check-updates.outputs.update-summary }}
         with:
           script: |
-            const updateSummary = `${{ needs.check-updates.outputs.update-summary }}`;
-
-            const issueBody = `## Dependency Updates Available
-
-The following dependency updates are available for GitShift:
-
-\`\`\`
-${updateSummary}
-\`\`\`
-
-### Update Checklist
-
-- [ ] Test updates in development environment
-- [ ] Update go.mod and go.sum files
-- [ ] Run full test suite
-- [ ] Update documentation if needed
-- [ ] Create pull request with updates
-
-### How to Update
-
-1. **Review Updates**: Check each dependency for breaking changes
-2. **Test Locally**: Run \`go mod tidy\` and \`go test ./...\`
-3. **Update Files**: Commit changes to go.mod and go.sum
-4. **Create PR**: Submit pull request with updates
-
-### Important Notes
-
-- Always test updates thoroughly before merging
-- Check for breaking changes in major version updates
-- Update documentation if API changes affect users
-- Consider creating a release for significant updates
-
-💡 **Tip**: Use \`go list -m -u all\` to see all available updates`;
+            const updateSummary = process.env.UPDATE_SUMMARY;
+            const issueBody = [
+              '## Dependency Updates Available',
+              '',
+              'The following dependency updates are available for GitShift:',
+              '',
+              '```',
+              updateSummary,
+              '```',
+              '',
+              '### Update Checklist',
+              '',
+              '- [ ] Test updates in development environment',
+              '- [ ] Update go.mod and go.sum files',
+              '- [ ] Run full test suite',
+              '- [ ] Update documentation if needed',
+              '- [ ] Create pull request with updates',
+              '',
+              '### How to Update',
+              '',
+              '1. **Review Updates**: Check each dependency for breaking changes',
+              '2. **Test Locally**: Run `go mod tidy` and `go test ./...`',
+              '3. **Update Files**: Commit changes to go.mod and go.sum',
+              '4. **Create PR**: Submit a pull request with updates',
+              '',
+              '### Important Notes',
+              '',
+              '- Test updates thoroughly before merging',
+              '- Check major updates for breaking changes',
+              '- Update documentation when behavior changes',
+              '',
+              'Tip: use `go list -m -u all` to review available updates.',
+            ].join('\n');
 
             await github.rest.issues.create({
               owner: context.repo.owner,
@@ -124,10 +118,10 @@ ${updateSummary}
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -150,8 +144,10 @@ ${updateSummary}
 
       - name: Generate Update Report
         run: |
-          echo "## Dependency Update Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **Tests Passed**: All tests completed successfully with updated dependencies" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **Build Successful**: Binary builds without errors" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **Version Check**: Application version command works correctly" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Dependency Update Test Results"
+            echo
+            echo "✅ **Tests Passed**: All tests completed successfully with updated dependencies"
+            echo "✅ **Build Successful**: Binary builds without errors"
+            echo "✅ **Version Check**: Application version command works correctly"
+          } >> "$GITHUB_STEP_SUMMARY"

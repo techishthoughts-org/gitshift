@@ -125,37 +125,7 @@ func (s *SSHOnlyScanner) createAccountFromSSHKey(privateKeyPath, publicKeyPath s
 
 // detectPlatformFromEmail detects the Git platform based on email domain
 func (s *SSHOnlyScanner) detectPlatformFromEmail(email string) string {
-	if email == "" {
-		return "github" // Default
-	}
-
-	parts := strings.Split(email, "@")
-	if len(parts) != 2 {
-		return "github"
-	}
-	domain := strings.ToLower(parts[1])
-
-	// Direct platform detection
-	if strings.Contains(domain, "gitlab") {
-		return "gitlab"
-	}
-	if strings.Contains(domain, "github") {
-		return "github"
-	}
-	if strings.Contains(domain, "bitbucket") {
-		return "bitbucket"
-	}
-
-	// Corporate emails likely use GitLab or GitHub Enterprise
-	commonProviders := []string{"gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com"}
-	for _, provider := range commonProviders {
-		if domain == provider {
-			return "github" // Personal email defaults to GitHub
-		}
-	}
-
-	// Corporate email - default to GitLab
-	return "gitlab"
+	return detectPlatform(email)
 }
 
 // extractEmailFromPublicKey extracts email from SSH public key comment
