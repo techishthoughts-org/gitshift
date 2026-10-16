@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -88,6 +89,33 @@ func TestGitHubCLIScannerStatusFailureDoesNotExposeCommandDetails(t *testing.T) 
 	_, err := (&GitHubCLIScanner{runner: failingRunner{}}).ScanAccounts()
 	if err == nil || err.Error() != "failed to query GitHub CLI authentication status" {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+type blockingContextRunner struct{ started chan struct{} }
+
+func (r *blockingContextRunner) Run(string, []string, []string) ([]byte, error) {
+	return nil, errors.New("non-context path used")
+}
+
+func (r *blockingContextRunner) RunContext(ctx context.Context, _ string, _ []string, _ []string) ([]byte, error) {
+	close(r.started)
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func TestGitHubCLIScannerPropagatesContextCancellation(t *testing.T) {
+	runner := &blockingContextRunner{started: make(chan struct{})}
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		_, err := (&GitHubCLIScanner{runner: runner}).ScanAccountsContext(ctx)
+		result <- err
+	}()
+	<-runner.started
+	cancel()
+	if err := <-result; !errors.Is(err, context.Canceled) {
+		t.Fatalf("error=%v", err)
 	}
 }
 

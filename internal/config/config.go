@@ -198,6 +198,18 @@ func (m *Manager) Save() error {
 }
 
 func (m *Manager) ensureConfigDirectory() error {
+	info, err := os.Stat(m.configPath)
+	if err == nil {
+		if !info.IsDir() {
+			return fmt.Errorf("configuration parent %q is not a directory", m.configPath)
+		}
+		// A custom --config path may live under a shared directory such as
+		// /tmp. Never change permissions on a directory GitShift did not create.
+		return nil
+	}
+	if !os.IsNotExist(err) {
+		return err
+	}
 	if err := os.MkdirAll(m.configPath, 0700); err != nil {
 		return err
 	}
@@ -404,6 +416,17 @@ func (m *Manager) AddAccounts(accounts []*models.Account) error {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	originalHash, originalLoaded := m.loadedHash, m.loaded
+	original := *m.config
+	original.Accounts = make(map[string]*models.Account, len(m.config.Accounts))
+	for alias, account := range m.config.Accounts {
+		original.Accounts[alias] = account
+	}
+	original.PendingAccounts = make(map[string]*models.PendingAccount, len(m.config.PendingAccounts))
+	for alias, account := range m.config.PendingAccounts {
+		original.PendingAccounts[alias] = account
+	}
+	original.AutoSwitch.Rules = append([]models.AutoSwitchRule(nil), m.config.AutoSwitch.Rules...)
 	aliases := make(map[string]string, len(m.config.Accounts)+len(m.config.PendingAccounts)+len(prepared))
 	for alias := range m.config.Accounts {
 		aliases[strings.ToLower(alias)] = alias
@@ -428,7 +451,12 @@ func (m *Manager) AddAccounts(accounts []*models.Account) error {
 		}
 		m.config.Accounts[account.Alias] = account
 	}
-	return m.saveLocked()
+	if err := m.saveLocked(); err != nil {
+		m.config = &original
+		m.loadedHash, m.loaded = originalHash, originalLoaded
+		return err
+	}
+	return nil
 }
 
 // UpdateAccount validates and replaces an existing account in one save. Callers

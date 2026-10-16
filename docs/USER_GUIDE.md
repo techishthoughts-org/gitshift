@@ -24,12 +24,18 @@ back, and `q` quits. Add/edit forms use Tab to move between fields and reuse
 the same account validation as the CLI. Switching and removal require an
 explicit confirmation. The UI uses only the normal validated switch; force,
 skip-validation, SSH key generation, and GPG key generation remain CLI-only.
+If you request quit while a confirmed write or switch is running, the UI waits
+for that transaction and its configuration refresh to finish before exiting.
 
 Discovery starts read-only. Every same-host provider identity is displayed as
 a separate row. Select results with Space, edit a result's alias with `e`, then
 press `i` and confirm to import only the selected rows. The complete selection
 is validated before one atomic additive write; existing accounts are never
 silently replaced. Opening, browsing, cancelling, and quitting do not write.
+
+Adding a directory rule in the UI does not install a shell hook. Run
+`source <(gitshift shell-init zsh)` (and opt in from `.zshrc` if desired) before
+expecting rules to switch identities as you change directories.
 
 Both stdin and stdout must be terminals. A redirected invocation fails before
 loading or creating configuration. Colors adapt to light and dark terminal

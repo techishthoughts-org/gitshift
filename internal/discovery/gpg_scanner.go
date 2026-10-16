@@ -3,6 +3,7 @@ package discovery
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -48,6 +49,11 @@ type GPGKeyInfo struct {
 
 // ScanGPGKeys scans the GPG keyring for existing secret keys
 func (s *GPGScanner) ScanGPGKeys() ([]*DiscoveredAccount, error) {
+	return s.ScanGPGKeysContext(context.Background())
+}
+
+// ScanGPGKeysContext is the cancelable form used by interactive clients.
+func (s *GPGScanner) ScanGPGKeysContext(ctx context.Context) ([]*DiscoveredAccount, error) {
 	if s.output == nil {
 		s.output = io.Discard
 	}
@@ -56,19 +62,28 @@ func (s *GPGScanner) ScanGPGKeys() ([]*DiscoveredAccount, error) {
 	fmt.Fprintln(s.output, "🔐 Scanning GPG keyring for secret keys...")
 
 	// Check if GPG is installed
-	if !s.isGPGInstalled() {
+	if !s.isGPGInstalledContext(ctx) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		fmt.Fprintln(s.output, "⚠️  GPG not installed, skipping GPG key discovery")
 		return discovered, nil
 	}
 
 	// List all secret keys (keys we can sign with)
-	keys, err := s.listSecretKeys()
+	keys, err := s.listSecretKeysContext(ctx)
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
 		return nil, fmt.Errorf("failed to list GPG keys: %w", err)
 	}
 
 	// Filter for signing-capable keys and create discovered accounts
 	for _, key := range keys {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		// Only include keys that can sign (have 'S' capability)
 		if !strings.Contains(key.Capabilities, "S") {
 			continue
@@ -91,17 +106,25 @@ func (s *GPGScanner) ScanGPGKeys() ([]*DiscoveredAccount, error) {
 
 // isGPGInstalled checks if GPG is available on the system
 func (s *GPGScanner) isGPGInstalled() bool {
-	cmd := exec.Command("gpg", "--version")
+	return s.isGPGInstalledContext(context.Background())
+}
+
+func (s *GPGScanner) isGPGInstalledContext(ctx context.Context) bool {
+	cmd := exec.CommandContext(ctx, "gpg", "--version")
 	err := cmd.Run()
 	return err == nil
 }
 
 // listSecretKeys retrieves all secret (private) GPG keys from the keyring
 func (s *GPGScanner) listSecretKeys() ([]GPGKeyInfo, error) {
+	return s.listSecretKeysContext(context.Background())
+}
+
+func (s *GPGScanner) listSecretKeysContext(ctx context.Context) ([]GPGKeyInfo, error) {
 	// Use --list-secret-keys to only get keys we can sign with
 	// --with-colons for machine-readable output
 	// --fingerprint to include fingerprints
-	cmd := exec.Command("gpg", "--list-secret-keys", "--with-colons", "--fingerprint")
+	cmd := exec.CommandContext(ctx, "gpg", "--list-secret-keys", "--with-colons", "--fingerprint")
 	output, err := cmd.Output()
 	if err != nil {
 		// If error is just "no secret keys", return empty list

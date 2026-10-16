@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -29,26 +30,32 @@ type DiscoveredAccount struct {
 }
 
 func (d *AccountDiscovery) ScanExistingAccounts() ([]*DiscoveredAccount, error) {
+	return d.ScanExistingAccountsContext(context.Background())
+}
+
+// ScanExistingAccountsContext propagates cancellation to external provider and
+// GPG probes and checks it while processing local SSH metadata.
+func (d *AccountDiscovery) ScanExistingAccountsContext(ctx context.Context) ([]*DiscoveredAccount, error) {
 	fmt.Fprintln(d.output, "🔍 Starting account discovery...")
 	fmt.Fprintln(d.output)
 
 	githubScanner := NewGitHubCLIScanner()
 	githubScanner.output = d.output
-	githubAccounts, err := githubScanner.ScanAccounts()
+	githubAccounts, err := githubScanner.ScanAccountsContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("GitHub CLI scan failed: %w", err)
 	}
 	fmt.Fprintln(d.output)
 	sshScanner := NewSSHOnlyScanner()
 	sshScanner.output = d.output
-	sshAccounts, err := sshScanner.ScanSSHKeys()
+	sshAccounts, err := sshScanner.ScanSSHKeysContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("SSH scan failed: %w", err)
 	}
 	fmt.Fprintln(d.output)
 	gpgScanner := NewGPGScanner()
 	gpgScanner.output = d.output
-	gpgAccounts, err := gpgScanner.ScanGPGKeys()
+	gpgAccounts, err := gpgScanner.ScanGPGKeysContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("GPG scan failed: %w", err)
 	}

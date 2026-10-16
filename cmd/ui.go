@@ -49,7 +49,7 @@ func runUICommand(cmd *cobra.Command, _ []string) error {
 			return switchAccount(adapter, manager, alias, false, false, true)
 		},
 	}
-	model := gitshifttui.New(service, inline)
+	model := gitshifttui.NewWithContext(cmd.Context(), service, inline)
 	_, err := tea.NewProgram(model).Run()
 	return err
 }
@@ -143,8 +143,8 @@ func (s *uiService) RemoveRule(_ context.Context, path string) error {
 	}
 	return s.manager.RemoveAutoSwitchRule(path)
 }
-func (s *uiService) Discover(_ context.Context) ([]gitshifttui.Discovery, error) {
-	found, err := discovery.NewSilentAccountDiscovery().ScanExistingAccounts()
+func (s *uiService) Discover(ctx context.Context) ([]gitshifttui.Discovery, error) {
+	found, err := discovery.NewSilentAccountDiscovery().ScanExistingAccountsContext(ctx)
 	if err != nil {
 		return nil, err
 	}

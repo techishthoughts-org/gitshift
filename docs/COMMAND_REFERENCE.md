@@ -18,6 +18,9 @@ validated add/edit, confirmed normal switching and removal, directory-rule
 list/add/remove, and read-only discovery followed by selected atomic additive
 import. It never exposes provider tokens. Force switching, skipped validation,
 and key generation remain CLI-only.
+Quit requests are deferred while a confirmed mutation is running, until the
+operation and configuration refresh complete. Directory rules still require
+the separately installed `shell-init zsh` hook.
 
 ### `add ALIAS`
 

@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,9 +21,24 @@ type commandRunner interface {
 type execCommandRunner struct{}
 
 func (execCommandRunner) Run(name string, args []string, env []string) ([]byte, error) {
-	cmd := exec.Command(name, args...)
+	return execCommandRunner{}.RunContext(context.Background(), name, args, env)
+}
+
+func (execCommandRunner) RunContext(ctx context.Context, name string, args []string, env []string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Env = sanitizedGHEnvironment(env)
 	return cmd.Output()
+}
+
+type contextCommandRunner interface {
+	RunContext(context.Context, string, []string, []string) ([]byte, error)
+}
+
+func runWithContext(ctx context.Context, runner commandRunner, name string, args, env []string) ([]byte, error) {
+	if contextual, ok := runner.(contextCommandRunner); ok {
+		return contextual.RunContext(ctx, name, args, env)
+	}
+	return runner.Run(name, args, env)
 }
 
 func sanitizedGHEnvironment(explicit []string) []string {
@@ -72,11 +88,19 @@ type ghUserProfile struct {
 }
 
 func (s *GitHubCLIScanner) ScanAccounts() ([]*DiscoveredAccount, error) {
+	return s.ScanAccountsContext(context.Background())
+}
+
+// ScanAccountsContext is the cancelable form used by interactive clients.
+func (s *GitHubCLIScanner) ScanAccountsContext(ctx context.Context) ([]*DiscoveredAccount, error) {
 	if s.output == nil {
 		s.output = io.Discard
 	}
-	output, err := s.runner.Run("gh", []string{"auth", "status", "--json", "hosts"}, nil)
+	output, err := runWithContext(ctx, s.runner, "gh", []string{"auth", "status", "--json", "hosts"}, nil)
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
 		if errors.Is(err, exec.ErrNotFound) {
 			fmt.Fprintln(s.output, "⚠️  GitHub CLI not installed, skipping GitHub CLI discovery")
 			return nil, nil
@@ -122,7 +146,14 @@ func (s *GitHubCLIScanner) ScanAccounts() ([]*DiscoveredAccount, error) {
 	for _, identity := range identities {
 		profile := ghUserProfile{Login: identity.login}
 		confidence := 8
-		if enriched, ok := s.profile(identity.host, identity.login); ok {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		enriched, ok := s.profileContext(ctx, identity.host, identity.login)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if ok {
 			profile.Name = enriched.Name
 			profile.Email = enriched.Email
 			confidence = 10
@@ -158,7 +189,11 @@ func (s *GitHubCLIScanner) ScanAccounts() ([]*DiscoveredAccount, error) {
 // the environment of a single gh api process. It never switches the active
 // GitHub CLI account and never returns or logs the token.
 func (s *GitHubCLIScanner) profile(host, login string) (ghUserProfile, bool) {
-	tokenBytes, err := s.runner.Run("gh", []string{"auth", "token", "--hostname", host, "--user", login}, nil)
+	return s.profileContext(context.Background(), host, login)
+}
+
+func (s *GitHubCLIScanner) profileContext(ctx context.Context, host, login string) (ghUserProfile, bool) {
+	tokenBytes, err := runWithContext(ctx, s.runner, "gh", []string{"auth", "token", "--hostname", host, "--user", login}, nil)
 	if err != nil {
 		return ghUserProfile{}, false
 	}
@@ -169,7 +204,7 @@ func (s *GitHubCLIScanner) profile(host, login string) (ghUserProfile, bool) {
 	// gh uses GH_TOKEN for github.com/GHE Cloud and GH_ENTERPRISE_TOKEN for
 	// other enterprise hosts. Set both only for this child so either host type
 	// uses the credential selected by --user above.
-	output, err := s.runner.Run("gh", []string{"api", "--hostname", host, "user"}, []string{
+	output, err := runWithContext(ctx, s.runner, "gh", []string{"api", "--hostname", host, "user"}, []string{
 		"GH_TOKEN=" + token,
 		"GH_ENTERPRISE_TOKEN=" + token,
 		"GH_HOST=" + host,

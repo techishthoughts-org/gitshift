@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -34,6 +35,11 @@ func NewSSHOnlyScanner() *SSHOnlyScanner {
 
 // ScanSSHKeys scans ~/.ssh for existing SSH keys and extracts account information
 func (s *SSHOnlyScanner) ScanSSHKeys() ([]*DiscoveredAccount, error) {
+	return s.ScanSSHKeysContext(context.Background())
+}
+
+// ScanSSHKeysContext checks cancellation while walking local key metadata.
+func (s *SSHOnlyScanner) ScanSSHKeysContext(ctx context.Context) ([]*DiscoveredAccount, error) {
 	if s.output == nil {
 		s.output = io.Discard
 	}
@@ -52,6 +58,9 @@ func (s *SSHOnlyScanner) ScanSSHKeys() ([]*DiscoveredAccount, error) {
 	}
 
 	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "id_") || strings.HasSuffix(entry.Name(), ".pub") {
 			continue
 		}
