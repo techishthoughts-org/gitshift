@@ -3,7 +3,9 @@ package discovery
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"regexp"
@@ -16,6 +18,7 @@ import (
 // GPGScanner handles GPG key discovery from the system keyring
 type GPGScanner struct {
 	homeDir string
+	output  io.Writer
 }
 
 // NewGPGScanner creates a new GPG scanner
@@ -27,42 +30,60 @@ func NewGPGScanner() *GPGScanner {
 
 	return &GPGScanner{
 		homeDir: homeDir,
+		output:  os.Stdout,
 	}
 }
 
 // GPGKeyInfo represents discovered GPG key information
 type GPGKeyInfo struct {
-	KeyID       string
-	Fingerprint string
-	KeyType     string
-	KeySize     int
-	CreatedAt   time.Time
-	ExpiresAt   *time.Time
-	Email       string
-	Name        string
+	KeyID        string
+	Fingerprint  string
+	KeyType      string
+	KeySize      int
+	CreatedAt    time.Time
+	ExpiresAt    *time.Time
+	Email        string
+	Name         string
 	Capabilities string // Signing capabilities
 }
 
 // ScanGPGKeys scans the GPG keyring for existing secret keys
 func (s *GPGScanner) ScanGPGKeys() ([]*DiscoveredAccount, error) {
+	return s.ScanGPGKeysContext(context.Background())
+}
+
+// ScanGPGKeysContext is the cancelable form used by interactive clients.
+func (s *GPGScanner) ScanGPGKeysContext(ctx context.Context) ([]*DiscoveredAccount, error) {
+	if s.output == nil {
+		s.output = io.Discard
+	}
 	var discovered []*DiscoveredAccount
 
-	fmt.Println("🔐 Scanning GPG keyring for secret keys...")
+	fmt.Fprintln(s.output, "🔐 Scanning GPG keyring for secret keys...")
 
 	// Check if GPG is installed
-	if !s.isGPGInstalled() {
-		fmt.Println("⚠️  GPG not installed, skipping GPG key discovery")
+	if !s.isGPGInstalledContext(ctx) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		fmt.Fprintln(s.output, "⚠️  GPG not installed, skipping GPG key discovery")
 		return discovered, nil
 	}
 
 	// List all secret keys (keys we can sign with)
-	keys, err := s.listSecretKeys()
+	keys, err := s.listSecretKeysContext(ctx)
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
 		return nil, fmt.Errorf("failed to list GPG keys: %w", err)
 	}
 
 	// Filter for signing-capable keys and create discovered accounts
 	for _, key := range keys {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		// Only include keys that can sign (have 'S' capability)
 		if !strings.Contains(key.Capabilities, "S") {
 			continue
@@ -79,23 +100,31 @@ func (s *GPGScanner) ScanGPGKeys() ([]*DiscoveredAccount, error) {
 		}
 	}
 
-	fmt.Printf("✅ Found %d GPG signing key(s)\n", len(discovered))
+	fmt.Fprintf(s.output, "✅ Found %d GPG signing key(s)\n", len(discovered))
 	return discovered, nil
 }
 
 // isGPGInstalled checks if GPG is available on the system
 func (s *GPGScanner) isGPGInstalled() bool {
-	cmd := exec.Command("gpg", "--version")
+	return s.isGPGInstalledContext(context.Background())
+}
+
+func (s *GPGScanner) isGPGInstalledContext(ctx context.Context) bool {
+	cmd := exec.CommandContext(ctx, "gpg", "--version")
 	err := cmd.Run()
 	return err == nil
 }
 
 // listSecretKeys retrieves all secret (private) GPG keys from the keyring
 func (s *GPGScanner) listSecretKeys() ([]GPGKeyInfo, error) {
+	return s.listSecretKeysContext(context.Background())
+}
+
+func (s *GPGScanner) listSecretKeysContext(ctx context.Context) ([]GPGKeyInfo, error) {
 	// Use --list-secret-keys to only get keys we can sign with
 	// --with-colons for machine-readable output
 	// --fingerprint to include fingerprints
-	cmd := exec.Command("gpg", "--list-secret-keys", "--with-colons", "--fingerprint")
+	cmd := exec.CommandContext(ctx, "gpg", "--list-secret-keys", "--with-colons", "--fingerprint")
 	output, err := cmd.Output()
 	if err != nil {
 		// If error is just "no secret keys", return empty list
@@ -237,22 +266,22 @@ func (s *GPGScanner) createAccountFromGPGKey(key GPGKeyInfo) *DiscoveredAccount 
 		keyIDDisplay = key.KeyID[:16]
 	}
 
-	fmt.Printf("🔐 Found GPG key: %s -> %s (%s) [%s, %s, %s]\n",
+	fmt.Fprintf(s.output, "🔐 Found GPG key: %s -> %s (%s) [%s, %s, %s]\n",
 		alias, key.Name, key.Email, keyIDDisplay, status, platform)
 
 	return &DiscoveredAccount{
 		Account: &models.Account{
-			Alias:              alias,
-			Name:               key.Name,
-			Email:              key.Email,
-			GPGKeyID:           key.KeyID,
-			GPGKeyFingerprint:  key.Fingerprint,
-			GPGKeyType:         key.KeyType,
-			GPGKeySize:         key.KeySize,
-			GPGKeyExpiry:       key.ExpiresAt,
-			GPGEnabled:         true,
-			Platform:           platform,
-			Description:        "Discovered from GPG keyring",
+			Alias:             alias,
+			Name:              key.Name,
+			Email:             key.Email,
+			GPGKeyID:          key.KeyID,
+			GPGKeyFingerprint: key.Fingerprint,
+			GPGKeyType:        key.KeyType,
+			GPGKeySize:        key.KeySize,
+			GPGKeyExpiry:      key.ExpiresAt,
+			GPGEnabled:        true,
+			Platform:          platform,
+			Description:       "Discovered from GPG keyring",
 		},
 		Source:     "gpg",
 		Confidence: confidence,
@@ -261,37 +290,7 @@ func (s *GPGScanner) createAccountFromGPGKey(key GPGKeyInfo) *DiscoveredAccount 
 
 // detectPlatformFromEmail detects the Git platform based on email domain
 func (s *GPGScanner) detectPlatformFromEmail(email string) string {
-	if email == "" {
-		return "github" // Default
-	}
-
-	parts := strings.Split(email, "@")
-	if len(parts) != 2 {
-		return "github"
-	}
-	domain := strings.ToLower(parts[1])
-
-	// Direct platform detection
-	if strings.Contains(domain, "gitlab") {
-		return "gitlab"
-	}
-	if strings.Contains(domain, "github") {
-		return "github"
-	}
-	if strings.Contains(domain, "bitbucket") {
-		return "bitbucket"
-	}
-
-	// Corporate emails likely use GitLab or GitHub Enterprise
-	commonProviders := []string{"gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com"}
-	for _, provider := range commonProviders {
-		if domain == provider {
-			return "github" // Personal email defaults to GitHub
-		}
-	}
-
-	// Corporate email - default to GitLab
-	return "gitlab"
+	return detectPlatform(email)
 }
 
 // parseUID extracts name and email from GPG UID string

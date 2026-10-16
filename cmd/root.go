@@ -2,53 +2,63 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	"os"
+	"runtime"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	gitshiftconfig "github.com/techishthoughts/gitshift/internal/config"
 )
 
-var cfgFile string
+var (
+	cfgFile         string
+	version         = "dev"
+	buildTime       = "unknown"
+	launchDefaultUI = func(cmd *cobra.Command) error { return runUI(cmd, false) }
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "gitshift",
-	Short: "🎭 Multi-platform Git account management (GitHub, GitLab, and more)",
-	Long: `gitshift provides SSH-first Git identity management with complete isolation.
+	Short: "🎭 Manage GitHub and GitLab identities with SSH",
+	Long: `gitshift manages local Git identities for GitHub and GitLab accounts.
 
 Supported Platforms:
 - GitHub (github.com and GitHub Enterprise)
 - GitLab (gitlab.com and self-hosted)
-- Bitbucket (coming soon)
-- Custom Git platforms
 
 Features:
-- 🔐 SSH-first approach - works with any Git platform
-- 🔄 Complete account isolation using SSH config
+- 🔐 SSH-first account configuration
+- 🔄 Git, SSH, GPG, and GitHub CLI switching
+- 📁 Opt-in directory-based switching for zsh
 - 🔑 SSH key discovery from ~/.ssh directory
-- ⚡ Fast account switching with proper isolation
-- 📧 Email extraction from SSH keys
-- 🛡️ No key conflicts or cross-contamination
-- 🌐 Multi-platform support (GitHub, GitLab, etc.)`,
-	Run: func(cmd *cobra.Command, args []string) {
-		// Check if version flag is set
-		if version, _ := cmd.Flags().GetBool("version"); version {
-			showVersion()
-			return
-		}
+- 📧 Identity discovery from SSH and GPG metadata
+- 🌐 Public and self-hosted GitHub/GitLab domains`,
+	Args: cobra.NoArgs,
+	RunE: runRootCommand,
+}
 
-		// Show help if no command specified
-		if err := cmd.Help(); err != nil {
-			log.Printf("Error showing help: %v", err)
-		}
-	},
+func runRootCommand(cmd *cobra.Command, _ []string) error {
+	// Check if version flag is set
+	if version, _ := cmd.Flags().GetBool("version"); version {
+		showVersion()
+		return nil
+	}
+
+	return launchDefaultUI(cmd)
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() error {
 	return rootCmd.Execute()
+}
+
+func newConfigManager() *gitshiftconfig.Manager {
+	if cfgFile != "" {
+		return gitshiftconfig.NewManagerWithPath(cfgFile)
+	}
+	return gitshiftconfig.NewManager()
 }
 
 func init() {
@@ -90,23 +100,6 @@ func initConfig() {
 
 // showVersion displays version information
 func showVersion() {
-	fmt.Println("🎭 gitshift - Multi-Platform Git Identity Management")
-	fmt.Println("Version: v0.1.0")
-	fmt.Println("Go Version: go1.23.0")
-	fmt.Println("Build Time: 2025-01-02")
-	fmt.Println()
-	fmt.Println("🌐 Supported Platforms:")
-	fmt.Println("  • GitHub (github.com & Enterprise)")
-	fmt.Println("  • GitLab (gitlab.com & self-hosted)")
-	fmt.Println("  • Bitbucket (coming soon)")
-	fmt.Println("  • Custom Git platforms")
-	fmt.Println()
-	fmt.Println("🚀 Features:")
-	fmt.Println("  • Automatic account setup for any Git platform")
-	fmt.Println("  • Smart account switching")
-	fmt.Println("  • SSH key management")
-	fmt.Println("  • Project-based configuration")
-	fmt.Println("  • Beautiful TUI interface")
-	fmt.Println()
-	fmt.Println("📚 Documentation: https://github.com/techishthoughts/gitshift")
+	fmt.Printf("gitshift %s\n", version)
+	fmt.Printf("built %s with %s\n", buildTime, runtime.Version())
 }

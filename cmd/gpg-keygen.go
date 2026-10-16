@@ -6,7 +6,6 @@ import (
 	"runtime"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/gitshift/internal/config"
 	"github.com/techishthoughts/gitshift/internal/gpg"
 )
 
@@ -23,7 +22,6 @@ This command handles:
 The generated keys can be used with any Git platform:
 - GitHub (github.com and GitHub Enterprise)
 - GitLab (gitlab.com and self-hosted)
-- Bitbucket (coming soon)
 - Any Git platform supporting GPG signatures`,
 	Example: `  # Generate GPG key for GitHub account
   gitshift gpg-keygen work-github
@@ -37,9 +35,6 @@ The generated keys can be used with any Git platform:
   # Generate key with 2-year expiration
   gitshift gpg-keygen myaccount --expire-date 2y
 
-  # Generate key with passphrase protection
-  gitshift gpg-keygen myaccount --passphrase "secure-passphrase"
-
   # Enable GPG signing automatically for this account
   gitshift gpg-keygen myaccount --enable`,
 	Args: cobra.ExactArgs(1),
@@ -47,13 +42,12 @@ The generated keys can be used with any Git platform:
 }
 
 var (
-	gpgKeyType       string
-	gpgKeyLength     int
-	gpgKeyEmail      string
-	gpgKeyPassphrase string
-	gpgExpireDate    string
-	gpgEnableSign    bool
-	gpgForce         bool
+	gpgKeyType    string
+	gpgKeyLength  int
+	gpgKeyEmail   string
+	gpgExpireDate string
+	gpgEnableSign bool
+	gpgForce      bool
 )
 
 func init() {
@@ -62,7 +56,6 @@ func init() {
 	gpgKeygenCmd.Flags().StringVar(&gpgKeyType, "type", "RSA", "GPG key type (RSA, ECC, DSA)")
 	gpgKeygenCmd.Flags().IntVar(&gpgKeyLength, "bits", 4096, "Key size in bits (RSA: 2048/4096, ignored for ECC)")
 	gpgKeygenCmd.Flags().StringVar(&gpgKeyEmail, "email", "", "Email for GPG key (must match verified email on Git platform)")
-	gpgKeygenCmd.Flags().StringVar(&gpgKeyPassphrase, "passphrase", "", "Passphrase for private key (empty for no passphrase)")
 	gpgKeygenCmd.Flags().StringVar(&gpgExpireDate, "expire-date", "0", "Key expiration (0=never, 1y=1 year, 2y=2 years, etc.)")
 	gpgKeygenCmd.Flags().BoolVar(&gpgEnableSign, "enable", false, "Automatically enable GPG commit signing for this account")
 	gpgKeygenCmd.Flags().BoolVarP(&gpgForce, "force", "f", false, "Overwrite existing GPG key if present")
@@ -74,7 +67,7 @@ func runGPGKeygen(cmd *cobra.Command, args []string) error {
 	fmt.Printf("🔐 Generating GPG key for account: %s\n", accountAlias)
 
 	// Load configuration to check if account exists
-	configManager := config.NewManager()
+	configManager := newConfigManager()
 	if err := configManager.Load(); err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
@@ -118,12 +111,16 @@ func runGPGKeygen(cmd *cobra.Command, args []string) error {
 
 	// Generate the GPG key
 	keyInfo, err := gpgManager.GenerateKey(gpg.GenerateKeyParams{
-		Alias:      accountAlias,
-		Name:       name,
-		Email:      email,
-		KeyType:    gpgKeyType,
-		KeyLength:  gpgKeyLength,
-		Passphrase: gpgKeyPassphrase,
+		Alias:     accountAlias,
+		Name:      name,
+		Email:     email,
+		KeyType:   gpgKeyType,
+		KeyLength: gpgKeyLength,
+		// gitshift batch generation is deliberately passwordless. Supplying a
+		// passphrase to the existing GPG batch API would place it in a temporary
+		// parameter file. Generate protected keys with GPG's interactive UI and
+		// configure the resulting key manually instead.
+		Passphrase: "",
 		ExpireDate: gpgExpireDate,
 		Force:      gpgForce,
 	})
@@ -143,6 +140,8 @@ func runGPGKeygen(cmd *cobra.Command, args []string) error {
 	}
 
 	// Update account with GPG key information
+	updated := *account
+	account = &updated
 	account.SetGPGKey(keyInfo.KeyID, keyInfo.KeyType, keyInfo.KeySize, keyInfo.Fingerprint, keyInfo.ExpiresAt)
 
 	// Enable GPG signing if requested
@@ -152,17 +151,10 @@ func runGPGKeygen(cmd *cobra.Command, args []string) error {
 	}
 
 	// Save the updated account configuration
-	if err := configManager.RemoveAccount(accountAlias); err != nil {
-		fmt.Printf("⚠️  Warning: Failed to remove old account config: %v\n", err)
-		fmt.Printf("   GPG key generated successfully, but account config may not be updated\n")
-		fmt.Printf("   You may need to manually update the account configuration\n")
+	if err := configManager.UpdateAccount(account); err != nil {
+		return fmt.Errorf("GPG key %s was generated, but failed to update account: %w", keyInfo.KeyID, err)
 	} else {
-		if err := configManager.AddAccount(account); err != nil {
-			fmt.Printf("⚠️  Warning: Failed to update account with GPG key: %v\n", err)
-			fmt.Printf("   GPG key generated successfully, but not saved to account config\n")
-		} else {
-			fmt.Printf("💾 Updated account '%s' with GPG key information\n", accountAlias)
-		}
+		fmt.Printf("💾 Updated account '%s' with GPG key information\n", accountAlias)
 	}
 
 	// Export public key to file

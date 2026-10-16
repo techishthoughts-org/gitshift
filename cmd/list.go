@@ -1,13 +1,14 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/gitshift/internal/config"
 	"github.com/techishthoughts/gitshift/internal/models"
 )
 
@@ -23,8 +24,6 @@ The current active account is marked with an asterisk (*).
 Displays accounts from all platforms:
 - GitHub (github.com and GitHub Enterprise)
 - GitLab (gitlab.com and self-hosted)
-- Bitbucket (coming soon)
-- Custom Git platforms
 
 Examples:
   # List all accounts
@@ -37,7 +36,7 @@ Examples:
   gitshift list --format json`,
 	Aliases: []string{"ls"},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		configManager := config.NewManager()
+		configManager := newConfigManager()
 		if err := configManager.Load(); err != nil {
 			return fmt.Errorf("failed to load configuration: %w", err)
 		}
@@ -57,7 +56,7 @@ Examples:
 		if len(accounts) > 0 {
 			switch format {
 			case "json":
-				return printAccountsJSON(accounts)
+				return printAccountsJSON(cmd.OutOrStdout(), accounts)
 			case "table":
 				return printAccountsTable(accounts, currentAccount)
 			default:
@@ -80,7 +79,7 @@ Examples:
 				}
 				fmt.Printf("    Missing: %v\n", pending.MissingFields)
 				fmt.Printf("    Source: %s\n", pending.Source)
-				fmt.Printf("    💡 Complete with: gitshift complete %s --name \"Your Name\" --email \"your@email.com\"\n", pending.Alias)
+				fmt.Printf("    💡 Recreate with: gitshift add %s --name \"Your Name\" --email \"your@email.com\" --username USERNAME\n", pending.Alias)
 				fmt.Println()
 			}
 		}
@@ -293,7 +292,51 @@ func printAccountsTable(accounts []*models.Account, currentAccount string) error
 	return nil
 }
 
-func printAccountsJSON(accounts []*models.Account) error {
+type accountJSON struct {
+	Alias             string `json:"alias"`
+	Name              string `json:"name"`
+	Email             string `json:"email"`
+	Platform          string `json:"platform"`
+	Domain            string `json:"domain,omitempty"`
+	Username          string `json:"username,omitempty"`
+	GitHubUsername    string `json:"github_username,omitempty"`
+	SSHKeyPath        string `json:"ssh_key_path,omitempty"`
+	GPGKeyID          string `json:"gpg_key_id,omitempty"`
+	GPGEnabled        *bool  `json:"gpg_enabled,omitempty"`
+	GPGKeyFingerprint string `json:"gpg_fingerprint,omitempty"`
+	Description       string `json:"description,omitempty"`
+	IsDefault         bool   `json:"is_default"`
+	CreatedAt         string `json:"created_at"`
+	LastUsed          string `json:"last_used,omitempty"`
+}
+
+func newAccountJSON(account *models.Account) accountJSON {
+	entry := accountJSON{
+		Alias:          account.Alias,
+		Name:           account.Name,
+		Email:          account.Email,
+		Platform:       account.GetPlatform(),
+		Domain:         account.GetDomain(),
+		Username:       account.GetUsername(),
+		GitHubUsername: account.GitHubUsername,
+		SSHKeyPath:     account.SSHKeyPath,
+		Description:    account.Description,
+		IsDefault:      account.IsDefault,
+		CreatedAt:      account.CreatedAt.Format(time.RFC3339),
+	}
+	if account.HasGPGKey() {
+		entry.GPGKeyID = account.GPGKeyID
+		gpgEnabled := account.IsGPGEnabled()
+		entry.GPGEnabled = &gpgEnabled
+		entry.GPGKeyFingerprint = account.GPGKeyFingerprint
+	}
+	if account.LastUsed != nil {
+		entry.LastUsed = account.LastUsed.Format(time.RFC3339)
+	}
+	return entry
+}
+
+func printAccountsJSON(w io.Writer, accounts []*models.Account) error {
 	// Group accounts by platform
 	accountsByPlatform := groupAccountsByPlatform(accounts)
 
@@ -304,8 +347,7 @@ func printAccountsJSON(accounts []*models.Account) error {
 	}
 	sort.Strings(platforms)
 
-	fmt.Println("{")
-	platformIndex := 0
+	output := make(map[string][]accountJSON, len(platforms))
 	for _, platform := range platforms {
 		platformAccounts := accountsByPlatform[platform]
 		// Sort accounts within platform by alias
@@ -313,62 +355,14 @@ func printAccountsJSON(accounts []*models.Account) error {
 			return platformAccounts[i].Alias < platformAccounts[j].Alias
 		})
 
-		fmt.Printf("  \"%s\": [\n", platform)
-		for i, account := range platformAccounts {
-			fmt.Printf("    {\n")
-			fmt.Printf("      \"alias\": \"%s\",\n", account.Alias)
-			fmt.Printf("      \"name\": \"%s\",\n", account.Name)
-			fmt.Printf("      \"email\": \"%s\",\n", account.Email)
-			fmt.Printf("      \"platform\": \"%s\",\n", account.GetPlatform())
-			if account.GetDomain() != "" {
-				fmt.Printf("      \"domain\": \"%s\",\n", account.GetDomain())
-			}
-			username := account.GetUsername()
-			if username != "" {
-				fmt.Printf("      \"username\": \"%s\",\n", username)
-			}
-			// Keep github_username for backward compatibility
-			if account.GitHubUsername != "" {
-				fmt.Printf("      \"github_username\": \"%s\",\n", account.GitHubUsername)
-			}
-			if account.SSHKeyPath != "" {
-				fmt.Printf("      \"ssh_key_path\": \"%s\",\n", account.SSHKeyPath)
-			}
-			if account.HasGPGKey() {
-				fmt.Printf("      \"gpg_key_id\": \"%s\",\n", account.GPGKeyID)
-				fmt.Printf("      \"gpg_enabled\": %t,\n", account.IsGPGEnabled())
-				if account.GPGKeyFingerprint != "" {
-					fmt.Printf("      \"gpg_fingerprint\": \"%s\",\n", account.GPGKeyFingerprint)
-				}
-			}
-			if account.Description != "" {
-				fmt.Printf("      \"description\": \"%s\",\n", account.Description)
-			}
-			fmt.Printf("      \"is_default\": %t,\n", account.IsDefault)
-			fmt.Printf("      \"created_at\": \"%s\"", account.CreatedAt.Format(time.RFC3339))
-			if account.LastUsed != nil {
-				fmt.Printf(",\n      \"last_used\": \"%s\"", account.LastUsed.Format(time.RFC3339))
-			}
-			fmt.Printf("\n    }")
-
-			if i < len(platformAccounts)-1 {
-				fmt.Println(",")
-			} else {
-				fmt.Println()
-			}
+		for _, account := range platformAccounts {
+			output[platform] = append(output[platform], newAccountJSON(account))
 		}
-		fmt.Printf("  ]")
-
-		if platformIndex < len(platforms)-1 {
-			fmt.Println(",")
-		} else {
-			fmt.Println()
-		}
-		platformIndex++
 	}
-	fmt.Println("}")
 
-	return nil
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(output)
 }
 
 func formatTime(t time.Time) string {

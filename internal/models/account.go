@@ -1,6 +1,11 @@
 package models
 
 import (
+	"fmt"
+	"net"
+	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -213,8 +218,23 @@ type Config struct {
 	// AutoDetect enables automatic account detection based on folder configuration
 	AutoDetect bool `json:"auto_detect" yaml:"auto_detect" mapstructure:"auto_detect"`
 
+	// AutoSwitch contains explicit directory-to-account routing rules.
+	AutoSwitch AutoSwitchConfig `json:"auto_switch" yaml:"auto_switch" mapstructure:"auto_switch"`
+
 	// ConfigVersion for future migrations
 	ConfigVersion string `json:"config_version" yaml:"config_version" mapstructure:"config_version"`
+}
+
+// AutoSwitchConfig groups directory-based account switching settings.
+type AutoSwitchConfig struct {
+	Rules []AutoSwitchRule `json:"rules,omitempty" yaml:"rules,omitempty" mapstructure:"rules"`
+}
+
+// AutoSwitchRule selects an existing account for a canonical directory tree.
+type AutoSwitchRule struct {
+	Path      string    `json:"path" yaml:"path" mapstructure:"path"`
+	Account   string    `json:"account" yaml:"account" mapstructure:"account"`
+	CreatedAt time.Time `json:"created_at" yaml:"created_at" mapstructure:"created_at"`
 }
 
 // ProjectConfig represents the project-specific configuration
@@ -290,7 +310,7 @@ func NewConfig() *Config {
 		PendingAccounts: make(map[string]*PendingAccount),
 		GlobalGitConfig: true, // Always use global Git config by default
 		AutoDetect:      true,
-		ConfigVersion:   "1.0.0",
+		ConfigVersion:   "1.1.0",
 	}
 }
 
@@ -305,13 +325,30 @@ func NewProjectConfig(accountAlias string) *ProjectConfig {
 // Validate checks if the account configuration is valid by verifying
 // required fields, email format, and GitHub username format.
 func (a *Account) Validate() error {
-	if a.Alias == "" {
+	if !isValidAlias(a.Alias) {
 		return ErrInvalidAlias
 	}
 
-	// For discovered accounts, we need at least one of: Name+Email OR GitHubUsername
+	platform := a.GetPlatform()
+	if platform != "github" && platform != "gitlab" {
+		return fmt.Errorf("unsupported platform %q", platform)
+	}
+	if err := validateDomain(a.GetDomain()); err != nil {
+		return err
+	}
+	if a.APIEndpoint != "" {
+		u, err := url.Parse(a.APIEndpoint)
+		if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil {
+			return fmt.Errorf("invalid API endpoint %q: must be an https URL without credentials", a.APIEndpoint)
+		}
+	}
+	if strings.IndexFunc(a.SSHKeyPath, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
+		return fmt.Errorf("SSH key path contains control characters")
+	}
+
+	// For discovered accounts, we need at least one of: Name+Email OR platform username.
 	hasBasicInfo := a.Name != "" && a.Email != ""
-	hasGitHubInfo := a.GitHubUsername != ""
+	hasGitHubInfo := a.GetUsername() != ""
 
 	if !hasBasicInfo && !hasGitHubInfo {
 		return ErrInvalidConfig // Need at least basic info or GitHub info
@@ -326,8 +363,72 @@ func (a *Account) Validate() error {
 	if a.GitHubUsername != "" && !isValidGitHubUsername(a.GitHubUsername) {
 		return ErrInvalidGitHubUsernameFormat
 	}
+	if platform == "github" && a.GetUsername() != "" && !isValidGitHubUsername(a.GetUsername()) {
+		return ErrInvalidGitHubUsernameFormat
+	}
+	if a.Username != "" && !isValidPlatformUsername(a.Username) {
+		return fmt.Errorf("invalid platform username")
+	}
 
 	return nil
+}
+
+var validAliasPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
+
+func isValidAlias(alias string) bool {
+	return validAliasPattern.MatchString(alias) && alias != "." && alias != ".."
+}
+
+// ValidateAlias checks whether alias is safe to use as a configuration key,
+// command argument, and generated SSH host suffix.
+func ValidateAlias(alias string) error {
+	if !isValidAlias(alias) {
+		return ErrInvalidAlias
+	}
+	return nil
+}
+
+// NormalizeSSHKeyPath expands a leading ~/ and returns a clean absolute path.
+func NormalizeSSHKeyPath(path string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+	if strings.IndexFunc(path, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
+		return "", fmt.Errorf("SSH key path contains control characters")
+	}
+	if path == "~" || strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolve home directory: %w", err)
+		}
+		path = filepath.Join(home, strings.TrimPrefix(path, "~/"))
+	}
+	abs, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return "", fmt.Errorf("normalize SSH key path: %w", err)
+	}
+	return abs, nil
+}
+
+func validateDomain(domain string) error {
+	if domain == "" || strings.IndexFunc(domain, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
+		return fmt.Errorf("invalid platform domain %q", domain)
+	}
+	if strings.ContainsAny(domain, "/:@ \\") {
+		return fmt.Errorf("invalid platform domain %q", domain)
+	}
+	host := domain
+	if h, _, err := net.SplitHostPort(domain); err == nil {
+		host = h
+	}
+	if net.ParseIP(host) == nil && !regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$`).MatchString(host) {
+		return fmt.Errorf("invalid platform domain %q", domain)
+	}
+	return nil
+}
+
+func isValidPlatformUsername(username string) bool {
+	return len(username) <= 255 && regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`).MatchString(username)
 }
 
 // MarkAsUsed updates the LastUsed timestamp
@@ -535,7 +636,7 @@ func (a *Account) SetUsername(username string) {
 // IsPlatformSupported checks if the account's platform is supported
 func (a *Account) IsPlatformSupported() bool {
 	platform := a.GetPlatform()
-	return platform == "github" || platform == "gitlab" || platform == "bitbucket"
+	return platform == "github" || platform == "gitlab"
 }
 
 // HasGPGKey returns true if the account has a GPG key configured

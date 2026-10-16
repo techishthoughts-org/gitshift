@@ -3,10 +3,8 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/gitshift/internal/config"
 )
 
 // currentCmd represents the current command
@@ -20,28 +18,21 @@ its alias, name, email, and platform.
 
 Works with all supported platforms:
 - GitHub (github.com and GitHub Enterprise)
-- GitLab (gitlab.com and self-hosted)
-- Bitbucket (coming soon)
-- Custom Git platforms`,
+- GitLab (gitlab.com and self-hosted)`,
 	Aliases: []string{"c", "whoami"},
 	RunE:    runCurrentCommand,
 }
 
 // runCurrentCommand executes the current command
 func runCurrentCommand(cmd *cobra.Command, args []string) error {
-	// Get the current account alias
-	alias, err := getCurrentAccount()
-	if err != nil {
-		return fmt.Errorf("failed to get current account: %w", err)
+	configManager := newConfigManager()
+	if err := configManager.Load(); err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Load the configuration
-	configManager := config.NewManager()
-
-	// Get the account details
-	account, err := configManager.GetAccount(alias)
+	account, err := configManager.GetCurrentAccount()
 	if err != nil {
-		return fmt.Errorf("failed to get account details: %w", err)
+		return fmt.Errorf("failed to get current account: %w", err)
 	}
 
 	// Check if we should output JSON
@@ -49,9 +40,12 @@ func runCurrentCommand(cmd *cobra.Command, args []string) error {
 
 	if jsonOutput {
 		// Output in JSON format
-		encoder := json.NewEncoder(os.Stdout)
+		encoder := json.NewEncoder(cmd.OutOrStdout())
 		encoder.SetIndent("", "  ")
-		if err := encoder.Encode(account); err != nil {
+		entry := newAccountJSON(account)
+		entry.SSHKeyPath = ""
+		entry.GPGKeyFingerprint = ""
+		if err := encoder.Encode(entry); err != nil {
 			return fmt.Errorf("failed to encode account as JSON: %w", err)
 		}
 		return nil

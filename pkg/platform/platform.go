@@ -31,7 +31,7 @@ func (t Type) String() string {
 // IsValid checks if the platform type is valid
 func (t Type) IsValid() bool {
 	switch t {
-	case TypeGitHub, TypeGitLab, TypeBitbucket, TypeCustom:
+	case TypeGitHub, TypeGitLab:
 		return true
 	default:
 		return false

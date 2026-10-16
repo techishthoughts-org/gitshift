@@ -10,7 +10,7 @@ on:
     - cron: 0 3 * * *
   workflow_dispatch:
 env:
-  GO_VERSION: '1.24'
+  GO_VERSION: '1.26.0'
 jobs:
   # 🔍 Security Scanning
   security-scan:
@@ -18,9 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: 🐹 Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: 🔍 Run govulncheck
@@ -29,7 +29,7 @@ jobs:
           govulncheck ./...
       - name: 🔒 Run gosec Security Scanner
         run: |
-          go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
           gosec -fmt sarif -out gosec.sarif ./...
         continue-on-error: true
       - name: 🔍 Run Trivy Vulnerability Scanner
@@ -46,9 +46,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: 🐹 Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: 📦 Dependency Review
@@ -63,7 +63,7 @@ jobs:
       - name: 🔒 Audit Dependencies
         run: |
           go mod download
-          go list -m all | while read module; do
+          go list -m all | while read -r module; do
             echo "Auditing: $module"
           done
 
@@ -73,9 +73,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: 🐹 Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: 📋 Check License Compliance
@@ -84,29 +84,21 @@ jobs:
           go mod download
 
           # List all dependencies with their licenses
-          go list -m all | while read module; do
+          go list -m all | while read -r module; do
             echo "Module: $module"
             # Note: This is a simplified check. In production, you'd use a proper license scanner
           done
       - name: 📊 License Summary
         run: |
-          echo "## 🛡️ License Compliance Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📋 Dependencies License Check" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "All dependencies have been checked for license compatibility." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Key Dependencies:**" >> $GITHUB_STEP_SUMMARY
-          echo "- github.com/spf13/cobra: Apache-2.0 ✅" >> $GITHUB_STEP_SUMMARY
-          echo "- github.com/spf13/viper: MIT ✅" >> $GITHUB_STEP_SUMMARY
-          echo "- github.com/charmbracelet/bubbletea: MIT ✅" >> $GITHUB_STEP_SUMMARY
-          echo "- golang.org/x/crypto: BSD-3-Clause ✅" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Status**: All dependencies use compatible licenses ✅" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## 🛡️ Dependency Inventory"
+            echo
+            echo "This job lists Go modules for manual license review."
+            echo "It does not determine licenses or enforce a compatibility policy."
+          } >> "$GITHUB_STEP_SUMMARY"
 
-  # 🔐 Secrets Scanning
-  secrets-scan:
-    name: 🔐 Secrets & Credentials Scan
+  security-summary:
+    name: 🔐 Security Summary
     runs-on: ubuntu-latest
     needs:
       - security-scan
@@ -115,42 +107,37 @@ jobs:
     if: always()
     steps:
       - name: 📊 Generate Security Summary
+        env:
+          VULNERABILITY_RESULT: ${{ needs.security-scan.result }}
+          DEPENDENCY_RESULT: ${{ needs.dependency-security.result }}
+          LICENSE_RESULT: ${{ needs.license-compliance.result }}
         run: |-
-          echo "## 🔒 Security & Compliance Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🛡️ Security Checks Completed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # Check job results
-          if [ "${{ needs.security-scan.result }}" = "success" ]; then
-            echo "✅ **Vulnerability Scan**: Passed" >> $GITHUB_STEP_SUMMARY
+          if [ "$VULNERABILITY_RESULT" = "success" ]; then
+            VULNERABILITY_LINE="✅ **Vulnerability Scan**: Passed"
           else
-            echo "❌ **Vulnerability Scan**: Failed" >> $GITHUB_STEP_SUMMARY
+            VULNERABILITY_LINE="❌ **Vulnerability Scan**: Failed"
           fi
-          if [ "${{ needs.dependency-security.result }}" = "success" ]; then
-            echo "✅ **Dependency Security**: Passed" >> $GITHUB_STEP_SUMMARY
+          if [ "$DEPENDENCY_RESULT" = "success" ]; then
+            DEPENDENCY_LINE="✅ **Dependency Security**: Passed"
           else
-            echo "❌ **Dependency Security**: Failed" >> $GITHUB_STEP_SUMMARY
+            DEPENDENCY_LINE="❌ **Dependency Security**: Failed"
           fi
-          if [ "${{ needs.license-compliance.result }}" = "success" ]; then
-            echo "✅ **License Compliance**: Passed" >> $GITHUB_STEP_SUMMARY
+          if [ "$LICENSE_RESULT" = "success" ]; then
+            LICENSE_LINE="✅ **Dependency Inventory**: Completed"
           else
-            echo "❌ **License Compliance**: Failed" >> $GITHUB_STEP_SUMMARY
+            LICENSE_LINE="❌ **Dependency Inventory**: Failed"
           fi
-          if [ "${{ needs.secrets-scan.result }}" = "success" ]; then
-            echo "✅ **Secrets Scan**: Passed" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Secrets Scan**: Failed" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔍 Security Tools Used" >> $GITHUB_STEP_SUMMARY
-          echo "- **govulncheck**: Go vulnerability database" >> $GITHUB_STEP_SUMMARY
-          echo "- **gosec**: Go security checker" >> $GITHUB_STEP_SUMMARY
-          echo "- **Trivy**: Container and filesystem vulnerability scanner" >> $GITHUB_STEP_SUMMARY
-          echo "- **TruffleHog**: Secrets scanner" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📋 Next Steps" >> $GITHUB_STEP_SUMMARY
-          echo "1. Review any security findings in the Security tab" >> $GITHUB_STEP_SUMMARY
-          echo "2. Address high and critical vulnerabilities immediately" >> $GITHUB_STEP_SUMMARY
-          echo "3. Update dependencies with security patches" >> $GITHUB_STEP_SUMMARY
-          echo "4. Follow security best practices in code reviews" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## 🔒 Security Summary"
+            echo
+            echo "$VULNERABILITY_LINE"
+            echo "$DEPENDENCY_LINE"
+            echo "$LICENSE_LINE"
+            echo
+            echo "### Tools executed"
+            echo "- govulncheck"
+            echo "- gosec (non-blocking)"
+            echo "- Trivy filesystem scan (non-blocking)"
+            echo
+            echo "No dedicated secrets scanner is configured."
+          } >> "$GITHUB_STEP_SUMMARY"

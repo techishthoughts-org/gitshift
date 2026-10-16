@@ -5,9 +5,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/gitshift/internal/config"
 	"github.com/techishthoughts/gitshift/internal/discovery"
-	"github.com/techishthoughts/gitshift/internal/models"
 )
 
 // updateCmd represents the update command for modifying account information
@@ -27,8 +25,6 @@ This command allows you to modify:
 Works with accounts from all platforms:
 - GitHub (github.com and GitHub Enterprise)
 - GitLab (gitlab.com and self-hosted)
-- Bitbucket (coming soon)
-- Custom Git platforms
 
 Examples:
   # Update GitHub account
@@ -45,7 +41,7 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		alias := args[0]
 
-		configManager := config.NewManager()
+		configManager := newConfigManager()
 		if err := configManager.Load(); err != nil {
 			return fmt.Errorf("failed to load configuration: %w", err)
 		}
@@ -59,15 +55,27 @@ Examples:
 		// Get update flags
 		newName, _ := cmd.Flags().GetString("name")
 		newEmail, _ := cmd.Flags().GetString("email")
+		newUsername, _ := cmd.Flags().GetString("username")
 		newGitHubUsername, _ := cmd.Flags().GetString("github-username")
 		newSSHKey, _ := cmd.Flags().GetString("ssh-key")
 		newDescription, _ := cmd.Flags().GetString("description")
 		newPlatform, _ := cmd.Flags().GetString("platform")
+		newDomain, _ := cmd.Flags().GetString("domain")
+		newAPIEndpoint, _ := cmd.Flags().GetString("api-endpoint")
 		autoGPG, _ := cmd.Flags().GetBool("auto-gpg")
 		setDefault, _ := cmd.Flags().GetBool("default")
 
 		// Check if any updates were requested
-		if newName == "" && newEmail == "" && newGitHubUsername == "" && newSSHKey == "" && newDescription == "" && newPlatform == "" && !autoGPG && !setDefault {
+		if newUsername != "" && newGitHubUsername != "" && newUsername != newGitHubUsername {
+			return fmt.Errorf("--username and --github-username must match when both are supplied")
+		}
+		if newUsername == "" {
+			newUsername = newGitHubUsername
+		}
+		domainChanged := cmd.Flags().Changed("domain")
+		apiEndpointChanged := cmd.Flags().Changed("api-endpoint")
+
+		if newName == "" && newEmail == "" && newUsername == "" && newSSHKey == "" && newDescription == "" && newPlatform == "" && !domainChanged && !apiEndpointChanged && !autoGPG && !setDefault {
 			fmt.Printf("📋 Current account information for '%s':\n", alias)
 			fmt.Printf("   Name: %s\n", existingAccount.Name)
 			fmt.Printf("   Email: %s\n", existingAccount.Email)
@@ -90,30 +98,12 @@ Examples:
 			}
 			fmt.Printf("   Default: %t\n", configManager.GetConfig().CurrentAccount == alias)
 			fmt.Println("\n💡 Use flags to update specific fields:")
-			fmt.Println("   --name, --email, --github-username, --ssh-key, --description, --platform, --auto-gpg, --default")
+			fmt.Println("   --name, --email, --username, --ssh-key, --description, --platform, --domain, --api-endpoint, --auto-gpg, --default")
 			return nil
 		}
 
-		// Create updated account - preserve all existing fields including GPG
-		updatedAccount := &models.Account{
-			Alias:              existingAccount.Alias,
-			Name:               existingAccount.Name,
-			Email:              existingAccount.Email,
-			SSHKeyPath:         existingAccount.SSHKeyPath,
-			GitHubUsername:     existingAccount.GitHubUsername,
-			Username:           existingAccount.Username,
-			Platform:           existingAccount.Platform,
-			Domain:             existingAccount.Domain,
-			Description:        existingAccount.Description,
-			CreatedAt:          existingAccount.CreatedAt,
-			LastUsed:           existingAccount.LastUsed,
-			GPGKeyID:           existingAccount.GPGKeyID,
-			GPGKeyFingerprint:  existingAccount.GPGKeyFingerprint,
-			GPGKeyType:         existingAccount.GPGKeyType,
-			GPGKeySize:         existingAccount.GPGKeySize,
-			GPGKeyExpiry:       existingAccount.GPGKeyExpiry,
-			GPGEnabled:         existingAccount.GPGEnabled,
-		}
+		// Copy the complete account so fields unknown to this command are retained.
+		updatedAccount := *existingAccount
 
 		// Apply updates
 		changes := []string{}
@@ -125,9 +115,9 @@ Examples:
 			updatedAccount.Email = newEmail
 			changes = append(changes, fmt.Sprintf("email: %s → %s", existingAccount.Email, newEmail))
 		}
-		if newGitHubUsername != "" && newGitHubUsername != existingAccount.GitHubUsername {
-			updatedAccount.GitHubUsername = newGitHubUsername
-			changes = append(changes, fmt.Sprintf("GitHub username: @%s → @%s", existingAccount.GitHubUsername, newGitHubUsername))
+		if newUsername != "" && newUsername != existingAccount.GetUsername() {
+			updatedAccount.SetUsername(strings.TrimPrefix(newUsername, "@"))
+			changes = append(changes, fmt.Sprintf("username: @%s → @%s", existingAccount.GetUsername(), updatedAccount.GetUsername()))
 		}
 		if newSSHKey != "" && newSSHKey != existingAccount.SSHKeyPath {
 			updatedAccount.SSHKeyPath = newSSHKey
@@ -139,7 +129,21 @@ Examples:
 		}
 		if newPlatform != "" && newPlatform != existingAccount.GetPlatform() {
 			updatedAccount.Platform = newPlatform
+			if !domainChanged {
+				updatedAccount.Domain = ""
+			}
+			if !apiEndpointChanged {
+				updatedAccount.APIEndpoint = ""
+			}
 			changes = append(changes, fmt.Sprintf("platform: %s → %s", existingAccount.GetPlatform(), newPlatform))
+		}
+		if domainChanged && newDomain != existingAccount.Domain {
+			updatedAccount.Domain = newDomain
+			changes = append(changes, fmt.Sprintf("domain: %s → %s", existingAccount.GetDomain(), updatedAccount.GetDomain()))
+		}
+		if apiEndpointChanged && newAPIEndpoint != existingAccount.APIEndpoint {
+			updatedAccount.APIEndpoint = newAPIEndpoint
+			changes = append(changes, "API endpoint updated")
 		}
 
 		// Auto-associate GPG key if requested
@@ -163,27 +167,18 @@ Examples:
 			}
 		}
 
+		if setDefault && !updatedAccount.IsDefault {
+			updatedAccount.IsDefault = true
+			changes = append(changes, "set as default account")
+		}
+
 		// Validate updated account
 		if err := updatedAccount.Validate(); err != nil {
 			return fmt.Errorf("updated account validation failed: %w", err)
 		}
 
-		// Remove old account and add updated one
-		if err := configManager.RemoveAccount(alias); err != nil {
-			return fmt.Errorf("failed to remove old account: %w", err)
-		}
-
-		if err := configManager.AddAccount(updatedAccount); err != nil {
-			return fmt.Errorf("failed to add updated account: %w", err)
-		}
-
-		// Set as default if requested
-		if setDefault {
-			if err := configManager.SetCurrentAccount(alias); err != nil {
-				fmt.Printf("⚠️  Failed to set as default: %v\n", err)
-			} else {
-				changes = append(changes, "set as default account")
-			}
+		if err := configManager.UpdateAccount(&updatedAccount); err != nil {
+			return fmt.Errorf("failed to update account: %w", err)
 		}
 
 		// Show summary of changes
@@ -230,9 +225,12 @@ func init() {
 	updateCmd.Flags().StringP("name", "n", "", "New display name for the account")
 	updateCmd.Flags().StringP("email", "e", "", "New email address for the account")
 	updateCmd.Flags().StringP("github-username", "g", "", "New GitHub username (without @)")
+	updateCmd.Flags().String("username", "", "New platform username (without @)")
 	updateCmd.Flags().StringP("ssh-key", "k", "", "New SSH key path")
 	updateCmd.Flags().StringP("description", "d", "", "New description for the account")
-	updateCmd.Flags().StringP("platform", "p", "", "Set platform (github, gitlab, bitbucket)")
+	updateCmd.Flags().StringP("platform", "p", "", "Set platform (github or gitlab)")
+	updateCmd.Flags().String("domain", "", "Set provider domain; use an empty value to restore the platform default")
+	updateCmd.Flags().String("api-endpoint", "", "Set provider API endpoint; use an empty value to clear it")
 	updateCmd.Flags().Bool("auto-gpg", false, "Automatically find and associate GPG key by email")
 	updateCmd.Flags().Bool("default", false, "Set this account as the default")
 }

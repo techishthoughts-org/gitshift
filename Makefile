@@ -1,5 +1,5 @@
-# gitshift - SSH-First GitHub Account Management
-# A clean, focused tool for managing multiple GitHub accounts with SSH isolation
+# gitshift - SSH-first GitHub and GitLab identity management
+# Manage multiple provider identities with Git, SSH, GPG, and GitHub CLI integration
 
 .PHONY: build test clean lint fmt vet install deps help demo
 
@@ -7,14 +7,14 @@
 BINARY_NAME=gitshift
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
-LDFLAGS=-ldflags "-X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)"
+LDFLAGS=-ldflags "-X github.com/techishthoughts/gitshift/cmd.version=$(VERSION) -X github.com/techishthoughts/gitshift/cmd.buildTime=$(BUILD_TIME)"
 
 # Default target
 all: build
 
 ## Build the binary
 build:
-	@echo "🔨 Building $(BINARY_NAME) v$(VERSION)..."
+	@echo "🔨 Building $(BINARY_NAME) $(VERSION)..."
 	@go build $(LDFLAGS) -o $(BINARY_NAME) .
 	@echo "✅ Build complete: ./$(BINARY_NAME)"
 
@@ -26,10 +26,10 @@ install: build
 	@chmod +x $${GOPATH:-$$HOME/go}/bin/$(BINARY_NAME)
 	@echo "✅ Installed: $${GOPATH:-$$HOME/go}/bin/$(BINARY_NAME)"
 
-## Run basic tests
+## Run all tests
 test:
 	@echo "🧪 Running tests..."
-	@go test -v ./internal/...
+	@go test -v ./...
 	@echo "✅ Tests passed"
 
 ## Format and clean code
@@ -88,7 +88,7 @@ demo: build
 
 ## Show help
 help:
-	@echo "🎭 gitshift - SSH-First GitHub Account Management"
+	@echo "🎭 gitshift - GitHub and GitLab Identity Management"
 	@echo ""
 	@echo "Available make targets:"
 	@echo "  build      Build the gitshift binary"
@@ -115,11 +115,18 @@ release:
 	@mkdir -p dist
 	@echo "Building for Linux AMD64..."
 	@GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-linux-amd64 .
+	@echo "Building for Linux ARM64..."
+	@GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-linux-arm64 .
 	@echo "Building for macOS AMD64..."
 	@GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-amd64 .
 	@echo "Building for macOS ARM64..."
 	@GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-arm64 .
 	@echo "Building for Windows AMD64..."
 	@GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-windows-amd64.exe .
+	@if command -v sha256sum >/dev/null 2>&1; then \
+		cd dist && sha256sum $(BINARY_NAME)-* > checksums.txt; \
+	else \
+		cd dist && shasum -a 256 $(BINARY_NAME)-* > checksums.txt; \
+	fi
 	@echo "✅ Release binaries built in dist/"
 	@ls -la dist/
