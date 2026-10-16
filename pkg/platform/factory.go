@@ -90,14 +90,20 @@ func (f *Factory) CreatePlatformFromConfig(cfg *Config) (Platform, error) {
 		return nil, fmt.Errorf("invalid platform type: %s", cfg.Type)
 	}
 
-	platform, err := f.GetPlatform(cfg.Type, cfg.Domain)
-	if err != nil {
-		return nil, err
+	switch cfg.Type {
+	case TypeGitHub:
+		if cfg.Domain == "" || cfg.Domain == "github.com" {
+			return NewGitHubPlatform(), nil
+		}
+		return NewGitHubEnterprisePlatform(cfg.Domain, cfg.APIEndpoint), nil
+	case TypeGitLab:
+		if cfg.Domain == "" || cfg.Domain == "gitlab.com" {
+			return NewGitLabPlatform(), nil
+		}
+		return NewGitLabSelfHostedPlatform(cfg.Domain, cfg.APIEndpoint), nil
+	default:
+		return f.GetPlatform(cfg.Type, cfg.Domain)
 	}
-
-	// TODO: Apply additional config like custom API endpoint, token, etc.
-
-	return platform, nil
 }
 
 // ListSupportedPlatforms returns a list of all supported platform types

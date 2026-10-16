@@ -1,6 +1,11 @@
 package models
 
 import (
+	"fmt"
+	"net"
+	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -309,9 +314,26 @@ func (a *Account) Validate() error {
 		return ErrInvalidAlias
 	}
 
-	// For discovered accounts, we need at least one of: Name+Email OR GitHubUsername
+	platform := a.GetPlatform()
+	if platform != "github" && platform != "gitlab" {
+		return fmt.Errorf("unsupported platform %q", platform)
+	}
+	if err := validateDomain(a.GetDomain()); err != nil {
+		return err
+	}
+	if a.APIEndpoint != "" {
+		u, err := url.Parse(a.APIEndpoint)
+		if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil {
+			return fmt.Errorf("invalid API endpoint %q: must be an https URL without credentials", a.APIEndpoint)
+		}
+	}
+	if strings.IndexFunc(a.SSHKeyPath, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
+		return fmt.Errorf("SSH key path contains control characters")
+	}
+
+	// For discovered accounts, we need at least one of: Name+Email OR platform username.
 	hasBasicInfo := a.Name != "" && a.Email != ""
-	hasGitHubInfo := a.GitHubUsername != ""
+	hasGitHubInfo := a.GetUsername() != ""
 
 	if !hasBasicInfo && !hasGitHubInfo {
 		return ErrInvalidConfig // Need at least basic info or GitHub info
@@ -326,8 +348,54 @@ func (a *Account) Validate() error {
 	if a.GitHubUsername != "" && !isValidGitHubUsername(a.GitHubUsername) {
 		return ErrInvalidGitHubUsernameFormat
 	}
+	if a.Username != "" && !isValidPlatformUsername(a.Username) {
+		return fmt.Errorf("invalid platform username")
+	}
 
 	return nil
+}
+
+// NormalizeSSHKeyPath expands a leading ~/ and returns a clean absolute path.
+func NormalizeSSHKeyPath(path string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+	if strings.IndexFunc(path, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
+		return "", fmt.Errorf("SSH key path contains control characters")
+	}
+	if path == "~" || strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolve home directory: %w", err)
+		}
+		path = filepath.Join(home, strings.TrimPrefix(path, "~/"))
+	}
+	abs, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return "", fmt.Errorf("normalize SSH key path: %w", err)
+	}
+	return abs, nil
+}
+
+func validateDomain(domain string) error {
+	if domain == "" || strings.IndexFunc(domain, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
+		return fmt.Errorf("invalid platform domain %q", domain)
+	}
+	if strings.ContainsAny(domain, "/:@ \\") {
+		return fmt.Errorf("invalid platform domain %q", domain)
+	}
+	host := domain
+	if h, _, err := net.SplitHostPort(domain); err == nil {
+		host = h
+	}
+	if net.ParseIP(host) == nil && !regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$`).MatchString(host) {
+		return fmt.Errorf("invalid platform domain %q", domain)
+	}
+	return nil
+}
+
+func isValidPlatformUsername(username string) bool {
+	return len(username) <= 255 && regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`).MatchString(username)
 }
 
 // MarkAsUsed updates the LastUsed timestamp

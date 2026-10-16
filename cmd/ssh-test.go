@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/techishthoughts/gitshift/internal/config"
@@ -61,11 +64,14 @@ func init() {
 	rootCmd.AddCommand(sshTestCmd)
 
 	sshTestCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show verbose SSH output")
-	sshTestCmd.Flags().BoolVar(&fixKnownHosts, "fix-known-hosts", false, "Automatically fix known_hosts issues")
+	sshTestCmd.Flags().BoolVar(&fixKnownHosts, "fix-known-hosts", false, "Deprecated: ssh-test no longer modifies known_hosts")
 	sshTestCmd.Flags().BoolVar(&testAll, "all", false, "Test all configured accounts")
 }
 
 func runSSHTest(cmd *cobra.Command, args []string) error {
+	if fixKnownHosts {
+		return fmt.Errorf("--fix-known-hosts is no longer supported; ssh-test is read-only")
+	}
 	configManager := config.NewManager()
 	if err := configManager.Load(); err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
@@ -120,21 +126,22 @@ func testAllAccounts(configManager *config.Manager) error {
 		fixKnownHosts: fixKnownHosts,
 	}
 
-	allPassed := true
+	var failures []error
 	for _, account := range accounts {
 		fmt.Printf("\n📋 Account: %s\n", account.Alias)
 		fmt.Printf("────────────────────────────────────────────────────\n")
 
 		if err := tester.TestAccount(account.Alias, account); err != nil {
-			allPassed = false
+			failures = append(failures, fmt.Errorf("%s: %w", account.Alias, err))
 		}
 	}
 
 	fmt.Printf("\n══════════════════════════════════════════════════════\n")
-	if allPassed {
+	if len(failures) == 0 {
 		fmt.Printf("✅ All accounts passed SSH connectivity tests!\n")
 	} else {
 		fmt.Printf("⚠️  Some accounts failed SSH connectivity tests\n")
+		return errors.Join(failures...)
 	}
 
 	return nil
@@ -147,29 +154,33 @@ type SSHTester struct {
 
 func (t *SSHTester) TestAccount(alias string, account *models.Account) error {
 	var failed []string
+	keyPath, err := models.NormalizeSSHKeyPath(account.SSHKeyPath)
+	if err != nil {
+		return err
+	}
 
 	// 1. Check if SSH key exists
-	if !t.testKeyExists(account.SSHKeyPath) {
+	if !t.testKeyExists(keyPath) {
 		failed = append(failed, "ssh_key_missing")
 	}
 
 	// 2. Check SSH key permissions
-	if !t.testKeyPermissions(account.SSHKeyPath) {
+	if !t.testKeyPermissions(keyPath) {
 		failed = append(failed, "ssh_key_permissions")
 	}
 
 	// 3. Check known_hosts
-	if !t.testKnownHosts() {
+	if !t.testKnownHosts(account.GetDomain()) {
 		failed = append(failed, "known_hosts")
 	}
 
 	// 4. Test SSH connectivity
-	if !t.testGitHubConnection(account.SSHKeyPath) {
-		failed = append(failed, "github_connection")
+	if !t.testPlatformConnection(keyPath, account.GetDomain()) {
+		failed = append(failed, "platform_connection")
 	}
 
 	// 5. Test SSH agent
-	if !t.testSSHAgent(account.SSHKeyPath) {
+	if !t.testSSHAgent(keyPath) {
 		failed = append(failed, "ssh_agent")
 	}
 
@@ -209,13 +220,7 @@ func (t *SSHTester) testKeyPermissions(keyPath string) bool {
 		if perm != 0600 {
 			fmt.Printf(" ❌ Private key has wrong permissions: %o (should be 600)\n", perm)
 
-			// Try to fix permissions
-			if err := os.Chmod(keyPath, 0600); err != nil {
-				fmt.Printf("   ⚠️  Failed to fix permissions: %v\n", err)
-				return false
-			} else {
-				fmt.Printf("   ✅ Fixed private key permissions\n")
-			}
+			return false
 		}
 	} else {
 		fmt.Printf(" ❌ Cannot check private key permissions: %v\n", err)
@@ -228,9 +233,6 @@ func (t *SSHTester) testKeyPermissions(keyPath string) bool {
 		perm := info.Mode().Perm()
 		if perm != 0644 {
 			fmt.Printf(" ⚠️  Public key has permissions: %o (recommended: 644)\n", perm)
-			if err := os.Chmod(pubKeyPath, 0644); err == nil {
-				fmt.Printf("   ✅ Fixed public key permissions\n")
-			}
 		}
 	}
 
@@ -238,8 +240,8 @@ func (t *SSHTester) testKeyPermissions(keyPath string) bool {
 	return true
 }
 
-func (t *SSHTester) testKnownHosts() bool {
-	fmt.Printf("🌐 Checking known_hosts for GitHub...")
+func (t *SSHTester) testKnownHosts(domain string) bool {
+	fmt.Printf("🌐 Checking known_hosts for %s...", domain)
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -250,23 +252,15 @@ func (t *SSHTester) testKnownHosts() bool {
 	knownHostsPath := filepath.Join(homeDir, ".ssh", "known_hosts")
 	content, err := os.ReadFile(knownHostsPath)
 	if err != nil {
-		if t.fixKnownHosts {
-			fmt.Printf(" ⚠️  known_hosts not found, creating...\n")
-			return t.fixGitHubKnownHosts(knownHostsPath)
-		}
 		fmt.Printf(" ❌ Cannot read known_hosts: %v\n", err)
 		return false
 	}
 
 	contentStr := string(content)
-	hasGitHub := strings.Contains(contentStr, "github.com")
+	hasGitHub := strings.Contains(contentStr, domain)
 
 	if !hasGitHub {
-		if t.fixKnownHosts {
-			fmt.Printf(" ⚠️  GitHub not in known_hosts, adding...\n")
-			return t.fixGitHubKnownHosts(knownHostsPath)
-		}
-		fmt.Printf(" ❌ GitHub not found in known_hosts\n")
+		fmt.Printf(" ❌ %s not found in known_hosts\n", domain)
 		return false
 	}
 
@@ -284,27 +278,29 @@ func (t *SSHTester) fixGitHubKnownHosts(knownHostsPath string) bool {
 	return true
 }
 
-func (t *SSHTester) testGitHubConnection(keyPath string) bool {
-	fmt.Printf("🔗 Testing GitHub SSH connection...")
+func (t *SSHTester) testPlatformConnection(keyPath, domain string) bool {
+	fmt.Printf("🔗 Testing %s SSH connection...", domain)
 
 	args := []string{
 		"-i", keyPath,
 		"-o", "ConnectTimeout=10",
 		"-o", "IdentitiesOnly=yes",
 		"-o", "StrictHostKeyChecking=yes",
-		"-T", "git@github.com",
+		"-T", "git@" + domain,
 	}
 
 	if t.verbose {
 		args = append([]string{"-v"}, args...)
 	}
 
-	cmd := exec.Command("ssh", args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "ssh", args...)
 	output, err := cmd.CombinedOutput()
 	outputStr := string(output)
 
 	// SSH to GitHub should return exit code 1 with success message
-	if strings.Contains(outputStr, "successfully authenticated") {
+	if err == nil || strings.Contains(outputStr, "successfully authenticated") || strings.Contains(outputStr, "Welcome to GitLab") {
 		if t.verbose {
 			fmt.Printf(" ✅\n   Output: %s\n", outputStr)
 		} else {
