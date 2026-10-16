@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"regexp"
@@ -16,6 +17,7 @@ import (
 // GPGScanner handles GPG key discovery from the system keyring
 type GPGScanner struct {
 	homeDir string
+	output  io.Writer
 }
 
 // NewGPGScanner creates a new GPG scanner
@@ -27,6 +29,7 @@ func NewGPGScanner() *GPGScanner {
 
 	return &GPGScanner{
 		homeDir: homeDir,
+		output:  os.Stdout,
 	}
 }
 
@@ -45,13 +48,16 @@ type GPGKeyInfo struct {
 
 // ScanGPGKeys scans the GPG keyring for existing secret keys
 func (s *GPGScanner) ScanGPGKeys() ([]*DiscoveredAccount, error) {
+	if s.output == nil {
+		s.output = io.Discard
+	}
 	var discovered []*DiscoveredAccount
 
-	fmt.Println("🔐 Scanning GPG keyring for secret keys...")
+	fmt.Fprintln(s.output, "🔐 Scanning GPG keyring for secret keys...")
 
 	// Check if GPG is installed
 	if !s.isGPGInstalled() {
-		fmt.Println("⚠️  GPG not installed, skipping GPG key discovery")
+		fmt.Fprintln(s.output, "⚠️  GPG not installed, skipping GPG key discovery")
 		return discovered, nil
 	}
 
@@ -79,7 +85,7 @@ func (s *GPGScanner) ScanGPGKeys() ([]*DiscoveredAccount, error) {
 		}
 	}
 
-	fmt.Printf("✅ Found %d GPG signing key(s)\n", len(discovered))
+	fmt.Fprintf(s.output, "✅ Found %d GPG signing key(s)\n", len(discovered))
 	return discovered, nil
 }
 
@@ -237,7 +243,7 @@ func (s *GPGScanner) createAccountFromGPGKey(key GPGKeyInfo) *DiscoveredAccount 
 		keyIDDisplay = key.KeyID[:16]
 	}
 
-	fmt.Printf("🔐 Found GPG key: %s -> %s (%s) [%s, %s, %s]\n",
+	fmt.Fprintf(s.output, "🔐 Found GPG key: %s -> %s (%s) [%s, %s, %s]\n",
 		alias, key.Name, key.Email, keyIDDisplay, status, platform)
 
 	return &DiscoveredAccount{

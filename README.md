@@ -71,6 +71,19 @@ gitshift switch personal
 gitshift current
 ```
 
+Prefer a guided interface? Open the opt-in terminal UI after adding or
+discovering accounts:
+
+```bash
+gitshift ui
+# Alias: gitshift tui
+```
+
+The UI provides account details and validated add/edit/switch/remove flows,
+directory rules, and selective discovery import. It requires an interactive
+terminal and does not write anything merely by opening or quitting. Use
+`gitshift ui --inline` to keep the interface in the current screen buffer.
+
 `switch --validate` checks the account before changing anything. A successful switch updates global Git identity, the current repository's local Git settings when run inside a repository, SSH configuration, optional GPG settings, and the active GitHub CLI account for GitHub profiles. Read [Security and side effects](docs/SECURITY.md) before using `--force` or `--skip-validation`.
 
 To switch automatically when entering directory trees, add explicit rules and opt in from zsh:
@@ -98,6 +111,7 @@ Use the aliases shown by `gitshift list`. Rules only accept existing directories
 | `shell-init zsh` | Print the opt-in zsh hook without editing shell files |
 | `remove ALIAS` | Remove an account from GitShift |
 | `discover` | Inspect all GitHub CLI identities plus local SSH/GPG metadata |
+| `ui` / `tui` | Open the interactive terminal interface |
 | `ssh-keygen ALIAS` | Generate a passwordless SSH key for an account |
 | `gpg-keygen ALIAS` | Generate and optionally enable a GPG signing key |
 | `ssh-test [ALIAS]` | Test SSH authentication for one or all accounts |

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"sort"
@@ -46,10 +47,11 @@ func sanitizedGHEnvironment(explicit []string) []string {
 // changing which account is active on a host.
 type GitHubCLIScanner struct {
 	runner commandRunner
+	output io.Writer
 }
 
 func NewGitHubCLIScanner() *GitHubCLIScanner {
-	return &GitHubCLIScanner{runner: execCommandRunner{}}
+	return &GitHubCLIScanner{runner: execCommandRunner{}, output: os.Stdout}
 }
 
 type ghAuthStatus struct {
@@ -70,10 +72,13 @@ type ghUserProfile struct {
 }
 
 func (s *GitHubCLIScanner) ScanAccounts() ([]*DiscoveredAccount, error) {
+	if s.output == nil {
+		s.output = io.Discard
+	}
 	output, err := s.runner.Run("gh", []string{"auth", "status", "--json", "hosts"}, nil)
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
-			fmt.Println("⚠️  GitHub CLI not installed, skipping GitHub CLI discovery")
+			fmt.Fprintln(s.output, "⚠️  GitHub CLI not installed, skipping GitHub CLI discovery")
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to query GitHub CLI authentication status")
@@ -145,7 +150,7 @@ func (s *GitHubCLIScanner) ScanAccounts() ([]*DiscoveredAccount, error) {
 		})
 	}
 
-	fmt.Printf("✅ Found %d GitHub CLI account(s)\n", len(discovered))
+	fmt.Fprintf(s.output, "✅ Found %d GitHub CLI account(s)\n", len(discovered))
 	return discovered, nil
 }
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -379,6 +380,54 @@ func (m *Manager) AddAccount(account *models.Account) error {
 	}
 
 	m.config.Accounts[account.Alias] = account
+	return m.saveLocked()
+}
+
+// AddAccounts atomically adds a validated batch of accounts. No in-memory or
+// on-disk state is changed when any account is invalid or collides with an
+// existing alias (comparisons are case-insensitive).
+func (m *Manager) AddAccounts(accounts []*models.Account) error {
+	if len(accounts) == 0 {
+		return fmt.Errorf("no accounts selected for import")
+	}
+	prepared := make([]*models.Account, len(accounts))
+	for i, account := range accounts {
+		if account == nil {
+			return fmt.Errorf("account %d is nil", i+1)
+		}
+		copyAccount := *account
+		if err := copyAccount.Validate(); err != nil {
+			return fmt.Errorf("invalid account %q: %w", copyAccount.Alias, err)
+		}
+		prepared[i] = &copyAccount
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	aliases := make(map[string]string, len(m.config.Accounts)+len(m.config.PendingAccounts)+len(prepared))
+	for alias := range m.config.Accounts {
+		aliases[strings.ToLower(alias)] = alias
+	}
+	for alias := range m.config.PendingAccounts {
+		aliases[strings.ToLower(alias)] = alias
+	}
+	for _, account := range prepared {
+		key := strings.ToLower(account.Alias)
+		if existing, ok := aliases[key]; ok {
+			return fmt.Errorf("account alias %q conflicts with %q", account.Alias, existing)
+		}
+		aliases[key] = account.Alias
+	}
+
+	first := len(m.config.Accounts) == 0
+	for _, account := range prepared {
+		if first {
+			account.IsDefault = true
+			m.config.CurrentAccount = account.Alias
+			first = false
+		}
+		m.config.Accounts[account.Alias] = account
+	}
 	return m.saveLocked()
 }
 

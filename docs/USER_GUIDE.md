@@ -6,6 +6,35 @@ This guide describes the current source on `main`. The compatibility notice in [
 
 Each account has a unique alias, a Git author name and email, a provider (`github` or `gitlab`), a username, an optional provider domain, and an optional SSH private-key path. The alias is local to GitShift; it does not need to match the provider username.
 
+## Interactive terminal UI
+
+Run the full-screen interface from an interactive terminal:
+
+```bash
+gitshift ui
+```
+
+`gitshift tui` is an alias. Use `gitshift ui --inline` when you want output to
+remain in the current screen buffer. The global `--config PATH` flag works in
+both modes.
+
+The dashboard links to accounts, directory rules, and discovery. Arrow keys or
+`j`/`k` move through lists, Enter opens an item, `?` opens help, Escape goes
+back, and `q` quits. Add/edit forms use Tab to move between fields and reuse
+the same account validation as the CLI. Switching and removal require an
+explicit confirmation. The UI uses only the normal validated switch; force,
+skip-validation, SSH key generation, and GPG key generation remain CLI-only.
+
+Discovery starts read-only. Every same-host provider identity is displayed as
+a separate row. Select results with Space, edit a result's alias with `e`, then
+press `i` and confirm to import only the selected rows. The complete selection
+is validated before one atomic additive write; existing accounts are never
+silently replaced. Opening, browsing, cancelling, and quitting do not write.
+
+Both stdin and stdout must be terminals. A redirected invocation fails before
+loading or creating configuration. Colors adapt to light and dark terminal
+backgrounds; set `NO_COLOR=1` for unstyled, ASCII-safe output.
+
 ## Add accounts
 
 Interactive mode prompts for required values:

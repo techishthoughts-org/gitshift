@@ -2,15 +2,20 @@ package discovery
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"sort"
 	"strings"
 
 	"github.com/techishthoughts/gitshift/internal/models"
 )
 
-type AccountDiscovery struct{}
+type AccountDiscovery struct{ output io.Writer }
 
-func NewAccountDiscovery() *AccountDiscovery { return &AccountDiscovery{} }
+func NewAccountDiscovery() *AccountDiscovery { return &AccountDiscovery{output: os.Stdout} }
+
+// NewSilentAccountDiscovery returns a scanner suitable for full-screen UIs.
+func NewSilentAccountDiscovery() *AccountDiscovery { return &AccountDiscovery{output: io.Discard} }
 
 // DiscoveredAccount represents an account found during discovery. IdentityKey
 // is populated for provider-authenticated identities and has the canonical
@@ -24,27 +29,33 @@ type DiscoveredAccount struct {
 }
 
 func (d *AccountDiscovery) ScanExistingAccounts() ([]*DiscoveredAccount, error) {
-	fmt.Println("🔍 Starting account discovery...")
-	fmt.Println()
+	fmt.Fprintln(d.output, "🔍 Starting account discovery...")
+	fmt.Fprintln(d.output)
 
-	githubAccounts, err := NewGitHubCLIScanner().ScanAccounts()
+	githubScanner := NewGitHubCLIScanner()
+	githubScanner.output = d.output
+	githubAccounts, err := githubScanner.ScanAccounts()
 	if err != nil {
 		return nil, fmt.Errorf("GitHub CLI scan failed: %w", err)
 	}
-	fmt.Println()
-	sshAccounts, err := NewSSHOnlyScanner().ScanSSHKeys()
+	fmt.Fprintln(d.output)
+	sshScanner := NewSSHOnlyScanner()
+	sshScanner.output = d.output
+	sshAccounts, err := sshScanner.ScanSSHKeys()
 	if err != nil {
 		return nil, fmt.Errorf("SSH scan failed: %w", err)
 	}
-	fmt.Println()
-	gpgAccounts, err := NewGPGScanner().ScanGPGKeys()
+	fmt.Fprintln(d.output)
+	gpgScanner := NewGPGScanner()
+	gpgScanner.output = d.output
+	gpgAccounts, err := gpgScanner.ScanGPGKeys()
 	if err != nil {
 		return nil, fmt.Errorf("GPG scan failed: %w", err)
 	}
-	fmt.Println()
+	fmt.Fprintln(d.output)
 
 	merged := d.mergeAccounts(githubAccounts, sshAccounts, gpgAccounts)
-	fmt.Printf("🎯 Discovery complete: %d account(s) found\n", len(merged))
+	fmt.Fprintf(d.output, "🎯 Discovery complete: %d account(s) found\n", len(merged))
 	return merged, nil
 }
 

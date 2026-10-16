@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,7 @@ import (
 // SSHOnlyScanner handles SSH-only discovery without any GitHub API/CLI integration
 type SSHOnlyScanner struct {
 	homeDir string
+	output  io.Writer
 }
 
 // NewSSHOnlyScanner creates a new SSH-only scanner
@@ -26,14 +28,18 @@ func NewSSHOnlyScanner() *SSHOnlyScanner {
 
 	return &SSHOnlyScanner{
 		homeDir: homeDir,
+		output:  os.Stdout,
 	}
 }
 
 // ScanSSHKeys scans ~/.ssh for existing SSH keys and extracts account information
 func (s *SSHOnlyScanner) ScanSSHKeys() ([]*DiscoveredAccount, error) {
+	if s.output == nil {
+		s.output = io.Discard
+	}
 	var discovered []*DiscoveredAccount
 
-	fmt.Println("🔍 Scanning SSH keys in ~/.ssh directory (SSH-only mode)...")
+	fmt.Fprintln(s.output, "🔍 Scanning SSH keys in ~/.ssh directory (SSH-only mode)...")
 
 	sshDir := filepath.Join(s.homeDir, ".ssh")
 	if _, err := os.Stat(sshDir); os.IsNotExist(err) {
@@ -65,7 +71,7 @@ func (s *SSHOnlyScanner) ScanSSHKeys() ([]*DiscoveredAccount, error) {
 		}
 	}
 
-	fmt.Printf("✅ Found %d SSH key(s)\n", len(discovered))
+	fmt.Fprintf(s.output, "✅ Found %d SSH key(s)\n", len(discovered))
 	return discovered, nil
 }
 
@@ -74,7 +80,7 @@ func (s *SSHOnlyScanner) createAccountFromSSHKey(privateKeyPath, publicKeyPath s
 	// Extract email from public key comment
 	email := s.extractEmailFromPublicKey(publicKeyPath)
 	if email == "" {
-		fmt.Printf("⚠️  Skipping SSH key %s (no email found)\n", filepath.Base(privateKeyPath))
+		fmt.Fprintf(s.output, "⚠️  Skipping SSH key %s (no email found)\n", filepath.Base(privateKeyPath))
 		return nil
 	}
 
@@ -96,7 +102,7 @@ func (s *SSHOnlyScanner) createAccountFromSSHKey(privateKeyPath, publicKeyPath s
 		confidence = 9 // Even higher if we have clear username
 	}
 
-	fmt.Printf("🔑 Found SSH key: %s -> %s (%s)\n", alias, name, email)
+	fmt.Fprintf(s.output, "🔑 Found SSH key: %s -> %s (%s)\n", alias, name, email)
 
 	// Only set GitHubUsername if it's a valid GitHub username format
 	// (alphanumeric and hyphens only, no dots or other special characters)

@@ -6,6 +6,19 @@ This is the current-source command set. The latest public binary is older; see [
 
 ## Account lifecycle
 
+### `ui [--inline]`
+
+Alias: `tui`. Opens the interactive terminal UI. It requires TTY input and
+output and fails before configuration initialization when either is redirected.
+The default uses the alternate screen; `--inline` renders in the current screen
+buffer. `--config PATH` is honored.
+
+The UI supports the dashboard/current account, account list/details and
+validated add/edit, confirmed normal switching and removal, directory-rule
+list/add/remove, and read-only discovery followed by selected atomic additive
+import. It never exposes provider tokens. Force switching, skipped validation,
+and key generation remain CLI-only.
+
 ### `add ALIAS`
 
 Adds an account. Without all required values it prompts interactively; `--non-interactive` disables prompts.

@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Interactive terminal UI**: Added `gitshift ui` (`tui`) using Bubble Tea,
+  Bubbles, and Lip Gloss, with account and directory-rule management, confirmed
+  validated switching/removal, selective multi-account discovery import,
+  responsive help/status views, light/dark styling, and `NO_COLOR` support.
+- **Atomic discovery import**: The terminal UI validates every selected account
+  before adding the batch in one configuration write without replacing existing
+  state.
 - **GPG Key Discovery**: Automatic discovery of GPG signing keys from system keyring
   - Scans GPG keyring for secret keys with signing capability
   - Merges SSH and GPG key information by email address
