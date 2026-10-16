@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	gitshiftconfig "github.com/techishthoughts/gitshift/internal/config"
 )
 
 var cfgFile string
@@ -49,6 +50,13 @@ Features:
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() error {
 	return rootCmd.Execute()
+}
+
+func newConfigManager() *gitshiftconfig.Manager {
+	if cfgFile != "" {
+		return gitshiftconfig.NewManagerWithPath(cfgFile)
+	}
+	return gitshiftconfig.NewManager()
 }
 
 func init() {
