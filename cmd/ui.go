@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -50,7 +52,20 @@ func runUICommand(cmd *cobra.Command, _ []string) error {
 		},
 	}
 	model := gitshifttui.NewWithContext(cmd.Context(), service, inline)
-	_, err := tea.NewProgram(model).Run()
+	program := tea.NewProgram(model, tea.WithoutSignals())
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-signals:
+			program.Send(gitshifttui.QuitRequestedMsg{})
+		case <-done:
+		}
+	}()
+	_, err := program.Run()
+	close(done)
+	signal.Stop(signals)
 	return err
 }
 

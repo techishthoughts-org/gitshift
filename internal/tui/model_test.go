@@ -228,6 +228,36 @@ func TestQuitWaitsForMutationAndPostMutationReload(t *testing.T) {
 	}
 }
 
+func TestSignalQuitRequestWaitsForMutationAndPostMutationReload(t *testing.T) {
+	base := &fakeService{snapshot: Snapshot{Accounts: []Account{{Alias: "personal"}}}}
+	service := &blockingService{fakeService: base, started: make(chan struct{}), release: make(chan struct{}), completed: make(chan struct{})}
+	m := initialize(t, New(service, true))
+	m, _ = step(t, m, press('1'))
+	m, _ = step(t, m, press('s'))
+	m, mutationCmd := step(t, m, press('y'))
+	result := make(chan tea.Msg, 1)
+	go func() { result <- mutationCmd() }()
+	select {
+	case <-service.started:
+	case <-time.After(time.Second):
+		t.Fatal("mutation did not start")
+	}
+
+	m, quitCmd := step(t, m, QuitRequestedMsg{})
+	if quitCmd != nil || !m.pendingQuit || !m.busy {
+		t.Fatal("signal request exited while mutation was active")
+	}
+	close(service.release)
+	m, reloadCmd := step(t, m, <-result)
+	if !m.busy || reloadCmd == nil {
+		t.Fatal("model did not refresh after mutation")
+	}
+	m, quitCmd = step(t, m, reloadCmd())
+	if quitCmd == nil || m.busy {
+		t.Fatal("signal request did not quit after the safe boundary")
+	}
+}
+
 func TestNoColorPresenceAndRenderSanitization(t *testing.T) {
 	t.Setenv("NO_COLOR", "")
 	f := &fakeService{snapshot: Snapshot{Current: "\x1b]52;c;secret\aevil\nnext", Accounts: []Account{{Alias: "\x1b[31mwork\x1b[0m", Username: "user\rname", Domain: "github.com"}}}}

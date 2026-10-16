@@ -55,6 +55,11 @@ type mutationMsg struct {
 	err   error
 }
 
+// QuitRequestedMsg asks the UI to exit at the next safe boundary. The Cobra
+// adapter uses it for SIGINT and SIGTERM so operating-system signals cannot
+// bypass an in-flight mutation and its rollback/refresh path.
+type QuitRequestedMsg struct{}
+
 type Model struct {
 	service          Service
 	ctx              context.Context
@@ -111,6 +116,13 @@ func (m *Model) beginOperation(status string) uint64 {
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case QuitRequestedMsg:
+		if m.busy {
+			m.pendingQuit = true
+			m.status = "Finishing the current operation before quitting..."
+			return m, nil
+		}
+		return m, tea.Quit
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		inputWidth := max(12, min(72, msg.Width-6))
