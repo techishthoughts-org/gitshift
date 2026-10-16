@@ -5,7 +5,7 @@ import "errors"
 // Common errors for the application
 var (
 	// Account validation errors
-	ErrInvalidAlias                = errors.New("account alias cannot be empty")
+	ErrInvalidAlias                = errors.New("account alias must start with a letter or digit and contain only letters, digits, dots, underscores, or hyphens (maximum 64 characters)")
 	ErrInvalidName                 = errors.New("account name cannot be empty")
 	ErrInvalidEmail                = errors.New("account email cannot be empty")
 	ErrInvalidGitHubUsername       = errors.New("GitHub username cannot be empty")

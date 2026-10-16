@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -19,9 +18,7 @@ its alias, name, email, and platform.
 
 Works with all supported platforms:
 - GitHub (github.com and GitHub Enterprise)
-- GitLab (gitlab.com and self-hosted)
-- Bitbucket (coming soon)
-- Custom Git platforms`,
+- GitLab (gitlab.com and self-hosted)`,
 	Aliases: []string{"c", "whoami"},
 	RunE:    runCurrentCommand,
 }
@@ -43,9 +40,12 @@ func runCurrentCommand(cmd *cobra.Command, args []string) error {
 
 	if jsonOutput {
 		// Output in JSON format
-		encoder := json.NewEncoder(os.Stdout)
+		encoder := json.NewEncoder(cmd.OutOrStdout())
 		encoder.SetIndent("", "  ")
-		if err := encoder.Encode(account); err != nil {
+		entry := newAccountJSON(account)
+		entry.SSHKeyPath = ""
+		entry.GPGKeyFingerprint = ""
+		if err := encoder.Encode(entry); err != nil {
 			return fmt.Errorf("failed to encode account as JSON: %w", err)
 		}
 		return nil

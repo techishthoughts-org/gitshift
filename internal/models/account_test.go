@@ -32,3 +32,40 @@ func TestAccountValidatePlatformFields(t *testing.T) {
 		t.Fatal("expected injected domain to be rejected")
 	}
 }
+
+func TestAccountValidateRejectsUnsafeAliases(t *testing.T) {
+	for _, alias := range []string{"../outside", "nested/key", `nested\key`, ".", "..", "has space", "-option"} {
+		t.Run(alias, func(t *testing.T) {
+			account := NewAccount(alias, "Test User", "test@example.com", "")
+			if err := account.Validate(); err != ErrInvalidAlias {
+				t.Fatalf("Validate() error = %v, want ErrInvalidAlias", err)
+			}
+		})
+	}
+}
+
+func TestValidateAlias(t *testing.T) {
+	for _, alias := range []string{"personal", "work.github", "team_2", "A-1"} {
+		if err := ValidateAlias(alias); err != nil {
+			t.Errorf("ValidateAlias(%q) error = %v", alias, err)
+		}
+	}
+	for _, alias := range []string{"", ".", "..", "has space", "-option", "nested/key"} {
+		if err := ValidateAlias(alias); err != ErrInvalidAlias {
+			t.Errorf("ValidateAlias(%q) error = %v, want ErrInvalidAlias", alias, err)
+		}
+	}
+}
+
+func TestAccountValidateAppliesGitHubUsernameRulesToCanonicalUsername(t *testing.T) {
+	account := NewAccount("work", "Work User", "work@example.com", "")
+	account.Platform = "github"
+	account.Username = "invalid_name"
+	if err := account.Validate(); err != ErrInvalidGitHubUsernameFormat {
+		t.Fatalf("Validate() error = %v, want ErrInvalidGitHubUsernameFormat", err)
+	}
+	account.Platform = "gitlab"
+	if err := account.Validate(); err != nil {
+		t.Fatalf("GitLab username was incorrectly rejected: %v", err)
+	}
+}

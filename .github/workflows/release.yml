@@ -1,0 +1,264 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Exact release tag (for example v1.5.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  GO_VERSION: '1.26.0'
+  BINARY_NAME: gitshift
+
+jobs:
+  release:
+    name: Release ${{ inputs.version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Validate release request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error::Run releases from the main branch, not $GITHUB_REF"
+            exit 1
+          fi
+
+          if [[ ! "$VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Version must be an exact stable semantic version such as v1.5.0"
+            exit 1
+          fi
+
+          git fetch --force --tags origin main
+          if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
+            echo "::error::The dispatched commit is no longer the current origin/main HEAD. Rerun the workflow."
+            exit 1
+          fi
+
+          if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
+            echo "::error::Tag $VERSION already exists"
+            exit 1
+          fi
+
+          RELEASE_PROBE="$RUNNER_TEMP/release-probe.json"
+          if ! RELEASE_STATUS="$(curl --silent --show-error \
+            --output "$RELEASE_PROBE" \
+            --write-out '%{http_code}' \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header 'Accept: application/vnd.github+json' \
+            --header 'X-GitHub-Api-Version: 2022-11-28' \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/releases/tags/$VERSION")"; then
+            echo "::error::Unable to confirm that release $VERSION does not exist"
+            exit 1
+          fi
+
+          case "$RELEASE_STATUS" in
+            404)
+              ;;
+            200)
+              echo "::error::Release $VERSION already exists"
+              exit 1
+              ;;
+            *)
+              echo "::error::GitHub API returned HTTP $RELEASE_STATUS while checking release $VERSION"
+              cat "$RELEASE_PROBE"
+              exit 1
+              ;;
+          esac
+
+          LATEST_TAG="$(git tag --list \
+            | grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' \
+            | grep -vxF "$VERSION" \
+            | sort -V \
+            | tail -n 1 || true)"
+
+          if [[ -n "$LATEST_TAG" ]]; then
+            if [[ "$(printf '%s\n%s\n' "$LATEST_TAG" "$VERSION" | sort -V | tail -n 1)" != "$VERSION" ]]; then
+              echo "::error::Version $VERSION must be greater than the latest stable tag $LATEST_TAG"
+              exit 1
+            fi
+            if ! git merge-base --is-ancestor "$LATEST_TAG" HEAD; then
+              echo "::error::Latest stable tag $LATEST_TAG is not an ancestor of main"
+              exit 1
+            fi
+            if [[ "$(git rev-list --count "$LATEST_TAG..HEAD")" -eq 0 ]]; then
+              echo "::error::There are no commits to release after $LATEST_TAG"
+              exit 1
+            fi
+          fi
+
+          echo "Validated $VERSION from $GITHUB_SHA (previous: ${LATEST_TAG:-none})"
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build release assets
+        env:
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TIME="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          LDFLAGS="-X github.com/techishthoughts/gitshift/cmd.version=$VERSION -X github.com/techishthoughts/gitshift/cmd.buildTime=$BUILD_TIME -w -s"
+          mkdir -p dist
+
+          while read -r GOOS GOARCH OUTPUT; do
+            echo "Building $OUTPUT"
+            CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" \
+              go build -trimpath -ldflags "$LDFLAGS" -o "dist/$OUTPUT" .
+          done <<'TARGETS'
+          linux amd64 gitshift-linux-amd64
+          linux arm64 gitshift-linux-arm64
+          darwin amd64 gitshift-darwin-amd64
+          darwin arm64 gitshift-darwin-arm64
+          windows amd64 gitshift-windows-amd64.exe
+          TARGETS
+
+          (cd dist && sha256sum gitshift-* > checksums.txt)
+
+      - name: Verify release assets
+        env:
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum --check checksums.txt)
+
+          VERSION_OUTPUT="$(./dist/gitshift-linux-amd64 --version)"
+          if [[ "$(head -n 1 <<< "$VERSION_OUTPUT")" != "gitshift $VERSION" ]]; then
+            echo "::error::Linux binary does not report gitshift $VERSION"
+            printf '%s\n' "$VERSION_OUTPUT"
+            exit 1
+          fi
+
+          EXPECTED_ASSETS=(
+            gitshift-linux-amd64
+            gitshift-linux-arm64
+            gitshift-darwin-amd64
+            gitshift-darwin-arm64
+            gitshift-windows-amd64.exe
+            checksums.txt
+          )
+          for asset in "${EXPECTED_ASSETS[@]}"; do
+            test -s "dist/$asset" || {
+              echo "::error::Missing or empty release asset: $asset"
+              exit 1
+            }
+          done
+
+          for asset in dist/gitshift-*; do
+            if ! grep -aF "$VERSION" "$asset" >/dev/null; then
+              echo "::error::$asset does not contain the expected embedded version"
+              exit 1
+            fi
+          done
+
+      - name: Preserve verified assets for recovery
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ inputs.version }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Create annotated tag
+        env:
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --force origin main
+          if [[ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]]; then
+            echo "::error::origin/main advanced after verification. No tag was created; rerun the workflow."
+            exit 1
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "$VERSION" "$GITHUB_SHA" -m "GitShift $VERSION"
+          git push origin "refs/tags/$VERSION"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          gh release create "$VERSION" dist/* \
+            --verify-tag \
+            --generate-notes \
+            --fail-on-no-commits \
+            --latest \
+            --title "GitShift $VERSION"
+
+      - name: Verify published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$(git cat-file -t "refs/tags/$VERSION")" != "tag" ]]; then
+            echo "::error::$VERSION is not an annotated tag"
+            exit 1
+          fi
+          if [[ "$(git rev-list -n 1 "$VERSION")" != "$GITHUB_SHA" ]]; then
+            echo "::error::$VERSION does not target $GITHUB_SHA"
+            exit 1
+          fi
+
+          EXPECTED="$(printf '%s\n' \
+            checksums.txt \
+            gitshift-darwin-amd64 \
+            gitshift-darwin-arm64 \
+            gitshift-linux-amd64 \
+            gitshift-linux-arm64 \
+            gitshift-windows-amd64.exe | sort)"
+          ACTUAL="$(gh release view "$VERSION" --json assets --jq '.assets[].name' | sort)"
+          if [[ "$ACTUAL" != "$EXPECTED" ]]; then
+            echo "::error::Published asset set does not match the release contract"
+            diff <(printf '%s\n' "$EXPECTED") <(printf '%s\n' "$ACTUAL") || true
+            exit 1
+          fi
+
+      - name: Release summary
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          {
+            echo "## Released $VERSION"
+            echo
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Assets: five platform binaries plus \`checksums.txt\`"
+            echo "- URL: https://github.com/$GITHUB_REPOSITORY/releases/tag/$VERSION"
+          } >> "$GITHUB_STEP_SUMMARY"

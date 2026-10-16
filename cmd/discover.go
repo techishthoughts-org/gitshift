@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -10,21 +12,29 @@ import (
 	"github.com/techishthoughts/gitshift/internal/models"
 )
 
+var applyDiscoveredAccount = switchAccount
+
 // discoverCmd represents the discover command
 var discoverCmd = &cobra.Command{
 	Use:   "discover",
 	Short: "Auto-discover existing Git accounts on your system",
 	Long: `Automatically discover and import existing Git accounts from:
 
+- Every authenticated GitHub CLI account on every configured host
 - SSH keys in ~/.ssh/ directory
 - GPG signing keys from system keyring
-- Matches SSH and GPG keys by email address
+- Matches provider, SSH, and GPG evidence only when email ownership is unambiguous
 
-Discovers accounts from all platforms:
-- GitHub (github.com and GitHub Enterprise)
-- GitLab (gitlab.com and self-hosted)
-- Bitbucket
-- Custom Git platforms
+GitHub CLI identities are keyed by provider, hostname, and username, so multiple
+accounts on github.com and GitHub Enterprise hosts remain separate. Discovery
+does not switch the active GitHub CLI account or store provider tokens.
+
+On a fresh interactive installation, discovery asks for aliases and which
+account to activate, then applies that account. Redirected and later discovery
+runs retain non-interactive import behavior. Incomplete higher-confidence
+results may be saved as pending metadata. Use --dry-run for a guaranteed
+read-only scan. --auto-import also permits otherwise complete results below the
+normal confidence threshold.
 
 Examples:
   # Discover all Git accounts (SSH + GPG)
@@ -34,7 +44,13 @@ Examples:
   gitshift discover --auto-import
 
   # Dry run to see what would be discovered
-  gitshift discover --dry-run`,
+  gitshift discover --dry-run
+
+  # Assign aliases by stable identity (repeat --alias for more accounts)
+  gitshift discover --alias 'github|github.com|octocat=personal'
+
+  # Prompt for aliases, accepting a suggestion with Enter
+  gitshift discover --prompt-aliases`,
 	RunE: runDiscoverCommand,
 }
 
@@ -44,17 +60,41 @@ func runDiscoverCommand(cmd *cobra.Command, args []string) error {
 }
 
 func runDiscoverCommandWithScanner(cmd *cobra.Command, args []string, scan func() ([]*discovery.DiscoveredAccount, error)) error {
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
+	overwrite, _ := cmd.Flags().GetBool("overwrite")
+	aliasSpecs, _ := cmd.Flags().GetStringArray("alias")
+	promptAliases, _ := cmd.Flags().GetBool("prompt-aliases")
+	interactiveSetup := false
+	var interactiveReader *bufio.Reader
+	if !dryRun && len(aliasSpecs) == 0 && !promptAliases && terminalCheck() {
+		// On a fresh interactive installation, discovery is the setup wizard:
+		// ask for meaningful aliases and apply one account before returning.
+		probeManager := newConfigManager()
+		if err := probeManager.LoadReadOnly(); err == nil && len(probeManager.ListAccounts()) == 0 {
+			interactiveSetup = true
+			promptAliases = true
+			interactiveReader = bufio.NewReader(cmd.InOrStdin())
+		}
+	}
+	customizeAliases := len(aliasSpecs) > 0 || promptAliases
+
 	configManager := newConfigManager()
-	if err := configManager.Load(); err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+	var loadErr error
+	if dryRun || customizeAliases {
+		loadErr = configManager.LoadReadOnly()
+	} else {
+		loadErr = configManager.Load()
+	}
+	if loadErr != nil {
+		return fmt.Errorf("failed to load configuration: %w", loadErr)
 	}
 
 	// Check if accounts already exist
 	existingAccounts := configManager.ListAccounts()
-	overwrite, _ := cmd.Flags().GetBool("overwrite")
+	existingPending := configManager.ListPendingAccounts()
 
-	if len(existingAccounts) > 0 {
-		if !overwrite {
+	if len(existingAccounts) > 0 && !dryRun {
+		if !overwrite && !customizeAliases {
 			fmt.Printf("⚠️  You already have %d account(s) configured.\n", len(existingAccounts))
 			fmt.Println("Use --overwrite to replace existing accounts.")
 			fmt.Println("\nExisting accounts:")
@@ -76,8 +116,28 @@ func runDiscoverCommandWithScanner(cmd *cobra.Command, args []string, scan func(
 
 	if len(discovered) == 0 {
 		fmt.Println("❌ No existing Git accounts found on your system.")
-		fmt.Println("💡 Use 'gitshift add-github username' for automatic setup!")
+		fmt.Println("💡 Use 'gitshift add ALIAS --name NAME --email EMAIL --username USERNAME' to add an account.")
 		return nil
+	}
+
+	if customizeAliases {
+		aliases, err := planDiscoveryAliasesWithReader(cmd, discovered, aliasSpecs, promptAliases, overwrite, existingAccounts, existingPending, interactiveReader)
+		if err != nil {
+			return fmt.Errorf("plan discovered aliases: %w", err)
+		}
+		for i, alias := range aliases {
+			discovered[i].Alias = alias
+		}
+
+		// Alias input and the complete plan are validated against a read-only
+		// snapshot first. Only a successful, non-dry-run plan may initialize,
+		// migrate, chmod, or otherwise prepare configuration for persistence.
+		if !dryRun {
+			configManager = newConfigManager()
+			if err := configManager.Load(); err != nil {
+				return fmt.Errorf("failed to prepare configuration for import: %w", err)
+			}
+		}
 	}
 
 	fmt.Printf("✅ Found %d potential account(s):\n\n", len(discovered))
@@ -86,8 +146,6 @@ func runDiscoverCommandWithScanner(cmd *cobra.Command, args []string, scan func(
 	var importedAccounts []*models.Account
 	var replacementPending []*models.PendingAccount
 	autoImport, _ := cmd.Flags().GetBool("auto-import")
-	dryRun, _ := cmd.Flags().GetBool("dry-run")
-
 	for i, account := range discovered {
 		fmt.Printf("📋 Account %d:\n", i+1)
 		fmt.Printf("   Alias: %s\n", account.Alias)
@@ -103,10 +161,11 @@ func runDiscoverCommandWithScanner(cmd *cobra.Command, args []string, scan func(
 		platformEmoji := "🐙" // GitHub octopus
 		if platform == "gitlab" {
 			platformEmoji = "🦊" // GitLab fox
-		} else if platform == "bitbucket" {
-			platformEmoji = "🪣" // Bitbucket bucket
 		}
 		fmt.Printf("   Platform: %s %s\n", platformEmoji, strings.ToUpper(platform[:1])+platform[1:])
+		if account.Domain != "" {
+			fmt.Printf("   Host: %s\n", account.Domain)
+		}
 
 		if account.GitHubUsername != "" {
 			fmt.Printf("   Username: @%s\n", account.GitHubUsername)
@@ -126,6 +185,9 @@ func runDiscoverCommandWithScanner(cmd *cobra.Command, args []string, scan func(
 		}
 
 		fmt.Printf("   Source: %s\n", account.Source)
+		if account.IdentityKey != "" {
+			fmt.Printf("   Identity: %s\n", account.IdentityKey)
+		}
 		fmt.Printf("   Confidence: %d/10\n", account.Confidence)
 
 		// More lenient import criteria - allow import if we have at least name OR email, and confidence is reasonable
@@ -204,7 +266,7 @@ func runDiscoverCommandWithScanner(cmd *cobra.Command, args []string, scan func(
 
 					// Provide specific completion command based on what's missing
 					if account.GitHubUsername != "" {
-						fmt.Printf("   💡 Complete with: gitshift complete %s", account.Alias)
+						fmt.Printf("   💡 Recreate with: gitshift add %s --username %s", account.Alias, account.GitHubUsername)
 						if account.Name == "" {
 							fmt.Printf(" --name \"Your Name\"")
 						}
@@ -213,7 +275,7 @@ func runDiscoverCommandWithScanner(cmd *cobra.Command, args []string, scan func(
 						}
 						fmt.Println()
 					} else {
-						fmt.Printf("   💡 Complete with: gitshift add-github USERNAME --alias %s", account.Alias)
+						fmt.Printf("   💡 Recreate with: gitshift add %s --username USERNAME", account.Alias)
 						if account.Name != "" {
 							fmt.Printf(" --name \"%s\"", account.Name)
 						} else {
@@ -238,7 +300,7 @@ func runDiscoverCommandWithScanner(cmd *cobra.Command, args []string, scan func(
 				if account.Name == "" && account.Email == "" {
 					reasons = append(reasons, "missing name and email")
 					if account.GitHubUsername != "" {
-						recommendations = append(recommendations, fmt.Sprintf("gitshift add-github %s --name \"Your Name\" --email \"your@email.com\"", account.GitHubUsername))
+						recommendations = append(recommendations, fmt.Sprintf("gitshift add %s --username %s --name \"Your Name\" --email \"your@email.com\"", account.Alias, account.GitHubUsername))
 					} else if account.Alias != "" {
 						recommendations = append(recommendations, fmt.Sprintf("gitshift add %s --name \"Your Name\" --email \"your@email.com\"", account.Alias))
 					} else {
@@ -247,7 +309,7 @@ func runDiscoverCommandWithScanner(cmd *cobra.Command, args []string, scan func(
 				}
 				if account.GitHubUsername == "" && account.SSHKeyPath == "" {
 					reasons = append(reasons, "missing GitHub username and SSH key")
-					recommendations = append(recommendations, "gitshift add-github USERNAME")
+					recommendations = append(recommendations, fmt.Sprintf("gitshift add %s --username USERNAME", account.Alias))
 				}
 
 				fmt.Printf("%s\n", strings.Join(reasons, ", "))
@@ -257,7 +319,7 @@ func runDiscoverCommandWithScanner(cmd *cobra.Command, args []string, scan func(
 					fmt.Printf("   💡 To add this account:")
 					if account.GitHubUsername != "" {
 						// We have GitHub username, suggest completing with missing fields
-						fmt.Printf(" gitshift add-github %s", account.GitHubUsername)
+						fmt.Printf(" gitshift add %s --username %s", account.Alias, account.GitHubUsername)
 						if len(recommendations) > 1 {
 							fmt.Printf(" %s", strings.Join(recommendations[1:], " "))
 						}
@@ -267,7 +329,7 @@ func runDiscoverCommandWithScanner(cmd *cobra.Command, args []string, scan func(
 						// Filter out the generic recommendation and use specific ones
 						specificRecommendations := []string{}
 						for _, rec := range recommendations {
-							if rec != "gitshift add-github USERNAME" {
+							if rec != fmt.Sprintf("gitshift add %s --username USERNAME", account.Alias) {
 								specificRecommendations = append(specificRecommendations, rec)
 							}
 						}
@@ -302,6 +364,17 @@ func runDiscoverCommandWithScanner(cmd *cobra.Command, args []string, scan func(
 		fmt.Printf("🎉 Successfully imported %d account(s)!\n", imported)
 		fmt.Println("💡 Use 'gitshift list' to see all accounts")
 
+		if interactiveSetup {
+			activeAlias, err := promptForActiveAccount(cmd, interactiveReader, importedAccounts)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("\n🔄 Applying account '%s'...\n", activeAlias)
+			if err := applyDiscoveredAccount(cmd, configManager, activeAlias, false, false, false); err != nil {
+				return fmt.Errorf("apply discovered account %q: %w", activeAlias, err)
+			}
+		}
+
 		// Automatically test SSH for imported accounts
 		if !dryRun {
 			fmt.Println("\n🔐 Testing SSH connectivity for imported accounts...")
@@ -323,12 +396,48 @@ func runDiscoverCommandWithScanner(cmd *cobra.Command, args []string, scan func(
 		pendingAccounts := configManager.ListPendingAccounts()
 		if len(pendingAccounts) > 0 {
 			fmt.Printf("\n📋 Found %d pending account(s) that need completion\n", len(pendingAccounts))
-			fmt.Println("💡 Use 'gitshift pending' to see pending accounts")
-			fmt.Println("💡 Use 'gitshift complete <alias>' to complete pending accounts")
+			fmt.Println("💡 Use 'gitshift list' to see pending accounts")
+			fmt.Println("💡 Recreate pending entries with 'gitshift add <alias> --name NAME --email EMAIL --username USERNAME'")
 		}
 	}
 
 	return nil
+}
+
+func promptForActiveAccount(cmd *cobra.Command, reader *bufio.Reader, accounts []*models.Account) (string, error) {
+	if len(accounts) == 0 {
+		return "", fmt.Errorf("no imported account is available to activate")
+	}
+	if len(accounts) == 1 {
+		return accounts[0].Alias, nil
+	}
+	if reader == nil {
+		reader = bufio.NewReader(cmd.InOrStdin())
+	}
+	fmt.Fprintln(cmd.OutOrStdout(), "\nChoose the account to activate now:")
+	for i, account := range accounts {
+		fmt.Fprintf(cmd.OutOrStdout(), "  %d) %s (@%s)\n", i+1, account.Alias, account.GetUsername())
+	}
+	for {
+		fmt.Fprintf(cmd.OutOrStdout(), "Account [1]: ")
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			return "", fmt.Errorf("read account selection: %w", err)
+		}
+		response = strings.TrimSpace(response)
+		if response == "" {
+			return accounts[0].Alias, nil
+		}
+		if index, err := strconv.Atoi(response); err == nil && index >= 1 && index <= len(accounts) {
+			return accounts[index-1].Alias, nil
+		}
+		for _, account := range accounts {
+			if response == account.Alias {
+				return account.Alias, nil
+			}
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), "Enter a listed number or alias.")
+	}
 }
 
 // testSSHForAccount performs basic SSH testing for a discovered account
@@ -363,6 +472,8 @@ func init() {
 	rootCmd.AddCommand(discoverCmd)
 
 	discoverCmd.Flags().Bool("dry-run", false, "Show what would be discovered without importing")
-	discoverCmd.Flags().Bool("auto-import", false, "Automatically import suitable accounts")
+	discoverCmd.Flags().Bool("auto-import", false, "Also import complete results below the normal confidence threshold")
 	discoverCmd.Flags().Bool("overwrite", false, "Allow discovery even when accounts already exist")
+	discoverCmd.Flags().StringArray("alias", nil, "Set an alias with SELECTOR=ALIAS (repeatable; selector is an identity key or unique suggested alias)")
+	discoverCmd.Flags().Bool("prompt-aliases", false, "Prompt for aliases not assigned with --alias")
 }

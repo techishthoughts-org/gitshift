@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -18,20 +19,19 @@ import (
 // switchCmd represents the switch command
 var switchCmd = &cobra.Command{
 	Use:   "switch [account-alias]",
-	Short: "🔄 Switch to a different Git account (GitHub, GitLab, etc.)",
+	Short: "🔄 Switch to a GitHub or GitLab account",
 	Long: `Switch to a different Git platform account with comprehensive configuration.
 
 This command will:
 - Switch SSH configuration and keys
-- Update Git user.name and user.email
-- Update platform token environment (if applicable)
-- Test the connection
+- Update global Git identity and the current repository when applicable
+- Update optional GPG signing configuration
+- Select the matching GitHub CLI account for GitHub profiles
+- Validate the resulting configuration and connection
 
 Works with all supported platforms:
 - GitHub (github.com and GitHub Enterprise)
 - GitLab (gitlab.com and self-hosted)
-- Bitbucket (coming soon)
-- Custom Git platforms
 
 Examples:
   # Switch to GitHub account
@@ -40,7 +40,7 @@ Examples:
 
   # Switch to GitLab account
   gitshift switch work-gitlab
-  gitshift switch personal-gitlab --validate-only
+  gitshift switch personal-gitlab --validate
 
   # Switch to self-hosted GitLab
   gitshift switch company-gitlab
@@ -59,14 +59,29 @@ func runSwitchCommand(cmd *cobra.Command, args []string) error {
 	force, _ := cmd.Flags().GetBool("force")
 	skipValidation, _ := cmd.Flags().GetBool("skip-validation")
 
-	configManager := config.NewManager()
+	configManager := newConfigManager()
+	release, err := configManager.AcquireSwitchLock()
+	if err != nil {
+		return fmt.Errorf("failed to acquire switch transaction: %w", err)
+	}
+	defer release()
 	if err := configManager.Load(); err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 	if validateOnly {
 		return validateAccount(configManager, accountAlias)
 	}
+	return switchAccount(cmd, configManager, accountAlias, force, skipValidation, false)
+}
 
+// switchAccount is the single transaction implementation used by manual and
+// directory-triggered switching. The caller must hold AcquireSwitchLock.
+func switchAccount(cmd *cobra.Command, configManager *config.Manager, accountAlias string, force, skipValidation, quiet bool) error {
+	outputf := func(format string, args ...any) {
+		if !quiet {
+			fmt.Printf(format, args...)
+		}
+	}
 	targetAccount, err := configManager.GetAccount(accountAlias)
 	if err != nil {
 		return fmt.Errorf("account '%s' not found", accountAlias)
@@ -94,88 +109,229 @@ func runSwitchCommand(cmd *cobra.Command, args []string) error {
 			if !force {
 				return fmt.Errorf("SSH preflight failed: %w", err)
 			}
-			fmt.Printf("⚠️  SSH validation failed; continuing due to --force: %v\n", err)
+			outputf("⚠️  SSH validation failed; continuing due to --force: %v\n", err)
 		}
 	}
 
-	fmt.Printf("🔄 Switching to account '%s'...\n", accountAlias)
-	fmt.Printf("   Name: %s\n", targetAccount.Name)
-	fmt.Printf("   Email: %s\n", targetAccount.Email)
+	previousState, err := captureSwitchState(targetAccount, force)
+	if err != nil {
+		return fmt.Errorf("switch preflight failed: %w", err)
+	}
+	rollback := func(cause error) error {
+		if rollbackErr := previousState.restore(); rollbackErr != nil {
+			return fmt.Errorf("%w (rollback also failed: %v)", cause, rollbackErr)
+		}
+		return cause
+	}
+
+	outputf("🔄 Switching to account '%s'...\n", accountAlias)
+	outputf("   Name: %s\n", targetAccount.Name)
+	outputf("   Email: %s\n", targetAccount.Email)
 
 	if targetAccount.SSHKeyPath != "" {
-		fmt.Printf("🔑 Updating SSH configuration for %s...\n", provider.GetSSHHost())
+		outputf("🔑 Updating SSH configuration for %s...\n", provider.GetSSHHost())
 		if err := ssh.NewManager().SwitchToAccountContext(ctx, accountAlias, targetAccount.SSHKeyPath, provider.GetSSHHost(), false); err != nil {
-			return fmt.Errorf("SSH switch failed: %w", err)
+			return rollback(fmt.Errorf("SSH switch failed: %w", err))
 		}
-		fmt.Printf("✅ SSH configuration updated; shared agent and shell startup files unchanged\n")
+		outputf("✅ SSH configuration updated; shared agent and shell startup files unchanged\n")
 	} else {
-		fmt.Printf("ℹ️  No SSH key configured for this account\n")
-		fmt.Printf("   Consider running: gitshift ssh-keygen %s\n", accountAlias)
+		outputf("ℹ️  No SSH key configured for this account\n")
+		outputf("   Consider running: gitshift ssh-keygen %s\n", accountAlias)
 	}
 
-	fmt.Printf("🔧 Updating Git configuration...\n")
+	outputf("🔧 Updating Git configuration...\n")
 	if err := updateGitConfig(targetAccount); err != nil {
-		return fmt.Errorf("failed to update Git configuration: %w", err)
+		return rollback(fmt.Errorf("failed to update Git configuration: %w", err))
 	} else {
-		fmt.Printf("✅ Git configuration updated\n")
+		outputf("✅ Git configuration updated\n")
 	}
 
 	// 2.5 Update GPG configuration if account has GPG key
 	if targetAccount.HasGPGKey() {
-		fmt.Printf("🔐 Configuring GPG signing...\n")
+		outputf("🔐 Configuring GPG signing...\n")
 		if err := updateGPGConfig(targetAccount); err != nil {
 			if force {
-				fmt.Printf("⚠️  GPG config update failed: %v (continuing due to --force)\n", err)
+				outputf("⚠️  GPG config update failed: %v (continuing due to --force)\n", err)
 			} else {
-				fmt.Printf("⚠️  GPG config update failed: %v\n", err)
-				fmt.Printf("   Git configuration updated but GPG signing may not work\n")
+				return rollback(fmt.Errorf("GPG config update failed: %w", err))
 			}
 		} else {
 			if targetAccount.IsGPGEnabled() {
-				fmt.Printf("✅ GPG signing enabled (key: %s)\n", targetAccount.GPGKeyID)
+				outputf("✅ GPG signing enabled (key: %s)\n", targetAccount.GPGKeyID)
 			} else {
-				fmt.Printf("ℹ️  GPG key configured but automatic signing is disabled\n")
-				fmt.Printf("   To enable: gitshift gpg-keygen %s --enable\n", accountAlias)
+				outputf("ℹ️  GPG key configured but automatic signing is disabled\n")
+				outputf("   To enable: gitshift gpg-keygen %s --enable\n", accountAlias)
 			}
 		}
 	} else {
 		// No GPG key, disable signing
-		fmt.Printf("🔓 Disabling GPG signing (no GPG key configured)...\n")
+		outputf("🔓 Disabling GPG signing (no GPG key configured)...\n")
 		if err := disableGPGSigning(); err != nil {
-			fmt.Printf("⚠️  Failed to disable GPG signing: %v\n", err)
+			if force {
+				outputf("⚠️  Failed to disable GPG signing: %v (continuing due to --force)\n", err)
+			} else {
+				return rollback(fmt.Errorf("failed to disable GPG signing: %w", err))
+			}
 		}
 	}
 
 	if targetAccount.GetPlatform() == "github" {
-		fmt.Printf("🔐 Switching GitHub CLI authentication...\n")
+		outputf("🔐 Switching GitHub CLI authentication...\n")
 		if err := switchGitHubCLI(targetAccount.GetDomain(), targetAccount.GetUsername()); err != nil {
 			if force {
-				fmt.Printf("⚠️  GitHub CLI switch failed: %v (continuing due to --force)\n", err)
+				outputf("⚠️  GitHub CLI switch failed: %v (continuing due to --force)\n", err)
 			} else {
-				return err
+				return rollback(err)
 			}
 		} else {
-			fmt.Printf("✅ GitHub CLI authentication updated\n")
+			previousState.ghChanged = true
+			outputf("✅ GitHub CLI authentication updated\n")
 		}
 	}
 
 	if !skipValidation && !force {
-		fmt.Printf("🧪 Testing configuration...\n")
+		outputf("🧪 Testing configuration...\n")
 		if err := testConfiguration(targetAccount); err != nil {
-			return fmt.Errorf("configuration validation failed: %w", err)
+			return rollback(fmt.Errorf("configuration validation failed: %w", err))
 		}
-		fmt.Printf("✅ Configuration test passed\n")
+		outputf("✅ Configuration test passed\n")
 	}
 
 	// Persist last so failed side effects never advertise the target as current.
 	if err := configManager.SetCurrentAccount(accountAlias); err != nil {
-		return fmt.Errorf("failed to set current account: %w", err)
+		return rollback(fmt.Errorf("failed to set current account: %w", err))
 	}
-	fmt.Printf("✅ gitshift configuration updated\n")
+	outputf("✅ gitshift configuration updated\n")
 
-	fmt.Printf("\n🎉 Successfully switched to account '%s'!\n", accountAlias)
-	fmt.Printf("   You can now use Git with the %s account configuration\n", accountAlias)
+	outputf("\n🎉 Successfully switched to account '%s'!\n", accountAlias)
+	outputf("   You can now use Git with the %s account configuration\n", accountAlias)
 
+	return nil
+}
+
+type configValueSnapshot struct {
+	scope  string
+	key    string
+	values []string
+}
+
+type switchState struct {
+	gitValues  []configValueSnapshot
+	sshPath    string
+	sshData    []byte
+	sshMode    os.FileMode
+	sshExisted bool
+	ghDomain   string
+	ghUser     string
+	ghChanged  bool
+}
+
+func captureSwitchState(target *models.Account, allowMissingGitHubState bool) (*switchState, error) {
+	home := os.Getenv("HOME")
+	if home == "" {
+		var err error
+		home, err = os.UserHomeDir()
+		if err != nil {
+			return nil, err
+		}
+	}
+	state := &switchState{sshPath: filepath.Join(home, ".ssh", "config")}
+	if info, err := os.Stat(state.sshPath); err == nil {
+		state.sshExisted = true
+		state.sshMode = info.Mode().Perm()
+		state.sshData, err = os.ReadFile(state.sshPath)
+		if err != nil {
+			return nil, fmt.Errorf("snapshot SSH config: %w", err)
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("inspect SSH config: %w", err)
+	}
+
+	keys := []string{"user.name", "user.email", "core.sshCommand", "user.signingkey", "commit.gpgsign", "tag.gpgsign"}
+	scopes := []string{"--global"}
+	if isGitRepo() {
+		scopes = append(scopes, "--local")
+	}
+	for _, scope := range scopes {
+		for _, key := range keys {
+			values, err := readGitConfigValues(scope, key)
+			if err != nil {
+				return nil, fmt.Errorf("snapshot git config %s: %w", key, err)
+			}
+			state.gitValues = append(state.gitValues, configValueSnapshot{scope: scope, key: key, values: values})
+		}
+	}
+
+	if target.GetPlatform() == "github" {
+		if _, err := exec.LookPath("gh"); err != nil {
+			if allowMissingGitHubState {
+				return state, nil
+			}
+			return nil, fmt.Errorf("GitHub CLI not found")
+		}
+		cmd := exec.Command("gh", "auth", "status", "--active", "--hostname", target.GetDomain(), "--json", "hosts", "--jq", ".hosts | add | .[0].login // empty")
+		output, err := cmd.Output()
+		if err != nil {
+			if allowMissingGitHubState {
+				return state, nil
+			}
+			return nil, fmt.Errorf("determine current GitHub CLI account: %w", err)
+		}
+		state.ghDomain = target.GetDomain()
+		state.ghUser = strings.TrimSpace(string(output))
+		if state.ghUser == "" {
+			if allowMissingGitHubState {
+				state.ghDomain = ""
+				return state, nil
+			}
+			return nil, fmt.Errorf("GitHub CLI returned an empty active username")
+		}
+	}
+
+	return state, nil
+}
+
+func readGitConfigValues(scope, key string) ([]string, error) {
+	output, err := exec.Command("git", "config", scope, "--get-all", key).Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return nil, nil
+		}
+		return nil, err
+	}
+	text := strings.TrimSuffix(string(output), "\n")
+	if text == "" {
+		return []string{""}, nil
+	}
+	return strings.Split(text, "\n"), nil
+}
+
+func (s *switchState) restore() error {
+	var restoreErrors []string
+	if s.ghChanged && s.ghUser != "" {
+		if output, err := exec.Command("gh", "auth", "switch", "--hostname", s.ghDomain, "--user", s.ghUser).CombinedOutput(); err != nil {
+			restoreErrors = append(restoreErrors, fmt.Sprintf("GitHub CLI: %v (%s)", err, strings.TrimSpace(string(output))))
+		}
+	}
+	for i := len(s.gitValues) - 1; i >= 0; i-- {
+		snapshot := s.gitValues[i]
+		_ = exec.Command("git", "config", snapshot.scope, "--unset-all", snapshot.key).Run()
+		for _, value := range snapshot.values {
+			if err := exec.Command("git", "config", snapshot.scope, "--add", snapshot.key, value).Run(); err != nil {
+				restoreErrors = append(restoreErrors, fmt.Sprintf("git %s: %v", snapshot.key, err))
+			}
+		}
+	}
+	if s.sshExisted {
+		if err := os.WriteFile(s.sshPath, s.sshData, s.sshMode); err != nil {
+			restoreErrors = append(restoreErrors, fmt.Sprintf("SSH config: %v", err))
+		}
+	} else if err := os.Remove(s.sshPath); err != nil && !os.IsNotExist(err) {
+		restoreErrors = append(restoreErrors, fmt.Sprintf("SSH config: %v", err))
+	}
+	if len(restoreErrors) > 0 {
+		return fmt.Errorf("%s", strings.Join(restoreErrors, "; "))
+	}
 	return nil
 }
 
@@ -232,7 +388,8 @@ func validateAccount(configManager *config.Manager, accountAlias string) error {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			if err := sshManager.TestConnectionToPlatformContext(ctx, targetAccount.GetDomain(), keyPath); err != nil {
-				fmt.Printf("⚠️  SSH connection test failed: %v\n", err)
+				fmt.Printf("❌ SSH connection test failed: %v\n", err)
+				issues++
 			} else {
 				fmt.Printf("✅ SSH connection test passed\n")
 			}
@@ -274,11 +431,13 @@ func updateGitConfig(account *models.Account) error {
 
 	// Set SSH command to use the account's SSH key for proper isolation
 	if account.SSHKeyPath != "" {
-		sshCommand := fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes", shellQuote(account.SSHKeyPath))
+		sshCommand := isolatedGitSSHCommand(account.SSHKeyPath)
 		cmd := exec.Command("git", "config", "--global", "core.sshCommand", sshCommand)
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to set global git core.sshCommand: %w", err)
 		}
+	} else if err := clearGitConfigValue("--global", "core.sshCommand"); err != nil {
+		return fmt.Errorf("failed to clear global git core.sshCommand: %w", err)
 	}
 
 	// Check if we're in a Git repository and set local config too
@@ -299,15 +458,32 @@ func updateGitConfig(account *models.Account) error {
 
 		// Also set SSH command locally for better isolation
 		if account.SSHKeyPath != "" {
-			sshCommand := fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes", shellQuote(account.SSHKeyPath))
+			sshCommand := isolatedGitSSHCommand(account.SSHKeyPath)
 			cmd := exec.Command("git", "config", "--local", "core.sshCommand", sshCommand)
 			if err := cmd.Run(); err != nil {
 				return fmt.Errorf("failed to set local git core.sshCommand: %w", err)
 			}
+		} else if err := clearGitConfigValue("--local", "core.sshCommand"); err != nil {
+			return fmt.Errorf("failed to clear local git core.sshCommand: %w", err)
 		}
 	}
 
 	return nil
+}
+
+func isolatedGitSSHCommand(keyPath string) string {
+	return fmt.Sprintf("ssh -F %s -i %s -o IdentitiesOnly=yes -o IdentityAgent=none", shellQuote(os.DevNull), shellQuote(keyPath))
+}
+
+func clearGitConfigValue(scope, key string) error {
+	check := exec.Command("git", "config", scope, "--get-all", key)
+	if err := check.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return nil
+		}
+		return err
+	}
+	return exec.Command("git", "config", scope, "--unset-all", key).Run()
 }
 
 // switchGitHubCLI switches the GitHub CLI authentication
@@ -378,7 +554,7 @@ func shellQuote(value string) string {
 
 // getCurrentAccount returns the currently active account alias, or an error if not found
 func getCurrentAccount() (string, error) {
-	configManager := config.NewManager()
+	configManager := newConfigManager()
 	if err := configManager.Load(); err != nil {
 		return "", fmt.Errorf("failed to load configuration: %w", err)
 	}

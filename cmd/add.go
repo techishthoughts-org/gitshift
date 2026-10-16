@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/gitshift/internal/config"
 	"github.com/techishthoughts/gitshift/internal/git"
 	"github.com/techishthoughts/gitshift/internal/models"
 )
@@ -15,41 +14,38 @@ import (
 // addCmd represents the add command
 var addCmd = &cobra.Command{
 	Use:   "add [alias]",
-	Short: "Add a new Git platform account (GitHub, GitLab, etc.)",
+	Short: "Add a GitHub or GitLab account",
 	Long: `Add a new Git platform account to the configuration.
 
 Supported Platforms:
 - GitHub (github.com and GitHub Enterprise)
 - GitLab (gitlab.com and self-hosted)
-- Bitbucket (coming soon)
-- Custom Git platforms
 
-REQUIRED FIELDS: alias, name, email, github-username
+REQUIRED FIELDS: alias, name, email, username
 The command automatically detects if all required information is provided via flags
 and runs in non-interactive mode. If any required field is missing, it will prompt
 interactively unless --non-interactive is specified.
 
 Examples:
   # GitHub account
-  gitshift add work --name "Work User" --email "work@company.com" --github-username "workuser"
-  gitshift add personal --name "Personal User" --email "user@example.com" --github-username "username"
+  gitshift add work --name "Work User" --email "work@company.com" --username "workuser"
+  gitshift add personal --name "Personal User" --email "user@example.com" --username "username"
 
   # GitLab account
-  gitshift add gitlab-work --name "Work User" --email "work@company.com" --github-username "workuser"
+  gitshift add gitlab-work --platform gitlab --name "Work User" --email "work@company.com" --username "workuser"
 
   # Self-hosted GitLab
-  gitshift add company --name "Work" --email "work@company.com" --github-username "workuser" --ssh-key "~/.ssh/id_rsa_work"
+  gitshift add company --platform gitlab --domain gitlab.company.example --name "Work" --email "work@company.com" --username "workuser" --ssh-key "~/.ssh/id_rsa_work"
 
   # GitHub Enterprise
-  gitshift add enterprise --name "Enterprise User" --email "user@company.com" --github-username "user"
+  gitshift add enterprise --domain github.company.example --name "Enterprise User" --email "user@company.com" --username "user"
 
   gitshift add work --non-interactive  # will fail if required fields missing
 
-💡 TIP: Use 'gitshift add-github username' for automatic setup from GitHub API!
 💡 TIP: The --github-username flag works for any Git platform (naming is for backward compatibility)`,
 	Args: cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		configManager := config.NewManager()
+		configManager := newConfigManager()
 		if err := configManager.Load(); err != nil {
 			return fmt.Errorf("failed to load configuration: %w", err)
 		}
@@ -152,6 +148,7 @@ Examples:
 		account.Username = username
 		account.Domain = domain
 		account.APIEndpoint = apiEndpoint
+		account.IsDefault = setDefault
 		if provider == "github" {
 			account.GitHubUsername = username
 		}
@@ -170,13 +167,6 @@ Examples:
 		// Add the account to configuration
 		if err := configManager.AddAccount(account); err != nil {
 			return fmt.Errorf("failed to add account: %w", err)
-		}
-
-		// Set as default if requested or if it's the first account
-		if setDefault || len(configManager.GetConfig().Accounts) == 1 {
-			if err := configManager.SetCurrentAccount(alias); err != nil {
-				return fmt.Errorf("failed to set as current account: %w", err)
-			}
 		}
 
 		fmt.Printf("✅ Successfully added account '%s'\n", alias)

@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/gitshift/internal/config"
 )
 
 var sshKeygenCmd = &cobra.Command{
@@ -28,9 +27,7 @@ This command handles:
 
 The generated keys can be used with any Git platform:
 - GitHub (github.com and GitHub Enterprise)
-- GitLab (gitlab.com and self-hosted)
-- Bitbucket (coming soon)
-- Custom Git platforms`,
+- GitLab (gitlab.com and self-hosted)`,
 	Example: `  # Generate key for GitHub account
   gitshift ssh-keygen work-github
 
@@ -73,7 +70,7 @@ func runSSHKeygen(cmd *cobra.Command, args []string) error {
 	fmt.Printf("🔑 Generating SSH key for account: %s\n", accountAlias)
 
 	// Load configuration to check if account exists
-	configManager := config.NewManager()
+	configManager := newConfigManager()
 	if err := configManager.Load(); err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
@@ -118,14 +115,12 @@ func runSSHKeygen(cmd *cobra.Command, args []string) error {
 
 	// Update account if it exists
 	if account != nil {
-		account.SSHKeyPath = keyPath
-		// Remove and re-add the account to update it
-		if err := configManager.RemoveAccount(accountAlias); err == nil {
-			if err := configManager.AddAccount(account); err != nil {
-				fmt.Printf("⚠️  Warning: Failed to update account with new SSH key path: %v\n", err)
-			} else {
-				fmt.Printf("🔗 Updated account '%s' with new SSH key\n", accountAlias)
-			}
+		updated := *account
+		updated.SSHKeyPath = keyPath
+		if err := configManager.UpdateAccount(&updated); err != nil {
+			return fmt.Errorf("SSH key generated at %s, but failed to update account: %w", keyPath, err)
+		} else {
+			fmt.Printf("🔗 Updated account '%s' with new SSH key\n", accountAlias)
 		}
 	}
 

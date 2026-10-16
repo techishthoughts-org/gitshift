@@ -218,8 +218,23 @@ type Config struct {
 	// AutoDetect enables automatic account detection based on folder configuration
 	AutoDetect bool `json:"auto_detect" yaml:"auto_detect" mapstructure:"auto_detect"`
 
+	// AutoSwitch contains explicit directory-to-account routing rules.
+	AutoSwitch AutoSwitchConfig `json:"auto_switch" yaml:"auto_switch" mapstructure:"auto_switch"`
+
 	// ConfigVersion for future migrations
 	ConfigVersion string `json:"config_version" yaml:"config_version" mapstructure:"config_version"`
+}
+
+// AutoSwitchConfig groups directory-based account switching settings.
+type AutoSwitchConfig struct {
+	Rules []AutoSwitchRule `json:"rules,omitempty" yaml:"rules,omitempty" mapstructure:"rules"`
+}
+
+// AutoSwitchRule selects an existing account for a canonical directory tree.
+type AutoSwitchRule struct {
+	Path      string    `json:"path" yaml:"path" mapstructure:"path"`
+	Account   string    `json:"account" yaml:"account" mapstructure:"account"`
+	CreatedAt time.Time `json:"created_at" yaml:"created_at" mapstructure:"created_at"`
 }
 
 // ProjectConfig represents the project-specific configuration
@@ -295,7 +310,7 @@ func NewConfig() *Config {
 		PendingAccounts: make(map[string]*PendingAccount),
 		GlobalGitConfig: true, // Always use global Git config by default
 		AutoDetect:      true,
-		ConfigVersion:   "1.0.0",
+		ConfigVersion:   "1.1.0",
 	}
 }
 
@@ -310,7 +325,7 @@ func NewProjectConfig(accountAlias string) *ProjectConfig {
 // Validate checks if the account configuration is valid by verifying
 // required fields, email format, and GitHub username format.
 func (a *Account) Validate() error {
-	if a.Alias == "" {
+	if !isValidAlias(a.Alias) {
 		return ErrInvalidAlias
 	}
 
@@ -348,10 +363,28 @@ func (a *Account) Validate() error {
 	if a.GitHubUsername != "" && !isValidGitHubUsername(a.GitHubUsername) {
 		return ErrInvalidGitHubUsernameFormat
 	}
+	if platform == "github" && a.GetUsername() != "" && !isValidGitHubUsername(a.GetUsername()) {
+		return ErrInvalidGitHubUsernameFormat
+	}
 	if a.Username != "" && !isValidPlatformUsername(a.Username) {
 		return fmt.Errorf("invalid platform username")
 	}
 
+	return nil
+}
+
+var validAliasPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
+
+func isValidAlias(alias string) bool {
+	return validAliasPattern.MatchString(alias) && alias != "." && alias != ".."
+}
+
+// ValidateAlias checks whether alias is safe to use as a configuration key,
+// command argument, and generated SSH host suffix.
+func ValidateAlias(alias string) error {
+	if !isValidAlias(alias) {
+		return ErrInvalidAlias
+	}
 	return nil
 }
 
@@ -603,7 +636,7 @@ func (a *Account) SetUsername(username string) {
 // IsPlatformSupported checks if the account's platform is supported
 func (a *Account) IsPlatformSupported() bool {
 	platform := a.GetPlatform()
-	return platform == "github" || platform == "gitlab" || platform == "bitbucket"
+	return platform == "github" || platform == "gitlab"
 }
 
 // HasGPGKey returns true if the account has a GPG key configured

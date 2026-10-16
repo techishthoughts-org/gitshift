@@ -1,7 +1,9 @@
 package discovery
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +17,7 @@ import (
 // SSHOnlyScanner handles SSH-only discovery without any GitHub API/CLI integration
 type SSHOnlyScanner struct {
 	homeDir string
+	output  io.Writer
 }
 
 // NewSSHOnlyScanner creates a new SSH-only scanner
@@ -26,14 +29,23 @@ func NewSSHOnlyScanner() *SSHOnlyScanner {
 
 	return &SSHOnlyScanner{
 		homeDir: homeDir,
+		output:  os.Stdout,
 	}
 }
 
 // ScanSSHKeys scans ~/.ssh for existing SSH keys and extracts account information
 func (s *SSHOnlyScanner) ScanSSHKeys() ([]*DiscoveredAccount, error) {
+	return s.ScanSSHKeysContext(context.Background())
+}
+
+// ScanSSHKeysContext checks cancellation while walking local key metadata.
+func (s *SSHOnlyScanner) ScanSSHKeysContext(ctx context.Context) ([]*DiscoveredAccount, error) {
+	if s.output == nil {
+		s.output = io.Discard
+	}
 	var discovered []*DiscoveredAccount
 
-	fmt.Println("🔍 Scanning SSH keys in ~/.ssh directory (SSH-only mode)...")
+	fmt.Fprintln(s.output, "🔍 Scanning SSH keys in ~/.ssh directory (SSH-only mode)...")
 
 	sshDir := filepath.Join(s.homeDir, ".ssh")
 	if _, err := os.Stat(sshDir); os.IsNotExist(err) {
@@ -46,6 +58,9 @@ func (s *SSHOnlyScanner) ScanSSHKeys() ([]*DiscoveredAccount, error) {
 	}
 
 	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "id_") || strings.HasSuffix(entry.Name(), ".pub") {
 			continue
 		}
@@ -65,7 +80,7 @@ func (s *SSHOnlyScanner) ScanSSHKeys() ([]*DiscoveredAccount, error) {
 		}
 	}
 
-	fmt.Printf("✅ Found %d SSH key(s)\n", len(discovered))
+	fmt.Fprintf(s.output, "✅ Found %d SSH key(s)\n", len(discovered))
 	return discovered, nil
 }
 
@@ -74,7 +89,7 @@ func (s *SSHOnlyScanner) createAccountFromSSHKey(privateKeyPath, publicKeyPath s
 	// Extract email from public key comment
 	email := s.extractEmailFromPublicKey(publicKeyPath)
 	if email == "" {
-		fmt.Printf("⚠️  Skipping SSH key %s (no email found)\n", filepath.Base(privateKeyPath))
+		fmt.Fprintf(s.output, "⚠️  Skipping SSH key %s (no email found)\n", filepath.Base(privateKeyPath))
 		return nil
 	}
 
@@ -96,7 +111,7 @@ func (s *SSHOnlyScanner) createAccountFromSSHKey(privateKeyPath, publicKeyPath s
 		confidence = 9 // Even higher if we have clear username
 	}
 
-	fmt.Printf("🔑 Found SSH key: %s -> %s (%s)\n", alias, name, email)
+	fmt.Fprintf(s.output, "🔑 Found SSH key: %s -> %s (%s)\n", alias, name, email)
 
 	// Only set GitHubUsername if it's a valid GitHub username format
 	// (alphanumeric and hyphens only, no dots or other special characters)
@@ -125,37 +140,7 @@ func (s *SSHOnlyScanner) createAccountFromSSHKey(privateKeyPath, publicKeyPath s
 
 // detectPlatformFromEmail detects the Git platform based on email domain
 func (s *SSHOnlyScanner) detectPlatformFromEmail(email string) string {
-	if email == "" {
-		return "github" // Default
-	}
-
-	parts := strings.Split(email, "@")
-	if len(parts) != 2 {
-		return "github"
-	}
-	domain := strings.ToLower(parts[1])
-
-	// Direct platform detection
-	if strings.Contains(domain, "gitlab") {
-		return "gitlab"
-	}
-	if strings.Contains(domain, "github") {
-		return "github"
-	}
-	if strings.Contains(domain, "bitbucket") {
-		return "bitbucket"
-	}
-
-	// Corporate emails likely use GitLab or GitHub Enterprise
-	commonProviders := []string{"gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com"}
-	for _, provider := range commonProviders {
-		if domain == provider {
-			return "github" // Personal email defaults to GitHub
-		}
-	}
-
-	// Corporate email - default to GitLab
-	return "gitlab"
+	return detectPlatform(email)
 }
 
 // extractEmailFromPublicKey extracts email from SSH public key comment

@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/techishthoughts/gitshift/internal/config"
 )
 
 // removeCmd represents the remove command
@@ -13,15 +12,13 @@ var removeCmd = &cobra.Command{
 	Short: "Remove a Git platform account",
 	Long: `Remove a Git platform account from the configuration.
 
-This will permanently delete the account configuration. If the account
-being removed is currently active, the system will automatically switch
-to another account if available.
+This permanently deletes the account and its auto-switch rules from GitShift configuration. If the
+account is active, another configured default may be selected in the file,
+but Git, SSH, GPG, and provider CLI state are not switched automatically.
 
 Works with accounts from all platforms:
 - GitHub (github.com and GitHub Enterprise)
 - GitLab (gitlab.com and self-hosted)
-- Bitbucket (coming soon)
-- Custom Git platforms
 
 Examples:
   # Remove GitHub account
@@ -36,7 +33,7 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		alias := args[0]
 
-		configManager := config.NewManager()
+		configManager := newConfigManager()
 		if err := configManager.Load(); err != nil {
 			return fmt.Errorf("failed to load configuration: %w", err)
 		}
