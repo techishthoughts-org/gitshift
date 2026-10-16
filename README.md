@@ -71,10 +71,11 @@ gitshift switch personal
 gitshift current
 ```
 
-Prefer a guided interface? Open the opt-in terminal UI after adding or
-discovering accounts:
+Running `gitshift` without a subcommand opens the guided terminal UI. The
+explicit commands remain available as equivalents:
 
 ```bash
+gitshift
 gitshift ui
 # Alias: gitshift tui
 ```

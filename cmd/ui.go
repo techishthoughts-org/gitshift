@@ -37,12 +37,16 @@ Both input and output must be attached to a terminal.`,
 }
 
 func runUICommand(cmd *cobra.Command, _ []string) error {
+	inline, _ := cmd.Flags().GetBool("inline")
+	return runUI(cmd, inline)
+}
+
+func runUI(cmd *cobra.Command, inline bool) error {
 	// Check before constructing or loading the service: redirected invocations
 	// must not create a configuration file as a side effect.
 	if !terminalCheck() {
 		return fmt.Errorf("interactive UI requires a TTY for stdin and stdout")
 	}
-	inline, _ := cmd.Flags().GetBool("inline")
 	service := &uiService{
 		manager: newConfigManager(),
 		switchFn: func(ctx context.Context, manager *gitshiftconfig.Manager, alias string) error {

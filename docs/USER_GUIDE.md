@@ -11,12 +11,14 @@ Each account has a unique alias, a Git author name and email, a provider (`githu
 Run the full-screen interface from an interactive terminal:
 
 ```bash
+gitshift
 gitshift ui
 ```
 
-`gitshift tui` is an alias. Use `gitshift ui --inline` when you want output to
-remain in the current screen buffer. The global `--config PATH` flag works in
-both modes.
+Running `gitshift` without a subcommand opens the UI. `gitshift tui` is an
+alias for the explicit `ui` command. Use `gitshift ui --inline` when you want
+output to remain in the current screen buffer. The global `--config PATH` flag
+works in both modes.
 
 The dashboard links to accounts, directory rules, and discovery. Arrow keys or
 `j`/`k` move through lists, Enter opens an item, `?` opens help, Escape goes

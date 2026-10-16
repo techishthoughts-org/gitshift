@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Bubbles, and Lip Gloss, with account and directory-rule management, confirmed
   validated switching/removal, selective multi-account discovery import,
   responsive help/status views, light/dark styling, and `NO_COLOR` support.
+- **UI by default**: Running `gitshift` without a subcommand now opens the
+  interactive terminal UI; explicit subcommands and help/version flags retain
+  their existing behavior.
 - **Atomic discovery import**: The terminal UI validates every selected account
   before adding the batch in one configuration write without replacing existing
   state.

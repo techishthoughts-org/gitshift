@@ -28,6 +28,27 @@ func TestUIRejectsNonTTYBeforeCreatingConfig(t *testing.T) {
 	}
 }
 
+func TestRootCommandLaunchesUIByDefault(t *testing.T) {
+	oldLaunch := launchDefaultUI
+	t.Cleanup(func() { launchDefaultUI = oldLaunch })
+	called := 0
+	launchDefaultUI = func(cmd *cobra.Command) error {
+		called++
+		if cmd == nil {
+			t.Fatal("root command was not passed to UI launcher")
+		}
+		return nil
+	}
+	command := &cobra.Command{}
+	command.Flags().Bool("version", false, "")
+	if err := runRootCommand(command, nil); err != nil {
+		t.Fatal(err)
+	}
+	if called != 1 {
+		t.Fatalf("UI launch count = %d, want 1", called)
+	}
+}
+
 func TestUIServiceUsesConfiguredPathAndInjectedSwitch(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "custom", "accounts.yaml")
 	manager := gitshiftconfig.NewManagerWithPath(path)

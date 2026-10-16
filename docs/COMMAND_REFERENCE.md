@@ -1,15 +1,17 @@
 # Command reference
 
-Syntax is `gitshift [--config PATH] COMMAND`. Run `gitshift COMMAND --help` for the installed version.
+Syntax is `gitshift [--config PATH] [COMMAND]`. With no command, GitShift opens
+the terminal UI. Run `gitshift COMMAND --help` for the installed version.
 
 This is the current-source command set. The latest public binary is older; see [Installation](INSTALLATION.md).
 
 ## Account lifecycle
 
-### `ui [--inline]`
+### `gitshift` / `ui [--inline]`
 
-Alias: `tui`. Opens the interactive terminal UI. It requires TTY input and
-output and fails before configuration initialization when either is redirected.
+Running `gitshift` without a subcommand opens the interactive terminal UI.
+The explicit `ui` command and its `tui` alias do the same. The UI requires TTY
+input and output and fails before configuration initialization when either is redirected.
 The default uses the alternate screen; `--inline` renders in the current screen
 buffer. `--config PATH` is honored.
 

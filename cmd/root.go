@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"runtime"
 
@@ -12,9 +11,10 @@ import (
 )
 
 var (
-	cfgFile   string
-	version   = "dev"
-	buildTime = "unknown"
+	cfgFile         string
+	version         = "dev"
+	buildTime       = "unknown"
+	launchDefaultUI = func(cmd *cobra.Command) error { return runUI(cmd, false) }
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -34,18 +34,18 @@ Features:
 - 🔑 SSH key discovery from ~/.ssh directory
 - 📧 Identity discovery from SSH and GPG metadata
 - 🌐 Public and self-hosted GitHub/GitLab domains`,
-	Run: func(cmd *cobra.Command, args []string) {
-		// Check if version flag is set
-		if version, _ := cmd.Flags().GetBool("version"); version {
-			showVersion()
-			return
-		}
+	Args: cobra.NoArgs,
+	RunE: runRootCommand,
+}
 
-		// Show help if no command specified
-		if err := cmd.Help(); err != nil {
-			log.Printf("Error showing help: %v", err)
-		}
-	},
+func runRootCommand(cmd *cobra.Command, _ []string) error {
+	// Check if version flag is set
+	if version, _ := cmd.Flags().GetBool("version"); version {
+		showVersion()
+		return nil
+	}
+
+	return launchDefaultUI(cmd)
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
