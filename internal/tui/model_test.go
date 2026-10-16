@@ -100,7 +100,10 @@ func TestSwitchRequiresExplicitConfirmation(t *testing.T) {
 }
 
 func TestDiscoverySelectionAndImportAreExplicit(t *testing.T) {
-	f := &fakeService{found: []Discovery{{Identity: "github|github.com|one", Alias: "one"}, {Identity: "github|github.com|two", Alias: "two"}}}
+	f := &fakeService{found: []Discovery{
+		{Identity: "github|github.com|one", Alias: "one", Username: "one", Platform: "github", Domain: "github.com"},
+		{Identity: "github|github.com|two", Alias: "two", Username: "two", Platform: "github", Domain: "github.com"},
+	}}
 	m := New(f, true)
 	m = initialize(t, m)
 	m, cmd := step(t, m, press('3'))
@@ -304,6 +307,54 @@ func TestSelectedDiscoveryAliasCannotReplaceExistingAccount(t *testing.T) {
 	m := Model{snapshot: Snapshot{Accounts: []Account{{Alias: "work"}}}, discovered: []Discovery{{Alias: "WORK"}}, selected: map[int]bool{0: true}}
 	if err := m.validateSelectedImport(); err == nil {
 		t.Fatal("expected configured alias collision")
+	}
+}
+
+func TestSelectedDiscoveryMustBeReadyBeforeConfirmation(t *testing.T) {
+	m := Model{discovered: []Discovery{{Alias: "incomplete", Platform: "github", Domain: "github.com"}}, selected: map[int]bool{0: true}}
+	if err := m.validateSelectedImport(); err == nil || !strings.Contains(err.Error(), "not ready") {
+		t.Fatalf("error = %v, want actionable readiness failure", err)
+	}
+}
+
+type cancelDiscoveryService struct{ *fakeService }
+
+func (s *cancelDiscoveryService) Discover(ctx context.Context) ([]Discovery, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func TestQuitCancelsReadOnlyDiscovery(t *testing.T) {
+	service := &cancelDiscoveryService{fakeService: &fakeService{}}
+	m := initialize(t, New(service, true))
+	m, discoverCmd := step(t, m, press('3'))
+	result := make(chan tea.Msg, 1)
+	go func() { result <- discoverCmd() }()
+	m, quitCmd := step(t, m, press('q'))
+	if quitCmd != nil || !m.pendingQuit || m.discoveryCancel == nil {
+		t.Fatal("quit did not request discovery cancellation")
+	}
+	select {
+	case msg := <-result:
+		m, quitCmd = step(t, m, msg)
+		if quitCmd == nil || m.busy {
+			t.Fatal("UI did not quit after discovery cancellation completed")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("discovery context was not canceled")
+	}
+}
+
+func TestNarrowHelpRemainsIntelligible(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
+	m := initialize(t, New(&fakeService{}, true))
+	m, _ = step(t, m, tea.WindowSizeMsg{Width: 48, Height: 16})
+	m, _ = step(t, m, press('?'))
+	view := m.View().Content
+	for _, phrase := range []string{"q quits", "require confirmation", "selected, ready", "identities"} {
+		if !strings.Contains(view, phrase) {
+			t.Fatalf("narrow help lost %q: %q", phrase, view)
+		}
 	}
 }
 

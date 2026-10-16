@@ -74,6 +74,7 @@ type Model struct {
 	busy             bool
 	nextOp, activeOp uint64
 	pendingQuit      bool
+	discoveryCancel  context.CancelFunc
 	mutationStatus   string
 	mutationError    string
 	status, errText  string
@@ -119,7 +120,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case QuitRequestedMsg:
 		if m.busy {
 			m.pendingQuit = true
-			m.status = "Finishing the current operation before quitting..."
+			if m.discoveryCancel != nil {
+				m.discoveryCancel()
+				m.status = "Canceling discovery before quitting..."
+			} else {
+				m.status = "Finishing the current operation before quitting..."
+			}
 			return m, nil
 		}
 		return m, tea.Quit
@@ -166,6 +172,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.id != m.activeOp {
 			return m, nil
 		}
+		if m.discoveryCancel != nil {
+			m.discoveryCancel()
+			m.discoveryCancel = nil
+		}
 		m.busy = false
 		if msg.err != nil {
 			m.errText = msg.err.Error()
@@ -204,7 +214,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if ks == "ctrl+c" || (m.busy && ks == "q") {
 		if m.busy {
 			m.pendingQuit = true
-			m.status = "Finishing the current operation before quitting..."
+			if m.discoveryCancel != nil {
+				m.discoveryCancel()
+				m.status = "Canceling discovery before quitting..."
+			} else {
+				m.status = "Finishing the current operation before quitting..."
+			}
 			return m, nil
 		}
 		return m, tea.Quit
@@ -261,8 +276,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.screen, m.cursor = rules, 0
 		case "3", "d":
 			m.screen, m.cursor = discover, 0
-			id := m.beginOperation("Discovering accounts...")
-			return m, m.discoverCmd(id)
+			id, ctx := m.beginDiscovery()
+			return m, m.discoverCmd(id, ctx)
 		case "enter":
 			m.screen, m.cursor = accounts, 0
 		}
@@ -335,8 +350,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.openConfirm(importAction, fmt.Sprintf("%d selected account(s)", m.selectedCount()))
 			}
 		case "r":
-			id := m.beginOperation("Discovering accounts...")
-			return m, m.discoverCmd(id)
+			id, ctx := m.beginDiscovery()
+			return m, m.discoverCmd(id, ctx)
 		}
 	}
 	return m, nil
@@ -425,6 +440,12 @@ func (m Model) validateSelectedImport() error {
 	seen := make(map[string]string)
 	for i, selected := range m.selected {
 		if selected {
+			if i < 0 || i >= len(m.discovered) {
+				return fmt.Errorf("selected discovery result is no longer available")
+			}
+			if err := validateDiscovery(m.discovered[i]); err != nil {
+				return fmt.Errorf("%q is not ready to import: %w", m.discovered[i].Alias, err)
+			}
 			alias := m.discovered[i].Alias
 			if err := validateAlias(alias); err != nil {
 				return err
@@ -598,8 +619,15 @@ func validateAlias(s string) error {
 	return (&AccountInput{Alias: s, Name: "x", Email: "x@example.com", Username: "x", Platform: "github", Domain: "github.com"}).Validate()
 }
 
-func (m Model) discoverCmd(id uint64) tea.Cmd {
-	return func() tea.Msg { r, e := m.service.Discover(m.ctx); return discoveredMsg{id: id, results: r, err: e} }
+func (m *Model) beginDiscovery() (uint64, context.Context) {
+	id := m.beginOperation("Discovering accounts...")
+	ctx, cancel := context.WithCancel(m.ctx)
+	m.discoveryCancel = cancel
+	return id, ctx
+}
+
+func (m Model) discoverCmd(id uint64, ctx context.Context) tea.Cmd {
+	return func() tea.Msg { r, e := m.service.Discover(ctx); return discoveredMsg{id: id, results: r, err: e} }
 }
 func (m Model) mutation(id uint64, label string, fn func(context.Context) error) tea.Cmd {
 	return func() tea.Msg { return mutationMsg{id: id, label: label, err: fn(m.ctx)} }
@@ -692,8 +720,7 @@ func (m Model) discoveryState(d Discovery, index int) string {
 			return "blocked: duplicate alias"
 		}
 	}
-	in := AccountInput{Alias: d.Alias, Name: d.Name, Email: d.Email, Username: d.Username, Platform: d.Platform, Domain: d.Domain, SSHKeyPath: d.SSHKeyPath}
-	if err := in.Validate(); err == nil {
+	if err := validateDiscovery(d); err == nil {
 		return "ready"
 	}
 	missing := make([]string, 0, 2)
@@ -710,6 +737,11 @@ func (m Model) discoveryState(d Discovery, index int) string {
 		return "needs correction"
 	}
 	return "needs " + strings.Join(missing, ", ")
+}
+
+func validateDiscovery(d Discovery) error {
+	in := AccountInput{Alias: d.Alias, Name: d.Name, Email: d.Email, Username: d.Username, Platform: d.Platform, Domain: d.Domain, SSHKeyPath: d.SSHKeyPath}
+	return in.Validate()
 }
 
 func (m Model) footer() string {
@@ -729,7 +761,7 @@ func (m Model) footer() string {
 }
 
 func (m Model) helpText() string {
-	common := "Arrows or j/k navigate. Escape goes back. q quits."
+	common := "Arrows/j/k navigate. Esc goes back. q quits."
 	switch m.previous {
 	case dashboard:
 		return "1/Enter accounts. 2 directory rules. 3 discover.\n" + common
@@ -889,7 +921,8 @@ func (m Model) render() string {
 		}
 	case help:
 		b.WriteString(styles.heading.Render("Help"))
-		b.WriteString("\n" + m.helpText() + "\n\nAccount switching and removal always require confirmation.\nDiscovery never imports until identities are selected and confirmed.\nForce switching, skipped validation, and key generation remain CLI-only.\n")
+		helpBody := m.helpText() + "\n\nSwitch and remove require confirmation.\nDiscovery imports only selected, ready identities.\nUnsafe switches and key generation stay CLI-only."
+		b.WriteString("\n" + ansi.Wordwrap(helpBody, width, " ") + "\n")
 	case confirm:
 		verb := map[action]string{switchAction: "Switch to", removeAccountAction: "Remove account", removeRuleAction: "Remove directory rule", importAction: "Import"}[m.confirmAction]
 		b.WriteString(styles.warn.Render(fit(fmt.Sprintf("%s %s?", verb, m.confirmValue), width)))
