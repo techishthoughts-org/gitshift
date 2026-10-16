@@ -1,12 +1,16 @@
 package ssh
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
+
+	"github.com/techishthoughts/gitshift/internal/models"
 )
 
 // Manager handles SSH configuration and key management
@@ -30,50 +34,41 @@ func NewManager() *Manager {
 
 // SwitchToAccount switches SSH configuration to use the specified account with improved isolation
 func (m *Manager) SwitchToAccount(accountAlias, keyPath string) error {
-	// 1. Validate key exists and fix permissions
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return m.SwitchToAccountContext(ctx, accountAlias, keyPath, "github.com", true)
+}
+
+// SwitchToAccountContext updates the SSH host entry without mutating shell startup
+// files or clearing the caller's shared SSH agent. Validation is bounded by ctx.
+func (m *Manager) SwitchToAccountContext(ctx context.Context, accountAlias, keyPath, domain string, validate bool) error {
+	var err error
+	keyPath, err = models.NormalizeSSHKeyPath(keyPath)
+	if err != nil {
+		return err
+	}
+	if strings.IndexFunc(accountAlias+domain, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 || strings.ContainsAny(domain, " /\\") {
+		return fmt.Errorf("invalid SSH account alias or domain")
+	}
 	if _, err := os.Stat(keyPath); err != nil {
 		return fmt.Errorf("SSH key not found at %s: %w", keyPath, err)
 	}
 
-	// Fix key permissions if needed
+	// Refuse insecure permissions; switching must not silently mutate key files.
 	if info, err := os.Stat(keyPath); err == nil {
 		if info.Mode().Perm() != 0600 {
-			if err := os.Chmod(keyPath, 0600); err != nil {
-				return fmt.Errorf("failed to fix SSH key permissions: %w", err)
-			}
+			return fmt.Errorf("SSH key %s has permissions %o; expected 600", keyPath, info.Mode().Perm())
 		}
 	}
 
-	// 2. Update SSH config with improved isolation
-	if err := m.updateGitHubSSHConfigV2(accountAlias, keyPath); err != nil {
+	if validate {
+		if err := m.TestConnectionToPlatformContext(ctx, domain, keyPath); err != nil {
+			return err
+		}
+	}
+	if err := m.UpdateSSHConfig(accountAlias, keyPath, domain); err != nil {
 		return fmt.Errorf("failed to update SSH config: %w", err)
 	}
-
-	// 3. Clear SSH agent and load only the required key
-	if err := m.clearSSHAgent(); err != nil {
-		// Don't fail if SSH agent operations fail
-		fmt.Printf("⚠️  Warning: SSH agent clear failed: %v\n", err)
-	}
-
-	// 4. Add only the specific key to agent
-	if err := m.addKeyToAgent(keyPath); err != nil {
-		// Don't fail if SSH agent operations fail, SSH config should be enough
-		fmt.Printf("⚠️  Warning: SSH agent key loading failed: %v\n", err)
-	}
-
-	// 5. Update shell configuration with GIT_SSH_COMMAND
-	if err := m.updateShellConfig(accountAlias, keyPath); err != nil {
-		// Don't fail the entire operation if shell config update fails
-		fmt.Printf("⚠️  Warning: failed to update shell configuration: %v\n", err)
-	} else {
-		fmt.Printf("✅ Shell configuration updated for account: %s\n", accountAlias)
-	}
-
-	// 6. Test the connection (don't fail on error)
-	if err := m.TestConnection(); err != nil {
-		fmt.Printf("⚠️  Warning: SSH connection test failed: %v\n", err)
-	}
-
 	return nil
 }
 
@@ -277,8 +272,19 @@ func (m *Manager) TestConnection() error {
 
 // TestConnectionToPlatform tests the SSH connection to a specific platform domain
 func (m *Manager) TestConnectionToPlatform(domain string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return m.TestConnectionToPlatformContext(ctx, domain, "")
+}
+
+// TestConnectionToPlatformContext tests a host using an optional identity file.
+func (m *Manager) TestConnectionToPlatformContext(ctx context.Context, domain, keyPath string) error {
 	// Test SSH connection to the specified domain
-	testCmd := exec.Command("ssh", "-T", fmt.Sprintf("git@%s", domain))
+	args := []string{"-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-T", fmt.Sprintf("git@%s", domain)}
+	if keyPath != "" {
+		args = append([]string{"-i", keyPath, "-o", "IdentitiesOnly=yes"}, args...)
+	}
+	testCmd := exec.CommandContext(ctx, "ssh", args...)
 	output, err := testCmd.CombinedOutput()
 	outputStr := string(output)
 
@@ -315,6 +321,14 @@ func (m *Manager) updateGitHubSSHConfigV2(accountAlias, keyPath string) error {
 
 // UpdateSSHConfig updates the SSH config for a specific platform domain
 func (m *Manager) UpdateSSHConfig(accountAlias, keyPath, domain string) error {
+	if strings.IndexFunc(accountAlias+domain, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 || strings.ContainsAny(domain, " /\\\t") {
+		return fmt.Errorf("invalid SSH account alias or domain")
+	}
+	var err error
+	keyPath, err = models.NormalizeSSHKeyPath(keyPath)
+	if err != nil {
+		return err
+	}
 	// Ensure SSH directory exists
 	sshDir := filepath.Dir(m.configPath)
 	if err := os.MkdirAll(sshDir, 0700); err != nil {
@@ -338,7 +352,28 @@ func (m *Manager) UpdateSSHConfig(accountAlias, keyPath, domain string) error {
 	newConfig := m.buildIsolatedSSHConfigForPlatform(accountAlias, keyPath, domain, existingContent)
 
 	// Write the updated config
-	if err := os.WriteFile(m.configPath, []byte(newConfig), 0600); err != nil {
+	tmp, err := os.CreateTemp(sshDir, ".gitshift-ssh-config-*")
+	if err != nil {
+		return fmt.Errorf("create temporary SSH config: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if err := tmp.Chmod(0600); err != nil {
+		tmp.Close()
+		return err
+	}
+	if _, err := tmp.WriteString(newConfig); err != nil {
+		tmp.Close()
+		return fmt.Errorf("write temporary SSH config: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpName, m.configPath); err != nil {
 		return fmt.Errorf("failed to write SSH config: %w", err)
 	}
 
@@ -378,12 +413,16 @@ Host %s
     User git
     IdentityFile %s
     IdentitiesOnly yes
-    AddKeysToAgent yes
-    UseKeychain yes
 
-`, platformName, accountAlias, domain, domain, keyPath)
+`, platformName, accountAlias, domain, domain, quoteSSHConfigValue(keyPath))
 
 	return config
+}
+
+func quoteSSHConfigValue(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `"`, `\"`)
+	return `"` + value + `"`
 }
 
 // preserveNonGitHubConfig extracts and preserves non-GitHub host configurations

@@ -65,6 +65,10 @@ Examples:
 		name, _ := cmd.Flags().GetString("name")
 		email, _ := cmd.Flags().GetString("email")
 		githubUsername, _ := cmd.Flags().GetString("github-username")
+		username, _ := cmd.Flags().GetString("username")
+		provider, _ := cmd.Flags().GetString("platform")
+		domain, _ := cmd.Flags().GetString("domain")
+		apiEndpoint, _ := cmd.Flags().GetString("api-endpoint")
 		sshKey, _ := cmd.Flags().GetString("ssh-key")
 		description, _ := cmd.Flags().GetString("description")
 		setDefault, _ := cmd.Flags().GetBool("default")
@@ -72,7 +76,10 @@ Examples:
 		enableGPG, _ := cmd.Flags().GetBool("enable-gpg")
 
 		// Check if all required fields are provided via flags
-		allRequiredProvided := (len(args) > 0 || alias != "") && name != "" && email != "" && githubUsername != ""
+		if username == "" {
+			username = githubUsername
+		}
+		allRequiredProvided := (len(args) > 0 || alias != "") && name != "" && email != "" && username != ""
 
 		// Determine if we should run in interactive mode
 		useInteractiveMode := !nonInteractive && !allRequiredProvided
@@ -102,11 +109,11 @@ Examples:
 			}
 		}
 
-		if githubUsername == "" {
+		if username == "" {
 			if useInteractiveMode {
-				githubUsername = promptForInput("GitHub username (without @): ")
+				username = promptForInput("Platform username (without @): ")
 			} else {
-				return fmt.Errorf("GitHub username is required. Use --github-username flag or --non-interactive=false for interactive mode")
+				return fmt.Errorf("username is required. Use --username or --github-username")
 			}
 		}
 
@@ -123,26 +130,35 @@ Examples:
 
 		// Validate the SSH key if provided (only warn, don't fail)
 		if sshKey != "" {
+			var err error
+			sshKey, err = models.NormalizeSSHKeyPath(sshKey)
+			if err != nil {
+				return err
+			}
 			if err := gitManager.ValidateSSHKey(sshKey); err != nil {
-				fmt.Printf("⚠️  Warning: SSH key validation failed: %v\n", err)
-				fmt.Println("   Account will be created, but SSH key may not work properly.")
-				if useInteractiveMode {
-					fmt.Print("Continue anyway? [y/N]: ")
-					confirmation := promptForInput("")
-					if confirmation != "y" && confirmation != "Y" && confirmation != "yes" && confirmation != "Yes" {
-						return fmt.Errorf("account creation cancelled")
-					}
-				}
+				return fmt.Errorf("invalid SSH key: %w", err)
 			}
 		}
 
-		// Clean GitHub username (remove @ if provided)
-		githubUsername = strings.TrimPrefix(githubUsername, "@")
+		username = strings.TrimPrefix(username, "@")
+		provider = strings.ToLower(strings.TrimSpace(provider))
+		if provider == "" {
+			provider = "github"
+		}
 
 		// Create the account
 		account := models.NewAccount(alias, name, email, sshKey)
-		account.GitHubUsername = githubUsername
+		account.Platform = provider
+		account.Username = username
+		account.Domain = domain
+		account.APIEndpoint = apiEndpoint
+		if provider == "github" {
+			account.GitHubUsername = username
+		}
 		account.Description = description
+		if err := account.Validate(); err != nil {
+			return fmt.Errorf("invalid account: %w", err)
+		}
 
 		// Handle GPG signing preference
 		if enableGPG {
@@ -166,7 +182,8 @@ Examples:
 		fmt.Printf("✅ Successfully added account '%s'\n", alias)
 		fmt.Printf("   Name: %s\n", name)
 		fmt.Printf("   Email: %s\n", email)
-		fmt.Printf("   GitHub: @%s\n", githubUsername)
+		fmt.Printf("   Platform: %s (%s)\n", account.GetPlatform(), account.GetDomain())
+		fmt.Printf("   Username: @%s\n", username)
 		if sshKey != "" {
 			fmt.Printf("   SSH Key: %s\n", sshKey)
 		}
@@ -184,6 +201,10 @@ func init() {
 	addCmd.Flags().StringP("name", "n", "", "Git user name (required)")
 	addCmd.Flags().StringP("email", "e", "", "Git user email (required)")
 	addCmd.Flags().StringP("github-username", "g", "", "GitHub username without @ (required)")
+	addCmd.Flags().String("username", "", "Platform username without @ (required)")
+	addCmd.Flags().String("platform", "github", "Git hosting platform (github or gitlab)")
+	addCmd.Flags().String("domain", "", "Platform hostname (defaults from platform)")
+	addCmd.Flags().String("api-endpoint", "", "HTTPS API endpoint for self-hosted platforms")
 	addCmd.Flags().StringP("ssh-key", "k", "", "Path to SSH private key (optional)")
 	addCmd.Flags().StringP("description", "d", "", "Account description (optional)")
 	addCmd.Flags().BoolP("default", "", false, "Set as default account")

@@ -27,6 +27,9 @@ func NewGitHubPlatform() *GitHubPlatform {
 
 // NewGitHubEnterprisePlatform creates a new GitHub Enterprise platform instance
 func NewGitHubEnterprisePlatform(domain, apiEndpoint string) *GitHubPlatform {
+	if apiEndpoint == "" {
+		apiEndpoint = fmt.Sprintf("https://%s/api/v3", domain)
+	}
 	return &GitHubPlatform{
 		domain:      domain,
 		apiEndpoint: apiEndpoint,
