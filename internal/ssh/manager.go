@@ -286,7 +286,15 @@ func (m *Manager) TestConnectionToPlatformContext(ctx context.Context, domain, k
 	// Test SSH connection to the specified domain
 	args := []string{"-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-T", fmt.Sprintf("git@%s", domain)}
 	if keyPath != "" {
-		args = append([]string{"-i", keyPath, "-o", "IdentitiesOnly=yes"}, args...)
+		// Ignore ~/.ssh/config and the shared agent while validating one key.
+		// IdentityFile directives are additive, so -i plus IdentitiesOnly alone
+		// can still authenticate with a different key from the host block.
+		args = append([]string{
+			"-F", os.DevNull,
+			"-i", keyPath,
+			"-o", "IdentitiesOnly=yes",
+			"-o", "IdentityAgent=none",
+		}, args...)
 	}
 	testCmd := exec.CommandContext(ctx, "ssh", args...)
 	output, err := testCmd.CombinedOutput()
@@ -385,6 +393,7 @@ func (m *Manager) buildIsolatedSSHConfigForPlatform(accountAlias, keyPath, domai
 	endMarker := fmt.Sprintf("# <<< gitshift managed: %s", domain)
 	existingConfig = stripManagedSSHBlock(existingConfig, startMarker, endMarker)
 	existingConfig = stripLegacyManagedSSHHost(existingConfig, domain)
+	existingConfig = stripExactSSHHost(existingConfig, domain)
 
 	platformName := "Git hosting"
 	switch domain {
@@ -457,6 +466,52 @@ func stripLegacyManagedSSHHost(config, domain string) string {
 			continue
 		}
 		kept = append(kept, lines[i])
+	}
+	return strings.TrimSpace(strings.Join(kept, "\n")) + "\n"
+}
+
+// stripExactSSHHost removes the target host from pre-existing Host blocks.
+// IdentityFile is additive across every matching block, so retaining a second
+// exact Host github.com entry defeats IdentitiesOnly and can offer the previous
+// account's key after the managed key. Mixed blocks are narrowed to their
+// remaining host patterns rather than discarded.
+func stripExactSSHHost(config, domain string) string {
+	lines := strings.Split(config, "\n")
+	kept := make([]string, 0, len(lines))
+	for i := 0; i < len(lines); i++ {
+		trimmed := strings.TrimSpace(lines[i])
+		fields := strings.Fields(trimmed)
+		if len(fields) < 2 || !strings.EqualFold(fields[0], "Host") {
+			kept = append(kept, lines[i])
+			continue
+		}
+
+		remaining := make([]string, 0, len(fields)-1)
+		removed := false
+		for _, pattern := range fields[1:] {
+			if strings.EqualFold(pattern, domain) {
+				removed = true
+				continue
+			}
+			remaining = append(remaining, pattern)
+		}
+		if !removed {
+			kept = append(kept, lines[i])
+			continue
+		}
+		if len(remaining) > 0 {
+			indent := lines[i][:len(lines[i])-len(strings.TrimLeft(lines[i], " \t"))]
+			kept = append(kept, indent+"Host "+strings.Join(remaining, " "))
+			continue
+		}
+
+		for i+1 < len(lines) {
+			nextFields := strings.Fields(strings.TrimSpace(lines[i+1]))
+			if len(nextFields) > 0 && (strings.EqualFold(nextFields[0], "Host") || strings.EqualFold(nextFields[0], "Match")) {
+				break
+			}
+			i++
+		}
 	}
 	return strings.TrimSpace(strings.Join(kept, "\n")) + "\n"
 }

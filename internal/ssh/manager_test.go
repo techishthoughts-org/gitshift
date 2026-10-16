@@ -1,11 +1,38 @@
 package ssh
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestConnectionWithKeyIgnoresConfiguredIdentitiesAndAgent(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	sshPath := filepath.Join(dir, "ssh")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$ARGS_FILE\"\necho \"Hi expected! You've successfully authenticated, but GitHub does not provide shell access.\" >&2\nexit 1\n"
+	if err := os.WriteFile(sshPath, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("ARGS_FILE", argsFile)
+	t.Setenv("PATH", dir)
+	key := filepath.Join(dir, "key")
+	if err := NewManager().TestConnectionToPlatformContext(context.Background(), "github.com", key); err != nil {
+		t.Fatal(err)
+	}
+	args, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(args)
+	for _, required := range []string{"-F\n" + os.DevNull + "\n", "IdentityAgent=none", "IdentitiesOnly=yes", key} {
+		if !strings.Contains(text, required) {
+			t.Fatalf("SSH arguments do not contain %q:\n%s", required, text)
+		}
+	}
+}
 
 func TestUpdateSSHConfigQuotesIdentityAndDoesNotTouchShell(t *testing.T) {
 	home := t.TempDir()
@@ -96,6 +123,38 @@ func TestUpdateSSHConfigPreservesUnrelatedBlocksExactly(t *testing.T) {
 	}
 	if strings.Count(string(second), "# >>> gitshift managed: github.com") != 1 || !strings.Contains(string(second), original) {
 		t.Fatalf("managed block was not replaced cleanly:\n%s", second)
+	}
+}
+
+func TestUpdateSSHConfigRemovesConflictingExactHostIdentity(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	sshDir := filepath.Join(home, ".ssh")
+	if err := os.MkdirAll(sshDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	key := filepath.Join(sshDir, "id_personal")
+	if err := os.WriteFile(key, []byte("key"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	original := "Host github.com other.example.com\n  IdentityFile /old/shared-key\n\nHost github.com\n  IdentityFile /old/github-key\n\nHost keep.example.com\n  User deploy\n"
+	configPath := filepath.Join(sshDir, "config")
+	if err := os.WriteFile(configPath, []byte(original), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewManager().UpdateSSHConfig("personal", key, "github.com"); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(updated)
+	if strings.Contains(text, "/old/github-key") || strings.Contains(text, "Host github.com other.example.com") {
+		t.Fatalf("conflicting GitHub identity was retained:\n%s", text)
+	}
+	if !strings.Contains(text, "Host other.example.com\n  IdentityFile /old/shared-key") || !strings.Contains(text, "Host keep.example.com") {
+		t.Fatalf("unrelated host settings were lost:\n%s", text)
 	}
 }
 

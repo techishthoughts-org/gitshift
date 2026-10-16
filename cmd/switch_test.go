@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,25 +35,21 @@ func TestSwitchGitHubCLIUsesConfiguredHostAndUsername(t *testing.T) {
 	}
 }
 
-func TestSwitchAccountAlreadyCurrentHasNoExternalEffects(t *testing.T) {
+func TestSwitchAccountAlreadyCurrentStillValidatesAndRepairs(t *testing.T) {
 	configFile := filepath.Join(t.TempDir(), "config.yaml")
 	manager := config.NewManagerWithPath(configFile)
 	if err := manager.Load(); err != nil {
 		t.Fatal(err)
 	}
-	account := models.NewAccount("personal", "Personal", "personal@example.com", "")
+	missingKey := filepath.Join(t.TempDir(), "missing-key")
+	account := models.NewAccount("personal", "Personal", "personal@example.com", missingKey)
 	if err := manager.AddAccount(account); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("PATH", t.TempDir())
 	command := &cobra.Command{}
-	var output bytes.Buffer
-	command.SetOut(&output)
-	if err := switchAccount(command, manager, "personal", false, false, true); err != nil {
-		t.Fatal(err)
-	}
-	if output.Len() != 0 {
-		t.Fatalf("quiet idempotent switch wrote %q", output.String())
+	err := switchAccount(command, manager, "personal", false, false, true)
+	if err == nil || !strings.Contains(err.Error(), "SSH key not found") {
+		t.Fatalf("already-current account was not revalidated: %v", err)
 	}
 }
 
@@ -115,5 +110,14 @@ func TestShellQuote(t *testing.T) {
 	got := shellQuote("/tmp/key with ' quote")
 	if strings.Contains(got, "\n") || got != "'/tmp/key with '\\'' quote'" {
 		t.Fatalf("unexpected shell quoting: %q", got)
+	}
+}
+
+func TestIsolatedGitSSHCommandIgnoresOtherConfiguredKeys(t *testing.T) {
+	command := isolatedGitSSHCommand("/tmp/key with space")
+	for _, required := range []string{"-F " + shellQuote(os.DevNull), "-i '/tmp/key with space'", "IdentitiesOnly=yes", "IdentityAgent=none"} {
+		if !strings.Contains(command, required) {
+			t.Fatalf("isolated Git SSH command does not contain %q: %s", required, command)
+		}
 	}
 }

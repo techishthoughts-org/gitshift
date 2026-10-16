@@ -16,6 +16,11 @@ GitShift coordinates tools that each own part of your developer identity. Review
 
 GitLab switches do not change a provider CLI login. Removing GitShift or an account does not revert any external state.
 
+Discovery performs read-only SSH authentication probes for local key pairs
+against provider hosts reported by the GitHub CLI. These probes ignore
+`~/.ssh/config` and the shared agent and offer only the key being inspected;
+they do not upload keys or open a shell.
+
 ## Safer operation
 
 1. Back up `~/.gitconfig`, `~/.ssh/config`, and `$HOME/.config/gitshift/config.yaml`.

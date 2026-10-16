@@ -133,10 +133,10 @@ Always start with a read-only scan:
 gitshift discover --dry-run
 ```
 
-Discovery enumerates every successfully authenticated identity reported by `gh auth status --json hosts`, including multiple users on the same host and GitHub Enterprise hosts. Each provider identity is kept separate by the canonical key `provider|hostname|username`. It also examines conventional SSH key pairs and local GPG keys. SSH filename usernames are matched first only when they identify one provider identity on one host; remaining SSH/GPG evidence is attached by email only when the match is unambiguous. A corporate email alone is not treated as evidence of GitLab. Results have a confidence score from 1–10.
+Discovery enumerates every successfully authenticated identity reported by `gh auth status --json hosts`, including multiple users on the same host and GitHub Enterprise hosts. Each provider identity is kept separate by the canonical key `provider|hostname|username`. It also examines conventional SSH key pairs and local GPG keys. GitShift tests each key with user SSH configuration and the shared agent disabled, then matches the authenticated username to exactly one discovered provider identity. Remaining SSH/GPG evidence is attached by filename username or email only when the match is unambiguous. A corporate email alone is not treated as evidence of GitLab. Results have a confidence score from 1–10.
 
 - `--dry-run` reports only: it does not create, chmod, migrate, or rewrite the configuration, and it still scans when accounts are already configured.
-- Plain `discover` imports complete results at confidence 6 or above without a confirmation prompt and can add incomplete higher-confidence results as pending metadata.
+- On a fresh interactive installation, plain `discover` asks for aliases and the account to activate, then applies that account. Redirected/non-interactive discovery imports without prompting and can add incomplete higher-confidence results as pending metadata.
 - `--auto-import` also allows otherwise complete results below confidence 6; it is less restrictive, not merely non-interactive.
 - `--overwrite` permits replacement of configured active/pending results after a successful nonempty scan. Existing accounts are preserved when scanning fails or finds nothing.
 

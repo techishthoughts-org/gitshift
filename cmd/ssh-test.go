@@ -278,9 +278,11 @@ func (t *SSHTester) testPlatformConnection(keyPath, domain string) bool {
 	fmt.Printf("🔗 Testing %s SSH connection...", domain)
 
 	args := []string{
+		"-F", os.DevNull,
 		"-i", keyPath,
 		"-o", "ConnectTimeout=10",
 		"-o", "IdentitiesOnly=yes",
+		"-o", "IdentityAgent=none",
 		"-o", "StrictHostKeyChecking=yes",
 		"-T", "git@" + domain,
 	}

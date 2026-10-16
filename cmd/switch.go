@@ -82,11 +82,6 @@ func switchAccount(cmd *cobra.Command, configManager *config.Manager, accountAli
 			fmt.Printf(format, args...)
 		}
 	}
-	if configManager.GetConfig().CurrentAccount == accountAlias {
-		outputf("Account '%s' is already active; no changes made.\n", accountAlias)
-		return nil
-	}
-
 	targetAccount, err := configManager.GetAccount(accountAlias)
 	if err != nil {
 		return fmt.Errorf("account '%s' not found", accountAlias)
@@ -436,7 +431,7 @@ func updateGitConfig(account *models.Account) error {
 
 	// Set SSH command to use the account's SSH key for proper isolation
 	if account.SSHKeyPath != "" {
-		sshCommand := fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes", shellQuote(account.SSHKeyPath))
+		sshCommand := isolatedGitSSHCommand(account.SSHKeyPath)
 		cmd := exec.Command("git", "config", "--global", "core.sshCommand", sshCommand)
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to set global git core.sshCommand: %w", err)
@@ -463,7 +458,7 @@ func updateGitConfig(account *models.Account) error {
 
 		// Also set SSH command locally for better isolation
 		if account.SSHKeyPath != "" {
-			sshCommand := fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes", shellQuote(account.SSHKeyPath))
+			sshCommand := isolatedGitSSHCommand(account.SSHKeyPath)
 			cmd := exec.Command("git", "config", "--local", "core.sshCommand", sshCommand)
 			if err := cmd.Run(); err != nil {
 				return fmt.Errorf("failed to set local git core.sshCommand: %w", err)
@@ -474,6 +469,10 @@ func updateGitConfig(account *models.Account) error {
 	}
 
 	return nil
+}
+
+func isolatedGitSSHCommand(keyPath string) string {
+	return fmt.Sprintf("ssh -F %s -i %s -o IdentitiesOnly=yes -o IdentityAgent=none", shellQuote(os.DevNull), shellQuote(keyPath))
 }
 
 func clearGitConfigValue(scope, key string) error {

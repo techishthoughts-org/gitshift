@@ -1,14 +1,18 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/techishthoughts/gitshift/internal/discovery"
 	"github.com/techishthoughts/gitshift/internal/models"
 )
+
+var applyDiscoveredAccount = switchAccount
 
 // discoverCmd represents the discover command
 var discoverCmd = &cobra.Command{
@@ -25,10 +29,12 @@ GitHub CLI identities are keyed by provider, hostname, and username, so multiple
 accounts on github.com and GitHub Enterprise hosts remain separate. Discovery
 does not switch the active GitHub CLI account or store provider tokens.
 
-By default, complete results with confidence 6/10 or higher are imported without
-a confirmation prompt, and incomplete higher-confidence results may be saved as
-pending metadata. Use --dry-run for a guaranteed read-only scan. --auto-import
-also permits otherwise complete results below the normal confidence threshold.
+On a fresh interactive installation, discovery asks for aliases and which
+account to activate, then applies that account. Redirected and later discovery
+runs retain non-interactive import behavior. Incomplete higher-confidence
+results may be saved as pending metadata. Use --dry-run for a guaranteed
+read-only scan. --auto-import also permits otherwise complete results below the
+normal confidence threshold.
 
 Examples:
   # Discover all Git accounts (SSH + GPG)
@@ -58,6 +64,18 @@ func runDiscoverCommandWithScanner(cmd *cobra.Command, args []string, scan func(
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
 	aliasSpecs, _ := cmd.Flags().GetStringArray("alias")
 	promptAliases, _ := cmd.Flags().GetBool("prompt-aliases")
+	interactiveSetup := false
+	var interactiveReader *bufio.Reader
+	if !dryRun && len(aliasSpecs) == 0 && !promptAliases && terminalCheck() {
+		// On a fresh interactive installation, discovery is the setup wizard:
+		// ask for meaningful aliases and apply one account before returning.
+		probeManager := newConfigManager()
+		if err := probeManager.LoadReadOnly(); err == nil && len(probeManager.ListAccounts()) == 0 {
+			interactiveSetup = true
+			promptAliases = true
+			interactiveReader = bufio.NewReader(cmd.InOrStdin())
+		}
+	}
 	customizeAliases := len(aliasSpecs) > 0 || promptAliases
 
 	configManager := newConfigManager()
@@ -103,7 +121,7 @@ func runDiscoverCommandWithScanner(cmd *cobra.Command, args []string, scan func(
 	}
 
 	if customizeAliases {
-		aliases, err := planDiscoveryAliases(cmd, discovered, aliasSpecs, promptAliases, overwrite, existingAccounts, existingPending)
+		aliases, err := planDiscoveryAliasesWithReader(cmd, discovered, aliasSpecs, promptAliases, overwrite, existingAccounts, existingPending, interactiveReader)
 		if err != nil {
 			return fmt.Errorf("plan discovered aliases: %w", err)
 		}
@@ -346,6 +364,17 @@ func runDiscoverCommandWithScanner(cmd *cobra.Command, args []string, scan func(
 		fmt.Printf("🎉 Successfully imported %d account(s)!\n", imported)
 		fmt.Println("💡 Use 'gitshift list' to see all accounts")
 
+		if interactiveSetup {
+			activeAlias, err := promptForActiveAccount(cmd, interactiveReader, importedAccounts)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("\n🔄 Applying account '%s'...\n", activeAlias)
+			if err := applyDiscoveredAccount(cmd, configManager, activeAlias, false, false, false); err != nil {
+				return fmt.Errorf("apply discovered account %q: %w", activeAlias, err)
+			}
+		}
+
 		// Automatically test SSH for imported accounts
 		if !dryRun {
 			fmt.Println("\n🔐 Testing SSH connectivity for imported accounts...")
@@ -373,6 +402,42 @@ func runDiscoverCommandWithScanner(cmd *cobra.Command, args []string, scan func(
 	}
 
 	return nil
+}
+
+func promptForActiveAccount(cmd *cobra.Command, reader *bufio.Reader, accounts []*models.Account) (string, error) {
+	if len(accounts) == 0 {
+		return "", fmt.Errorf("no imported account is available to activate")
+	}
+	if len(accounts) == 1 {
+		return accounts[0].Alias, nil
+	}
+	if reader == nil {
+		reader = bufio.NewReader(cmd.InOrStdin())
+	}
+	fmt.Fprintln(cmd.OutOrStdout(), "\nChoose the account to activate now:")
+	for i, account := range accounts {
+		fmt.Fprintf(cmd.OutOrStdout(), "  %d) %s (@%s)\n", i+1, account.Alias, account.GetUsername())
+	}
+	for {
+		fmt.Fprintf(cmd.OutOrStdout(), "Account [1]: ")
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			return "", fmt.Errorf("read account selection: %w", err)
+		}
+		response = strings.TrimSpace(response)
+		if response == "" {
+			return accounts[0].Alias, nil
+		}
+		if index, err := strconv.Atoi(response); err == nil && index >= 1 && index <= len(accounts) {
+			return accounts[index-1].Alias, nil
+		}
+		for _, account := range accounts {
+			if response == account.Alias {
+				return account.Alias, nil
+			}
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), "Enter a listed number or alias.")
+	}
 }
 
 // testSSHForAccount performs basic SSH testing for a discovered account
