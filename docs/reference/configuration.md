@@ -60,6 +60,7 @@ YAML does not expand `~` or variables. Use absolute paths when editing by hand.
 | `pending_accounts` | map | Incomplete results saved by `discover`; see below |
 | `current_account` | string | Alias the last successful switch applied. Set only by `switch`, the UI, auto-switch and first-run `discover`; cleared when that account is removed |
 | `auto_switch.rules` | list | Directory rules; see below |
+| `auto_switch.git_includes` | bool | When `true`, Git picks the identity per rule directory through managed `includeIf` entries; set with `gitshift auto git-includes on`. See [auto-switch](../how-to/auto-switch.md#let-git-pick-the-identity-per-directory) |
 | `auto_switch.default_account` | string | Alias auto-switch applies when no rule matches. Empty: leave the current account alone. Set with `gitshift auto default` |
 | `global_git_config` | bool | Written as `true`; not read by any command. Setting `false` does not stop global Git writes |
 | `auto_detect` | bool | Written as `true`; not read by any command |

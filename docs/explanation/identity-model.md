@@ -52,4 +52,13 @@ A switch rewrites those files, so every terminal, editor and background job that
 
 The one narrower scope is the repository: switching inside a repository also writes the identity into that repository's `.git/config`, which then overrides later global switches for that repository.
 
-If you regularly need two identities at the same moment, a global switcher is the wrong tool for that work. Git's own mechanisms are per-process or per-repository: `includeIf "gitdir:..."` sections in `~/.gitconfig`, repository-local config, or the `GIT_AUTHOR_*`, `GIT_COMMITTER_*` and `GIT_SSH_COMMAND` environment variables. GitShift does not manage those.
+If you regularly need two identities at the same moment, turn on [Git includes](../how-to/auto-switch.md#let-git-pick-the-identity-per-directory) (`gitshift auto git-includes on`). GitShift then writes an `includeIf "gitdir:..."` entry per rule, and Git resolves the identity per repository on every command instead of reading one global value:
+
+```mermaid
+flowchart LR
+    repo["git command in a repository"] --> match{"Repository under a rule directory?"}
+    match -- "yes (deepest match wins)" --> inc["includeIf → ~/.config/gitshift/git/ALIAS.gitconfig<br/>name, email, core.sshCommand, signing"]
+    match -- no --> global["global ~/.gitconfig<br/>(set by the last switch)"]
+```
+
+The GitHub CLI and `~/.ssh/config` have no such mechanism, so they stay global and follow the last switch.
