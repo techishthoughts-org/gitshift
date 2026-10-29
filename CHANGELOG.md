@@ -42,8 +42,10 @@ These are the notes for v2.0.0.
 ### Added
 
 - MIT license.
-- `update --gpg-signing` / `--gpg-signing=false` turns commit and tag signing on or off while
-  keeping the account's GPG key.
+- Per-account commit and tag signing with SSH keys or GPG: `update --signing ssh|gpg|off`,
+  `update --signing-key PATH` and `add --signing ssh`. `switch` sets `gpg.format`,
+  `user.signingkey`, `commit.gpgsign` and `tag.gpgsign` for the account, `--validate` checks the
+  key, and `list`, `update` and the terminal UI show each account's signing.
 - `gitshift ui` (alias `tui`, `--inline` for the current screen buffer): dashboard, account
   add/edit, confirmed switch and removal, directory-rule management, and discovery import.
 - Running `gitshift` with no subcommand opens the terminal UI; subcommands and
@@ -89,6 +91,8 @@ These are the notes for v2.0.0.
 - Quit requests in the terminal UI wait until a running switch or removal finishes.
 - Commands no longer print `Using config file: …` to stderr on every run.
 - Switching no longer moves the default account to the account you switched to.
+- Switching to an account without a GPG key no longer turns off SSH commit signing configured
+  with `gpg.format ssh`; signing now follows each account's `--signing` choice.
 - `switch --validate` also checks key permissions, the GitHub CLI login and the GPG secret key, so it
   no longer passes when the real switch would fail.
 - `ssh-keygen --add-to-github` uploads to the named account's GitHub user instead of whichever
@@ -100,7 +104,7 @@ These are the notes for v2.0.0.
   alias, instead of an arbitrary one.
 - `current` with nothing applied says no account is active instead of "no default account set".
 - Errors are printed once, without the full usage text.
-- Hints point to `update ALIAS --gpg-signing` instead of `gpg-keygen ALIAS --enable`, which fails
+- Hints point to `update ALIAS --signing` instead of `gpg-keygen ALIAS --enable`, which fails
   when the account already has a key.
 - New accounts no longer write unused `isolation_metadata` suggesting encrypted token storage.
 - The zsh hook calls the `gitshift` on your `PATH` (for Homebrew, `$(brew --prefix)/bin/gitshift`)
