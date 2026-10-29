@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -94,8 +95,8 @@ func switchAccount(cmd *cobra.Command, configManager *config.Manager, accountAli
 		if err != nil {
 			return fmt.Errorf("account preflight failed: %w", err)
 		}
-		if _, err := os.Stat(targetAccount.SSHKeyPath); err != nil {
-			return fmt.Errorf("SSH key not found at %s: %w", targetAccount.SSHKeyPath, err)
+		if err := ssh.CheckPrivateKeyFile(targetAccount.SSHKeyPath); err != nil {
+			return fmt.Errorf("account preflight failed: %w", err)
 		}
 	}
 	provider, err := platform.NewFactory().GetPlatform(platform.Type(targetAccount.GetPlatform()), targetAccount.GetDomain())
@@ -160,7 +161,7 @@ func switchAccount(cmd *cobra.Command, configManager *config.Manager, accountAli
 				outputf("✅ GPG signing enabled (key: %s)\n", targetAccount.GPGKeyID)
 			} else {
 				outputf("ℹ️  GPG key configured but automatic signing is disabled\n")
-				outputf("   To enable: gitshift gpg-keygen %s --enable\n", accountAlias)
+				outputf("   To enable: gitshift update %s --gpg-signing\n", accountAlias)
 			}
 		}
 	} else {
@@ -377,8 +378,8 @@ func validateAccount(configManager *config.Manager, accountAlias string) error {
 		if normalizeErr != nil {
 			fmt.Printf("❌ Invalid SSH key path: %v\n", normalizeErr)
 			issues++
-		} else if _, err := os.Stat(keyPath); err != nil {
-			fmt.Printf("❌ SSH key not found: %s\n", targetAccount.SSHKeyPath)
+		} else if err := ssh.CheckPrivateKeyFile(keyPath); err != nil {
+			fmt.Printf("❌ %v\n", err)
 			issues++
 		} else {
 			fmt.Printf("✅ SSH key found: %s\n", keyPath)
@@ -393,6 +394,24 @@ func validateAccount(configManager *config.Manager, accountAlias string) error {
 			} else {
 				fmt.Printf("✅ SSH connection test passed\n")
 			}
+		}
+	}
+
+	if targetAccount.GetPlatform() == "github" {
+		if err := checkGitHubCLIAccount(targetAccount.GetDomain(), targetAccount.GetUsername()); err != nil {
+			fmt.Printf("❌ %v\n", err)
+			issues++
+		} else {
+			fmt.Printf("✅ GitHub CLI logged in as @%s on %s\n", targetAccount.GetUsername(), targetAccount.GetDomain())
+		}
+	}
+
+	if targetAccount.HasGPGKey() {
+		if err := exec.Command("gpg", "--batch", "--list-secret-keys", "--", targetAccount.GPGKeyID).Run(); err != nil {
+			fmt.Printf("❌ GPG secret key %s not available: %v\n", targetAccount.GPGKeyID, err)
+			issues++
+		} else {
+			fmt.Printf("✅ GPG secret key available: %s\n", targetAccount.GPGKeyID)
 		}
 	}
 
@@ -471,8 +490,11 @@ func updateGitConfig(account *models.Account) error {
 	return nil
 }
 
+// isolatedGitSSHCommand pins Git to the account key while keeping the user's
+// SSH config (ports, ProxyJump, agents holding this key). IdentitiesOnly stops
+// ssh from offering unrelated agent keys first.
 func isolatedGitSSHCommand(keyPath string) string {
-	return fmt.Sprintf("ssh -F %s -i %s -o IdentitiesOnly=yes -o IdentityAgent=none", shellQuote(os.DevNull), shellQuote(keyPath))
+	return fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes", shellQuote(keyPath))
 }
 
 func clearGitConfigValue(scope, key string) error {
@@ -487,6 +509,30 @@ func clearGitConfigValue(scope, key string) error {
 }
 
 // switchGitHubCLI switches the GitHub CLI authentication
+// checkGitHubCLIAccount reports whether gh holds a working login for username
+// on domain, without switching the active account.
+func checkGitHubCLIAccount(domain, username string) error {
+	if _, err := exec.LookPath("gh"); err != nil {
+		return fmt.Errorf("GitHub CLI (gh) not found")
+	}
+	if username == "" {
+		return fmt.Errorf("account has no username for GitHub CLI")
+	}
+	query := fmt.Sprintf(`[.hosts[]?[]? | select(.login == %s) | .state] | first // empty`, strconv.Quote(username))
+	output, err := exec.Command("gh", "auth", "status", "--hostname", domain, "--json", "hosts", "--jq", query).Output()
+	state := strings.TrimSpace(string(output))
+	switch {
+	case state == "success":
+		return nil
+	case state == "" && err == nil:
+		return fmt.Errorf("GitHub CLI is not logged in as @%s on %s; run 'gh auth login --hostname %s'", username, domain, domain)
+	case state == "":
+		return fmt.Errorf("cannot read GitHub CLI status for %s: %w", domain, err)
+	default:
+		return fmt.Errorf("GitHub CLI login for @%s on %s is %s; run 'gh auth refresh --hostname %s'", username, domain, state, domain)
+	}
+}
+
 func switchGitHubCLI(domain, username string) error {
 	// Check if gh CLI is available
 	if _, err := exec.LookPath("gh"); err != nil {
