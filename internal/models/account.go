@@ -228,6 +228,9 @@ type Config struct {
 // AutoSwitchConfig groups directory-based account switching settings.
 type AutoSwitchConfig struct {
 	Rules []AutoSwitchRule `json:"rules,omitempty" yaml:"rules,omitempty" mapstructure:"rules"`
+	// DefaultAccount is switched to when no rule matches; empty leaves the
+	// current identity unchanged.
+	DefaultAccount string `json:"default_account,omitempty" yaml:"default_account,omitempty" mapstructure:"default_account"`
 }
 
 // AutoSwitchRule selects an existing account for a canonical directory tree.

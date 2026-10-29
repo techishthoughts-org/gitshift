@@ -26,6 +26,17 @@ Works with all supported platforms:
 // runCurrentCommand executes the current command
 func runCurrentCommand(cmd *cobra.Command, args []string) error {
 	configManager := newConfigManager()
+	// --short is read by shell prompts on every render: read-only, alias only,
+	// and no error when nothing has been applied yet.
+	if short, _ := cmd.Flags().GetBool("short"); short {
+		if err := configManager.LoadReadOnly(); err != nil {
+			return fmt.Errorf("failed to load configuration: %w", err)
+		}
+		if alias := configManager.GetConfig().CurrentAccount; alias != "" {
+			fmt.Fprintln(cmd.OutOrStdout(), alias)
+		}
+		return nil
+	}
 	if err := configManager.Load(); err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
@@ -71,5 +82,6 @@ func runCurrentCommand(cmd *cobra.Command, args []string) error {
 func init() {
 	// Add the --json flag
 	currentCmd.Flags().BoolP("json", "j", false, "Output in JSON format")
+	currentCmd.Flags().BoolP("short", "s", false, "Print only the active alias (for shell prompts)")
 	rootCmd.AddCommand(currentCmd)
 }

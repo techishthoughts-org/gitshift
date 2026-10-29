@@ -538,6 +538,9 @@ func (m *Manager) ReplaceAccounts(accounts []*models.Account, pendingAccounts []
 		}
 	}
 	m.config.AutoSwitch.Rules = keptRules
+	if _, exists := active[m.config.AutoSwitch.DefaultAccount]; !exists {
+		m.config.AutoSwitch.DefaultAccount = ""
+	}
 	// The applied identity is unchanged; only forget it if its account is gone.
 	if _, exists := active[m.config.CurrentAccount]; !exists {
 		m.config.CurrentAccount = ""
@@ -563,6 +566,9 @@ func (m *Manager) RemoveAccount(alias string) error {
 		}
 	}
 	m.config.AutoSwitch.Rules = keptRules
+	if m.config.AutoSwitch.DefaultAccount == alias {
+		m.config.AutoSwitch.DefaultAccount = ""
+	}
 
 	// If we removed the current account, clear it
 	if m.config.CurrentAccount == alias {
@@ -613,6 +619,7 @@ func (m *Manager) ClearAllAccounts() error {
 	m.config.PendingAccounts = make(map[string]*models.PendingAccount)
 	m.config.CurrentAccount = ""
 	m.config.AutoSwitch.Rules = nil
+	m.config.AutoSwitch.DefaultAccount = ""
 	return m.saveLocked()
 }
 
@@ -637,6 +644,20 @@ func (m *Manager) AddAutoSwitchRule(path, alias string) (models.AutoSwitchRule, 
 	}
 	m.config.AutoSwitch.Rules = append(m.config.AutoSwitch.Rules, rule)
 	return rule, m.saveLocked()
+}
+
+// SetAutoSwitchDefault sets the account used when no rule matches. An empty
+// alias clears it.
+func (m *Manager) SetAutoSwitchDefault(alias string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if alias != "" {
+		if _, exists := m.config.Accounts[alias]; !exists {
+			return models.ErrAccountNotFound
+		}
+	}
+	m.config.AutoSwitch.DefaultAccount = alias
+	return m.saveLocked()
 }
 
 // RemoveAutoSwitchRule removes a canonical rule, including a stale rule whose

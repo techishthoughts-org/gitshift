@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Auto-switch default account**: `gitshift auto default ALIAS` sets the
+  account auto-switch applies outside every rule directory; `--clear` removes
+  it. `auto resolve` shows it as `ALIAS (default)`.
+- **Prompt-friendly current alias**: `gitshift current --short` prints only
+  the active alias, read-only, for shell prompts such as Starship.
 - **Interactive terminal UI**: Added `gitshift ui` (`tui`) using Bubble Tea,
   Bubbles, and Lip Gloss, with account and directory-rule management, confirmed
   validated switching/removal, selective multi-account discovery import,
@@ -35,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updates both global and local Git configuration
 
 ### Fixed
+- **Silent config loading**: Commands no longer print `Using config file: …`
+  to stderr on every run, which showed on each directory change with the
+  auto-switch hook.
 - **SSH config global options**: Options above the first `Host`/`Match` line
   (for example `StrictHostKeyChecking`, `IdentityAgent`, `Include`) now stay
   ahead of the managed block instead of being moved under `Host github.com`.
