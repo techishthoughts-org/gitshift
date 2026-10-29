@@ -88,9 +88,14 @@ func printGitIncludes(cmd *cobra.Command, manager *gitshiftconfig.Manager) error
 	for _, include := range installed {
 		fmt.Fprintf(out, "%s -> %s (%s)\n", include.Dir, include.Account, include.File)
 	}
-	planned := gitidentity.Plan(manager.GetConfig(), gitIncludeDir(manager))
-	if enabled && len(planned) != len(installed) {
-		fmt.Fprintln(out, "Out of sync with the rules; run 'gitshift auto git-includes on'.")
+	if enabled {
+		inSync, err := gitidentity.InSync(manager.GetConfig(), gitIncludeDir(manager))
+		if err != nil {
+			return err
+		}
+		if !inSync {
+			fmt.Fprintln(out, "Out of sync with the rules, or other settings follow the includes; run 'gitshift auto git-includes on'.")
+		}
 	}
 	if !enabled && len(installed) > 0 {
 		fmt.Fprintln(out, "Entries remain from an earlier setup; run 'gitshift auto git-includes off' to remove them.")

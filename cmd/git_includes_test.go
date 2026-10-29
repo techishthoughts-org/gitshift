@@ -150,3 +150,41 @@ func TestUpdateGitConfigSkipsLocalValuesWithGitIncludes(t *testing.T) {
 		t.Fatalf("global user.email = %q", got)
 	}
 }
+
+func TestFailedSwitchRestoresIncludePrecedence(t *testing.T) {
+	home := isolateGitConfig(t)
+	configFile, _ := createCommandTestConfig(t)
+	useCommandTestConfig(t, configFile)
+	repo := filepath.Join(home, "work", "repo")
+	if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, out)
+	}
+	manager := newConfigManager()
+	if err := manager.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.AddAutoSwitchRule(filepath.Join(home, "work"), "work"); err != nil {
+		t.Fatal(err)
+	}
+	runGitIncludes(t, "on")
+
+	// What a rollback leaves behind: a key re-added in a new section after the includes.
+	if out, err := exec.Command("git", "config", "--global", "tag.gpgsign", "true").CombinedOutput(); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	if got := repoValue(t, repo, "tag.gpgsign"); got != "true" {
+		t.Fatalf("precondition: the later section should win, got %q", got)
+	}
+
+	switching := newConfigManager()
+	if err := switching.Load(); err != nil {
+		t.Fatal(err)
+	}
+	// The account's key (/tmp/work) is missing, so the switch fails in preflight.
+	if err := switchAccount(switchCmd, switching, "work", false, false, true); err == nil {
+		t.Fatal("expected the switch to fail")
+	}
+	if got := repoValue(t, repo, "tag.gpgsign"); got != "false" {
+		t.Fatalf("after a failed switch tag.gpgsign = %q; the include should win again", got)
+	}
+}

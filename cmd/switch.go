@@ -88,6 +88,16 @@ func switchAccount(cmd *cobra.Command, configManager *config.Manager, accountAli
 	if err != nil {
 		return fmt.Errorf("account '%s' not found", accountAlias)
 	}
+	if configManager.GetConfig().AutoSwitch.GitIncludes {
+		// Switching and its rollback rewrite global keys, which can append
+		// sections after the includes and override them. Re-sync on every
+		// outcome so the includes stay last.
+		defer func() {
+			if err := gitidentity.Sync(configManager.GetConfig(), gitIncludeDir(configManager)); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: Git includes not updated: %v; run 'gitshift auto git-includes on'\n", err)
+			}
+		}()
+	}
 	if err := targetAccount.Validate(); err != nil {
 		return fmt.Errorf("account preflight failed: %w", err)
 	}

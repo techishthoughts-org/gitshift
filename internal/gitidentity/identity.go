@@ -58,23 +58,23 @@ func signing(format, key, enabled string) []Setting {
 }
 
 // IdentitySettings returns every value an account's include file sets: name,
-// email, Git's SSH command and signing. Keys that switching would unset are
-// left out; commit.gpgsign=false already disables signing.
+// email, Git's SSH command and signing. Each key is always set so nothing
+// leaks in from the global identity of the last switched account; keys that
+// switching would unset are covered by commit.gpgsign=false.
 func IdentitySettings(account *models.Account) ([]Setting, error) {
-	var settings []Setting
-	if account.Name != "" {
-		settings = append(settings, Setting{"user.name", account.Name})
+	if account.Name == "" || account.Email == "" {
+		return nil, fmt.Errorf("account %s needs a name and an email for a Git include", account.Alias)
 	}
-	if account.Email != "" {
-		settings = append(settings, Setting{"user.email", account.Email})
-	}
+	settings := []Setting{{"user.name", account.Name}, {"user.email", account.Email}}
+	sshCommand := "ssh" // plain ssh overrides another account's pinned key
 	if account.SSHKeyPath != "" {
 		keyPath, err := models.NormalizeSSHKeyPath(account.SSHKeyPath)
 		if err != nil {
 			return nil, err
 		}
-		settings = append(settings, Setting{"core.sshCommand", SSHCommand(keyPath)})
+		sshCommand = SSHCommand(keyPath)
 	}
+	settings = append(settings, Setting{"core.sshCommand", sshCommand})
 	signingSettings, _, err := SigningSettings(account)
 	if err != nil {
 		return nil, err

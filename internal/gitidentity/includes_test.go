@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -238,4 +239,130 @@ func readFile(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return string(data)
+}
+
+func TestSyncOverridesTheGlobalKeyForKeylessAccounts(t *testing.T) {
+	f := newFixture(t)
+	f.cfg.Accounts["personal"].SSHKeyPath = ""
+	f.git(t, "", "config", "--global", "core.sshCommand", "ssh -i /keys/work -o IdentitiesOnly=yes")
+	if err := Sync(f.cfg, f.includeDir); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.value(t, filepath.Join(f.root, "personal"), "core.sshCommand"); got != "ssh" {
+		t.Fatalf("keyless account inherited %q, want plain ssh", got)
+	}
+}
+
+func TestSyncFailsBeforeChangingAnything(t *testing.T) {
+	f := newFixture(t)
+	if err := Sync(f.cfg, f.includeDir); err != nil {
+		t.Fatal(err)
+	}
+	before := readFile(t, f.global)
+	beforeFile := readFile(t, filepath.Join(f.includeDir, "work.gitconfig"))
+
+	f.cfg.Accounts["work"].Email = "changed@example.com"
+	f.cfg.Accounts["personal"].Email = "" // cannot be rendered
+	err := Sync(f.cfg, f.includeDir)
+	if err == nil || !strings.Contains(err.Error(), "needs a name and an email") {
+		t.Fatalf("error = %v", err)
+	}
+	if readFile(t, f.global) != before || readFile(t, filepath.Join(f.includeDir, "work.gitconfig")) != beforeFile {
+		t.Fatal("a failed sync changed the global config or an include file")
+	}
+}
+
+func TestSyncNeverDeletesFilesItDidNotWrite(t *testing.T) {
+	f := newFixture(t)
+	if err := os.MkdirAll(f.includeDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	mine := filepath.Join(f.includeDir, "mine.gitconfig")
+	if err := os.WriteFile(mine, []byte("[user]\n\tname = Mine\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := Sync(f.cfg, f.includeDir); err != nil {
+		t.Fatal(err)
+	}
+	if err := Remove(f.includeDir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(mine); err != nil {
+		t.Fatalf("user file deleted: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(f.includeDir, "work.gitconfig")); !os.IsNotExist(err) {
+		t.Fatalf("generated file kept: %v", err)
+	}
+}
+
+func TestSyncMatchesGlobCharactersLiterally(t *testing.T) {
+	f := newFixture(t)
+	dir := filepath.Join(f.root, "[acme]*?")
+	f.mkRepo(t, dir)
+	f.cfg.AutoSwitch.Rules = []models.AutoSwitchRule{{Path: dir, Account: "work"}}
+	if err := Sync(f.cfg, f.includeDir); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.value(t, dir, "user.email"); got != "work@example.com" {
+		t.Fatalf("user.email = %q", got)
+	}
+	installed, err := Installed(f.includeDir)
+	if err != nil || len(installed) != 1 || installed[0].Dir != dir {
+		t.Fatalf("installed = %+v, %v", installed, err)
+	}
+	if ok, err := InSync(f.cfg, f.includeDir); err != nil || !ok {
+		t.Fatalf("InSync = %t, %v", ok, err)
+	}
+}
+
+func TestSyncIgnoresCapitalisationOnCaseInsensitiveSystems(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		t.Skip("default file systems here are case-sensitive")
+	}
+	f := newFixture(t)
+	real := filepath.Join(f.root, "Client")
+	f.mkRepo(t, real)
+	f.cfg.AutoSwitch.Rules = []models.AutoSwitchRule{{Path: filepath.Join(f.root, "client"), Account: "work"}}
+	if err := Sync(f.cfg, f.includeDir); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.value(t, real, "user.email"); got != "work@example.com" {
+		t.Fatalf("rule stored as 'client' did not match 'Client': user.email = %q", got)
+	}
+}
+
+func TestInSyncDetectsRemappedAccountAndLaterSettings(t *testing.T) {
+	f := newFixture(t)
+	if err := Sync(f.cfg, f.includeDir); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := InSync(f.cfg, f.includeDir); !ok {
+		t.Fatal("freshly synced config reported out of sync")
+	}
+	f.cfg.AutoSwitch.Rules[0].Account = "personal"
+	if ok, _ := InSync(f.cfg, f.includeDir); ok {
+		t.Fatal("a rule moved to another account was not detected")
+	}
+	f.cfg.AutoSwitch.Rules[0].Account = "work"
+	f.git(t, "", "config", "--global", "tag.gpgsign", "false")
+	if ok, _ := InSync(f.cfg, f.includeDir); ok {
+		t.Fatal("a setting appended after the includes was not detected")
+	}
+}
+
+// Git matches gitdir against the repository's git directory, so a worktree
+// follows the rule for where its main repository lives. This test documents
+// that limitation (see docs/how-to/auto-switch.md).
+func TestWorktreeFollowsItsRepositoryDirectory(t *testing.T) {
+	f := newFixture(t)
+	if err := Sync(f.cfg, f.includeDir); err != nil {
+		t.Fatal(err)
+	}
+	personal := filepath.Join(f.root, "personal")
+	f.git(t, personal, "-c", "user.name=x", "-c", "user.email=x@example.com", "commit", "-q", "--allow-empty", "-m", "init")
+	worktree := filepath.Join(f.root, "work dir", "wt")
+	f.git(t, personal, "worktree", "add", "-q", worktree)
+	if got := f.value(t, worktree, "user.email"); got != "me@example.com" {
+		t.Fatalf("worktree in the work directory resolved %q; expected its repository's (personal) identity", got)
+	}
 }
