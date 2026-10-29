@@ -27,7 +27,8 @@ These are the notes for v2.0.0.
   ssh-agent; isolation now comes from the managed `~/.ssh/config` block and `core.sshCommand`.
 - A GitHub switch now requires GitHub CLI (`gh`) authenticated as the account's username on its
   host; a failed `gh auth switch` rolls the switch back unless `--force` is given.
-- `switch` refuses SSH private keys whose permissions are not `600` instead of working around them.
+- `switch` refuses SSH private keys that group or other users can access (`600` and `400` are
+  accepted) instead of working around them.
 - Supported platforms are `github` and `gitlab`. Corporate email domains are no longer assumed to
   be GitLab during discovery.
 - The configuration file is migrated in place to `config_version: 1.1.0`, rewritten with
@@ -40,6 +41,9 @@ These are the notes for v2.0.0.
 
 ### Added
 
+- MIT license.
+- `update --gpg-signing` / `--gpg-signing=false` turns commit and tag signing on or off while
+  keeping the account's GPG key.
 - `gitshift ui` (alias `tui`, `--inline` for the current screen buffer): dashboard, account
   add/edit, confirmed switch and removal, directory-rule management, and discovery import.
 - Running `gitshift` with no subcommand opens the terminal UI; subcommands and
@@ -63,8 +67,10 @@ These are the notes for v2.0.0.
 
 - `switch` captures Git, SSH and GitHub CLI state first and restores it if any step fails;
   concurrent switches are serialized with a lock file.
-- Git and SSH validation use only the account's key (`-F /dev/null`, `IdentitiesOnly=yes`,
-  `IdentityAgent=none`), so another key in `~/.ssh/config` or the agent cannot answer instead.
+- Validation probes (`switch` preflight, `ssh-test`) use only the account's key, so another key in
+  `~/.ssh/config` or the agent cannot answer instead.
+- Git's `core.sshCommand` is `ssh -i KEY -o IdentitiesOnly=yes`: the account's key goes first and
+  `~/.ssh/config` (ports, `ProxyJump`, host aliases) and an agent holding that key keep working.
 - Configuration writes are atomic, locked, and refused when the file changed since it was read.
 - `update` changes only the fields you pass and keeps every other account setting.
 - `list --format json` emits properly escaped JSON.
@@ -83,6 +89,20 @@ These are the notes for v2.0.0.
 - Quit requests in the terminal UI wait until a running switch or removal finishes.
 - Commands no longer print `Using config file: …` to stderr on every run.
 - Switching no longer moves the default account to the account you switched to.
+- `switch --validate` also checks key permissions, the GitHub CLI login and the GPG secret key, so it
+  no longer passes when the real switch would fail.
+- `ssh-keygen --add-to-github` uploads to the named account's GitHub user instead of whichever
+  account is active in `gh`.
+- `ssh-test` recognises hashed `known_hosts` entries.
+- `update --ssh-key` normalizes the path and requires the file to exist; `update --auto-gpg` fails
+  with an error when no GPG key matches instead of doing nothing.
+- Removing the default account passes the default to the current account, or the first remaining
+  alias, instead of an arbitrary one.
+- `current` with nothing applied says no account is active instead of "no default account set".
+- Errors are printed once, without the full usage text.
+- Hints point to `update ALIAS --gpg-signing` instead of `gpg-keygen ALIAS --enable`, which fails
+  when the account already has a key.
+- New accounts no longer write unused `isolation_metadata` suggesting encrypted token storage.
 - The zsh hook calls the `gitshift` on your `PATH` (for Homebrew, `$(brew --prefix)/bin/gitshift`)
   instead of a versioned path, so open shells keep working after `brew upgrade`.
 
