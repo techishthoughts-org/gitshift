@@ -3,8 +3,11 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/techishthoughts/gitshift/internal/autoswitch"
+	"github.com/techishthoughts/gitshift/internal/models"
 )
 
 // currentCmd represents the current command
@@ -32,9 +35,7 @@ func runCurrentCommand(cmd *cobra.Command, args []string) error {
 		if err := configManager.LoadReadOnly(); err != nil {
 			return fmt.Errorf("failed to load configuration: %w", err)
 		}
-		if alias := configManager.GetConfig().CurrentAccount; alias != "" {
-			fmt.Fprintln(cmd.OutOrStdout(), alias)
-		}
+		fmt.Fprint(cmd.OutOrStdout(), promptAlias(configManager.GetConfig()))
 		return nil
 	}
 	if err := configManager.Load(); err != nil {
@@ -84,4 +85,21 @@ func init() {
 	currentCmd.Flags().BoolP("json", "j", false, "Output in JSON format")
 	currentCmd.Flags().BoolP("short", "s", false, "Print only the active alias (for shell prompts)")
 	rootCmd.AddCommand(currentCmd)
+}
+
+// promptAlias is the account Git uses here: with Git includes on, the rule for
+// the working directory wins over the globally applied account.
+func promptAlias(cfg *models.Config) string {
+	alias := cfg.CurrentAccount
+	if cfg.AutoSwitch.GitIncludes {
+		if dir, err := os.Getwd(); err == nil {
+			if match, err := autoswitch.Resolve(cfg.AutoSwitch.Rules, dir); err == nil && match != nil {
+				alias = match.Account
+			}
+		}
+	}
+	if alias == "" {
+		return ""
+	}
+	return alias + "\n"
 }

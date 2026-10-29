@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/techishthoughts/gitshift/internal/config"
+	"github.com/techishthoughts/gitshift/internal/gitidentity"
 	"github.com/techishthoughts/gitshift/internal/models"
 	"github.com/techishthoughts/gitshift/internal/ssh"
 	"github.com/techishthoughts/gitshift/pkg/platform"
@@ -144,7 +145,7 @@ func switchAccount(cmd *cobra.Command, configManager *config.Manager, accountAli
 	}
 
 	outputf("🔧 Updating Git configuration...\n")
-	if err := updateGitConfig(targetAccount); err != nil {
+	if err := updateGitConfig(targetAccount, !configManager.GetConfig().AutoSwitch.GitIncludes); err != nil {
 		return rollback(fmt.Errorf("failed to update Git configuration: %w", err))
 	} else {
 		outputf("✅ Git configuration updated\n")
@@ -423,7 +424,9 @@ func isGitRepo() bool {
 }
 
 // updateGitConfig updates the Git user configuration (both global and local if in a repo)
-func updateGitConfig(account *models.Account) error {
+// updateGitConfig sets the global identity and, unless Git includes choose the
+// identity per directory, the current repository's local identity too.
+func updateGitConfig(account *models.Account, writeLocal bool) error {
 	// Set global configuration
 	if account.Name != "" {
 		cmd := exec.Command("git", "config", "--global", "user.name", account.Name)
@@ -450,8 +453,9 @@ func updateGitConfig(account *models.Account) error {
 		return fmt.Errorf("failed to clear global git core.sshCommand: %w", err)
 	}
 
-	// Check if we're in a Git repository and set local config too
-	if isGitRepo() {
+	// Check if we're in a Git repository and set local config too. Local values
+	// would override Git includes, so they are skipped when includes are on.
+	if writeLocal && isGitRepo() {
 		if account.Name != "" {
 			cmd := exec.Command("git", "config", "--local", "user.name", account.Name)
 			if err := cmd.Run(); err != nil {
@@ -485,7 +489,7 @@ func updateGitConfig(account *models.Account) error {
 // SSH config (ports, ProxyJump, agents holding this key). IdentitiesOnly stops
 // ssh from offering unrelated agent keys first.
 func isolatedGitSSHCommand(keyPath string) string {
-	return fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes", shellQuote(keyPath))
+	return gitidentity.SSHCommand(keyPath)
 }
 
 func clearGitConfigValue(scope, key string) error {
@@ -607,38 +611,13 @@ func getCurrentAccount() (string, error) {
 // applyCommitSigning sets Git's global signing settings for the account:
 // gpg.format, user.signingkey, commit.gpgsign and tag.gpgsign.
 func applyCommitSigning(account *models.Account) error {
-	format, key := account.CommitSigning()
-	settings := map[string]string{"commit.gpgsign": "false", "tag.gpgsign": "false"}
-	var unset []string
-	switch format {
-	case models.SigningFormatSSH:
-		keyPath, err := models.NormalizeSSHKeyPath(key)
-		if err != nil {
-			return fmt.Errorf("SSH signing key: %w", err)
-		}
-		settings["gpg.format"] = "ssh"
-		settings["user.signingkey"] = keyPath
-		settings["commit.gpgsign"], settings["tag.gpgsign"] = "true", "true"
-	case models.SigningFormatGPG:
-		settings["gpg.format"] = "openpgp"
-		settings["user.signingkey"] = key
-		settings["commit.gpgsign"], settings["tag.gpgsign"] = "true", "true"
-	default:
-		// A GPG key whose signing is turned off stays selected, as before.
-		if account.HasGPGKey() {
-			settings["gpg.format"] = "openpgp"
-			settings["user.signingkey"] = account.GPGKeyID
-		} else {
-			unset = []string{"user.signingkey", "gpg.format"}
-		}
+	set, unset, err := gitidentity.SigningSettings(account)
+	if err != nil {
+		return err
 	}
-	for _, name := range []string{"gpg.format", "user.signingkey", "commit.gpgsign", "tag.gpgsign"} {
-		value, ok := settings[name]
-		if !ok {
-			continue
-		}
-		if output, err := exec.Command("git", "config", "--global", name, value).CombinedOutput(); err != nil {
-			return fmt.Errorf("set %s: %w: %s", name, err, strings.TrimSpace(string(output)))
+	for _, setting := range set {
+		if output, err := exec.Command("git", "config", "--global", setting.Key, setting.Value).CombinedOutput(); err != nil {
+			return fmt.Errorf("set %s: %w: %s", setting.Key, err, strings.TrimSpace(string(output)))
 		}
 	}
 	for _, name := range unset {

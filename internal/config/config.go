@@ -35,6 +35,15 @@ type Manager struct {
 	mu         sync.RWMutex
 	loadedHash [sha256.Size]byte
 	loaded     bool
+	afterSave  func(*models.Config)
+}
+
+// OnSave registers fn to run after every successful save, with the manager
+// lock held. fn must not call back into the manager.
+func (m *Manager) OnSave(fn func(*models.Config)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.afterSave = fn
 }
 
 // NewManager creates a new configuration manager
@@ -288,6 +297,9 @@ func (m *Manager) saveLocked() error {
 
 	if err := syncConfigDirectory(m.configPath); err != nil {
 		return err
+	}
+	if m.afterSave != nil {
+		m.afterSave(m.config)
 	}
 
 	return nil
@@ -651,6 +663,19 @@ func (m *Manager) AddAutoSwitchRule(path, alias string) (models.AutoSwitchRule, 
 	}
 	m.config.AutoSwitch.Rules = append(m.config.AutoSwitch.Rules, rule)
 	return rule, m.saveLocked()
+}
+
+// ConfigDir returns the directory holding the configuration file.
+func (m *Manager) ConfigDir() string {
+	return m.configPath
+}
+
+// SetGitIncludes turns per-directory Git identity through includeIf on or off.
+func (m *Manager) SetGitIncludes(enabled bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.config.AutoSwitch.GitIncludes = enabled
+	return m.saveLocked()
 }
 
 // SetAutoSwitchDefault sets the account used when no rule matches. An empty
