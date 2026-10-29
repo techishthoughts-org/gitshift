@@ -516,3 +516,57 @@ func TestDefaultChangesNeverMarkAnAccountCurrent(t *testing.T) {
 		})
 	}
 }
+
+func TestAutoSwitchDefaultAccountLifecycle(t *testing.T) {
+	configFile := filepath.Join(t.TempDir(), "config.yaml")
+	manager := NewManagerWithPath(configFile)
+	if err := manager.Load(); err != nil {
+		t.Fatal(err)
+	}
+	for _, alias := range []string{"work", "personal"} {
+		if err := manager.AddAccount(testAccount(alias)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := manager.SetAutoSwitchDefault("missing"); !errors.Is(err, models.ErrAccountNotFound) {
+		t.Fatalf("unknown default error = %v, want ErrAccountNotFound", err)
+	}
+	if err := manager.SetAutoSwitchDefault("work"); err != nil {
+		t.Fatal(err)
+	}
+	reloaded := NewManagerWithPath(configFile)
+	if err := reloaded.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if got := reloaded.GetConfig().AutoSwitch.DefaultAccount; got != "work" {
+		t.Fatalf("persisted default = %q, want work", got)
+	}
+	if err := reloaded.SetAutoSwitchDefault(""); err != nil || reloaded.GetConfig().AutoSwitch.DefaultAccount != "" {
+		t.Fatalf("clear default: err=%v value=%q", err, reloaded.GetConfig().AutoSwitch.DefaultAccount)
+	}
+
+	if err := reloaded.SetAutoSwitchDefault("personal"); err != nil {
+		t.Fatal(err)
+	}
+	if err := reloaded.ReplaceAccounts([]*models.Account{testAccount("personal"), testAccount("work")}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := reloaded.GetConfig().AutoSwitch.DefaultAccount; got != "personal" {
+		t.Fatalf("replace dropped a surviving default: %q", got)
+	}
+	if err := reloaded.ReplaceAccounts([]*models.Account{testAccount("work")}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := reloaded.GetConfig().AutoSwitch.DefaultAccount; got != "" {
+		t.Fatalf("replace kept a removed default: %q", got)
+	}
+	if err := reloaded.SetAutoSwitchDefault("work"); err != nil {
+		t.Fatal(err)
+	}
+	if err := reloaded.RemoveAccount("work"); err != nil {
+		t.Fatal(err)
+	}
+	if got := reloaded.GetConfig().AutoSwitch.DefaultAccount; got != "" {
+		t.Fatalf("remove kept a removed default: %q", got)
+	}
+}

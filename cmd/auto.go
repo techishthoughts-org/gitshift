@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/techishthoughts/gitshift/internal/autoswitch"
+	"github.com/techishthoughts/gitshift/internal/config"
 )
 
 var autoCmd = &cobra.Command{
@@ -97,9 +98,70 @@ var autoResolveCmd = &cobra.Command{
 		}
 		if match != nil {
 			fmt.Fprintln(cmd.OutOrStdout(), match.Account)
+		} else if fallback := manager.GetConfig().AutoSwitch.DefaultAccount; fallback != "" {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s (default)\n", fallback)
 		}
 		return nil
 	},
+}
+
+var autoDefaultCmd = &cobra.Command{
+	Use:   "default [ALIAS]",
+	Short: "Show or set the account used when no rule matches",
+	Long: `Show or set the account auto-switch uses outside every rule directory.
+
+Without a default, leaving rule directories keeps the current identity.`,
+	Example: `  gitshift auto default work
+  gitshift auto default
+  gitshift auto default --clear`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		clear, _ := cmd.Flags().GetBool("clear")
+		if clear && len(args) > 0 {
+			return fmt.Errorf("use either ALIAS or --clear, not both")
+		}
+		manager := newConfigManager()
+		if !clear && len(args) == 0 {
+			if err := manager.LoadReadOnly(); err != nil {
+				return fmt.Errorf("load configuration: %w", err)
+			}
+			if fallback := manager.GetConfig().AutoSwitch.DefaultAccount; fallback != "" {
+				fmt.Fprintln(cmd.OutOrStdout(), fallback)
+			} else {
+				fmt.Fprintln(cmd.OutOrStdout(), "No auto-switch default account configured.")
+			}
+			return nil
+		}
+		if err := manager.Load(); err != nil {
+			return fmt.Errorf("load configuration: %w", err)
+		}
+		alias := ""
+		if len(args) == 1 {
+			alias = args[0]
+		}
+		if err := manager.SetAutoSwitchDefault(alias); err != nil {
+			return fmt.Errorf("set auto-switch default: %w", err)
+		}
+		if alias == "" {
+			fmt.Fprintln(cmd.OutOrStdout(), "Auto-switch default account cleared.")
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "Auto-switch default account: %s\n", alias)
+		}
+		return nil
+	},
+}
+
+// autoSwitchTarget returns the account for path: the deepest matching rule, or
+// the configured default when no rule matches. Empty means leave state alone.
+func autoSwitchTarget(manager *config.Manager, path string) (string, error) {
+	match, err := autoswitch.Resolve(manager.ListAutoSwitchRules(), path)
+	if err != nil {
+		return "", fmt.Errorf("resolve auto-switch rule: %w", err)
+	}
+	if match != nil {
+		return match.Account, nil
+	}
+	return manager.GetConfig().AutoSwitch.DefaultAccount, nil
 }
 
 var autoSwitchCmd = &cobra.Command{
@@ -118,11 +180,11 @@ var autoSwitchCmd = &cobra.Command{
 		if err := manager.LoadReadOnly(); err != nil {
 			return fmt.Errorf("load configuration: %w", err)
 		}
-		match, err := autoswitch.Resolve(manager.ListAutoSwitchRules(), path)
+		target, err := autoSwitchTarget(manager, path)
 		if err != nil {
-			return fmt.Errorf("resolve auto-switch rule: %w", err)
+			return err
 		}
-		if match == nil {
+		if target == "" || manager.GetConfig().CurrentAccount == target {
 			return nil
 		}
 		release, err := manager.AcquireSwitchLock()
@@ -133,29 +195,26 @@ var autoSwitchCmd = &cobra.Command{
 		if err := manager.LoadReadOnly(); err != nil {
 			return fmt.Errorf("load configuration: %w", err)
 		}
-		match, err = autoswitch.Resolve(manager.ListAutoSwitchRules(), path)
+		target, err = autoSwitchTarget(manager, path)
 		if err != nil {
-			return fmt.Errorf("resolve auto-switch rule: %w", err)
+			return err
 		}
-		if match == nil {
-			return nil
-		}
-		if manager.GetConfig().CurrentAccount == match.Account {
+		if target == "" || manager.GetConfig().CurrentAccount == target {
 			return nil
 		}
 		if err := manager.Load(); err != nil {
 			return fmt.Errorf("load configuration: %w", err)
 		}
-		match, err = autoswitch.Resolve(manager.ListAutoSwitchRules(), path)
+		target, err = autoSwitchTarget(manager, path)
 		if err != nil {
-			return fmt.Errorf("resolve auto-switch rule: %w", err)
+			return err
 		}
-		if match == nil || manager.GetConfig().CurrentAccount == match.Account {
+		if target == "" || manager.GetConfig().CurrentAccount == target {
 			return nil
 		}
 		// Automatic switching deliberately has no force mode: any failed
 		// validation aborts and rolls back through the shared switch path.
-		return switchAccount(cmd, manager, match.Account, false, false, quiet)
+		return switchAccount(cmd, manager, target, false, false, quiet)
 	},
 }
 
@@ -180,6 +239,7 @@ func init() {
 	autoListCmd.Flags().Bool("json", false, "output JSON")
 	autoResolveCmd.Flags().Bool("json", false, "output JSON")
 	autoSwitchCmd.Flags().Bool("quiet", false, "suppress successful switch output")
-	autoCmd.AddCommand(autoAddCmd, autoListCmd, autoRemoveCmd, autoResolveCmd)
+	autoDefaultCmd.Flags().Bool("clear", false, "remove the default account")
+	autoCmd.AddCommand(autoAddCmd, autoListCmd, autoRemoveCmd, autoResolveCmd, autoDefaultCmd)
 	rootCmd.AddCommand(autoCmd, autoSwitchCmd)
 }

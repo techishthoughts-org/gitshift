@@ -59,7 +59,15 @@ Alias: `ls`. `--format`/`-f` accepts `default`, `table`, or `json`.
 
 ### `current`
 
-Aliases: `c`, `whoami`. Add `--json`/`-j` for machine-readable output.
+Aliases: `c`, `whoami`. Add `--json`/`-j` for machine-readable output, or `--short`/`-s` to print only the active alias (empty when no switch has applied one). `--short` is read-only and suited to shell prompts, for example a Starship custom module:
+
+```toml
+[custom.gitshift]
+command = "gitshift current --short"
+when = true
+shell = ["sh"]
+format = "[as $output]($style) "
+```
 
 ## Switch
 
@@ -89,11 +97,15 @@ Removes the rule for the canonical existing directory. If the directory was dele
 
 ### `auto resolve [PATH] [--json]`
 
-Prints the alias selected for `PATH`, or the current directory when omitted, without switching. No match is successful with no human output (`null` with `--json`). The deepest directory rule wins, and sibling path prefixes do not match.
+Prints the alias selected for `PATH`, or the current directory when omitted, without switching. When no rule matches, it prints the `auto default` account followed by `(default)`, or nothing if none is set. `--json` reports only the matching rule (`null` when no rule matches). The deepest directory rule wins, and sibling path prefixes do not match.
+
+### `auto default [ALIAS] [--clear]`
+
+Shows, sets, or clears (`--clear`) the account auto-switch applies when no rule matches. Without a default, leaving rule directories keeps the current identity. Removing the account clears the default.
 
 ### `auto-switch [PATH] [--quiet]`
 
-Applies the matching rule through the same transaction as `switch`. No match and an already-active account are successful no-ops. Automatic switching never enables force mode. This command is intended for the generated hook.
+Applies the matching rule, or the `auto default` account when no rule matches, through the same transaction as `switch`. No target and an already-active account are successful no-ops. Automatic switching never enables force mode. This command is intended for the generated hook.
 
 ### `shell-init zsh`
 
