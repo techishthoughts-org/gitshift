@@ -118,6 +118,9 @@ These are the notes for v2.0.0.
   never written to configuration or shown in the terminal UI.
 - Upgraded to Go 1.26, `golang.org/x/text` v0.39.0 (GO-2026-5970) and `golang.org/x/crypto`
   v0.52.0 (GO-2026-5018).
+- Release binaries are built with the latest Go 1.26 patch release (1.26.10 at the time of
+  writing; fixes GO-2026-6809 and the standard-library part of GO-2026-6617), and
+  `golang.org/x/net` is v0.60.0 (GO-2026-6617).
 
 ### Maintenance
 
