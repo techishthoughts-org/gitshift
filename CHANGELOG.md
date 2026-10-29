@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-29
+
 ### Added
 
 - `gitshift auto git-includes on|off|status`: Git picks the identity for each rule directory through
@@ -300,7 +302,8 @@ Release binaries were published on GitHub only and report version v0.1.0.
   `--auto-import` and `--overwrite`.
 - YAML configuration in `~/.config/gitshift/config.yaml`.
 
-[Unreleased]: https://github.com/techishthoughts-org/gitshift/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/techishthoughts-org/gitshift/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/techishthoughts-org/gitshift/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/techishthoughts-org/gitshift/compare/v1.4.2...v2.0.0
 [1.4.2]: https://github.com/techishthoughts-org/gitshift/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/techishthoughts-org/gitshift/compare/v1.4.0...v1.4.1
