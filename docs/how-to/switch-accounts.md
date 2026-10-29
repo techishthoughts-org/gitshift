@@ -27,7 +27,7 @@ The full list of side effects, including backups, is in the [security model](../
 gitshift switch work --validate   # or -V
 ```
 
-`--validate` changes nothing. It checks that the name and email are set, that the SSH key exists, and that the key authenticates to the account's host. It does not check the GitHub CLI login, GPG, or the key's file permissions, all of which the real switch needs. With `--validate`, `--force` and `--skip-validation` are ignored.
+`--validate` changes nothing. It checks what the real switch needs: the name and email, that the SSH key exists with owner-only permissions and authenticates to the account's host, for GitHub accounts that the GitHub CLI is logged in as the account's username, and that the account's GPG secret key is in your keyring. With `--validate`, `--force` and `--skip-validation` are ignored.
 
 ## When a check fails: `--skip-validation` and `--force`
 
