@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/techishthoughts/gitshift/internal/models"
 )
 
 type screen uint8
@@ -507,9 +508,9 @@ func (m *Model) openAccountForm(a Account) {
 	m.formOriginal = a.Alias
 	m.accountEdit = a.Alias != ""
 	if m.accountEdit {
-		m.setInputs([]string{"Name", "Email", "Username", "Platform", "Domain", "SSH key path", "Description"}, []string{a.Name, a.Email, a.Username, defaultString(a.Platform, "github"), defaultString(a.Domain, "github.com"), a.SSHKeyPath, a.Description})
+		m.setInputs([]string{"Name", "Email", "Username", "Platform", "Domain", "SSH key path", "Description"}, []string{a.Name, a.Email, a.Username, defaultString(a.Platform, "github"), formDomain(a), a.SSHKeyPath, a.Description})
 	} else {
-		m.setInputs([]string{"Alias", "Name", "Email", "Username", "Platform", "Domain", "SSH key path", "Description"}, []string{"", a.Name, a.Email, a.Username, defaultString(a.Platform, "github"), defaultString(a.Domain, "github.com"), a.SSHKeyPath, a.Description})
+		m.setInputs([]string{"Alias", "Name", "Email", "Username", "Platform", "Domain", "SSH key path", "Description"}, []string{"", a.Name, a.Email, a.Username, defaultString(a.Platform, "github"), formDomain(a), a.SSHKeyPath, a.Description})
 	}
 }
 func (m *Model) openRuleForm() {
@@ -524,6 +525,17 @@ func (m *Model) openAliasForm() {
 	m.previous, m.screen = m.screen, discoveryAlias
 	m.setInputs([]string{"Alias"}, []string{m.discovered[m.cursor].Alias})
 }
+
+// formDomain leaves the Domain field blank when it is the platform default, so
+// saving resolves it from whatever platform is submitted.
+func formDomain(a Account) string {
+	defaultDomain := (&models.Account{Platform: defaultString(a.Platform, "github")}).GetDomain()
+	if strings.EqualFold(a.Domain, defaultDomain) {
+		return ""
+	}
+	return a.Domain
+}
+
 func defaultString(s, d string) string {
 	if s == "" {
 		return d
