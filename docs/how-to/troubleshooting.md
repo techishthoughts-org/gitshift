@@ -71,15 +71,21 @@ A repository-local value overrides the global one. Switching inside a repository
 
 While an account with a key is active, Git runs `ssh -i KEY -o IdentitiesOnly=yes`, so the account's key is offered first and your `~/.ssh/config` still applies. If the provider authenticates you as another user, the account's key is probably not registered there and a key from an `IdentityFile` line answered instead. Check with `gitshift ssh-test ALIAS`; see the [security model](../explanation/security-model.md#git-ssh-command).
 
-## GPG signing fails
+## Commit signing fails or is missing
 
 ```bash
-gpg --list-secret-keys --keyid-format LONG
+gitshift switch ALIAS --validate
+git config --show-origin --get gpg.format
 git config --show-origin --get user.signingkey
 git config --show-origin --get commit.gpgsign
 ```
 
-Make sure the secret key is in your keyring and any pinentry your key needs is available. To stop signing for an account, see [keys](keys.md#use-an-existing-gpg-key).
+- Signing is off after a switch: the account has no signing set. Run `gitshift update ALIAS --signing ssh` (or `gpg`), then switch again.
+- SSH signing: the key must exist with owner-only permissions, Git must be 2.34 or later, and a `.pub` signing key needs ssh-agent to hold the private key.
+- GPG signing: the secret key must be in your keyring (`gpg --list-secret-keys --keyid-format LONG`) and any pinentry your key needs must be available.
+- A repository-local `commit.gpgsign` or `gpg.format` overrides the global value GitShift sets.
+
+See [sign commits and tags](keys.md#sign-commits-and-tags).
 
 ## The directory hook does not switch
 

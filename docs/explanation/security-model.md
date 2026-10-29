@@ -6,7 +6,7 @@ GitShift coordinates tools that each own part of your identity: Git, OpenSSH, Gn
 
 | State | Change |
 | --- | --- |
-| `~/.gitconfig` | `user.name`, `user.email`, `core.sshCommand` (unset if the account has no key), `user.signingkey` (unset without a GPG key), `commit.gpgsign`, `tag.gpgsign` |
+| `~/.gitconfig` | `user.name`, `user.email`, `core.sshCommand` (unset if the account has no key), `gpg.format`, `user.signingkey` (both unset when the account signs with nothing and has no GPG key), `commit.gpgsign`, `tag.gpgsign` |
 | `.git/config` of the current repository | `user.name`, `user.email`, `core.sshCommand`, only when you run the switch inside a repository |
 | `~/.ssh/config` | the GitShift-managed block for the account's host, when the account has a key; see [below](#ssh-config-handling) |
 | `~/.ssh/config.backup`, `~/.ssh/config.gitshift-orig` | backups written before each `~/.ssh/config` change |
