@@ -38,10 +38,10 @@ func newFixture(t *testing.T) *fixture {
 	personal := models.NewAccount("personal", "Personal Name", "me@example.com", filepath.Join(root, "id_personal"))
 	f.cfg = models.NewConfig()
 	f.cfg.Accounts = map[string]*models.Account{"work": work, "personal": personal}
-	for dir, alias := range map[string]string{"work dir": "work", "personal": "personal", "personal/client": "work"} {
-		path := filepath.Join(root, dir)
+	for _, rule := range []struct{ dir, alias string }{{"work dir", "work"}, {"personal", "personal"}, {"personal/client", "work"}} {
+		path := filepath.Join(root, rule.dir)
 		f.mkRepo(t, path)
-		f.cfg.AutoSwitch.Rules = append(f.cfg.AutoSwitch.Rules, models.AutoSwitchRule{Path: path, Account: alias})
+		f.cfg.AutoSwitch.Rules = append(f.cfg.AutoSwitch.Rules, models.AutoSwitchRule{Path: path, Account: rule.alias})
 	}
 	f.git(t, "", "config", "--global", "user.email", "global@example.com")
 	f.git(t, "", "config", "--global", "commit.gpgsign", "false")
@@ -339,11 +339,12 @@ func TestInSyncDetectsRemappedAccountAndLaterSettings(t *testing.T) {
 	if ok, _ := InSync(f.cfg, f.includeDir); !ok {
 		t.Fatal("freshly synced config reported out of sync")
 	}
-	f.cfg.AutoSwitch.Rules[0].Account = "personal"
+	work := &f.cfg.AutoSwitch.Rules[0] // "work dir" -> work
+	work.Account = "personal"
 	if ok, _ := InSync(f.cfg, f.includeDir); ok {
 		t.Fatal("a rule moved to another account was not detected")
 	}
-	f.cfg.AutoSwitch.Rules[0].Account = "work"
+	work.Account = "work"
 	f.git(t, "", "config", "--global", "tag.gpgsign", "false")
 	if ok, _ := InSync(f.cfg, f.includeDir); ok {
 		t.Fatal("a setting appended after the includes was not detected")
