@@ -612,14 +612,35 @@ func TestUpdateValidatesSSHKeyAndGPGOptions(t *testing.T) {
 				}
 			},
 		},
-		{name: "signing needs a key", flags: map[string]string{"gpg-signing": "true"}, wantErr: "needs a GPG key"},
+		{name: "gpg signing needs a key", flags: map[string]string{"signing": "gpg"}, wantErr: "needs a GPG key"},
+		{name: "unknown signing format", flags: map[string]string{"signing": "x509"}, wantErr: "use ssh, gpg or off"},
+		{name: "missing signing key", flags: map[string]string{"signing": "ssh", "signing-key": filepath.Join(home, "nope")}, wantErr: "signing key not found"},
 		{
 			name:   "signing can be turned off",
-			flags:  map[string]string{"gpg-signing": "false"},
+			flags:  map[string]string{"signing": "off"},
 			gpgKey: "ABCDEF12",
 			check: func(t *testing.T, a *models.Account) {
-				if a.GPGKeyID != "ABCDEF12" || a.GPGEnabled {
-					t.Fatalf("GPG key=%q enabled=%t, want key kept and signing off", a.GPGKeyID, a.GPGEnabled)
+				if format, _ := a.CommitSigning(); a.GPGKeyID != "ABCDEF12" || format != "" {
+					t.Fatalf("GPG key=%q signing=%q, want key kept and signing off", a.GPGKeyID, format)
+				}
+			},
+		},
+		{
+			name:   "ssh signing uses the account SSH key and replaces gpg",
+			flags:  map[string]string{"signing": "ssh"},
+			gpgKey: "ABCDEF12",
+			check: func(t *testing.T, a *models.Account) {
+				if format, key := a.CommitSigning(); format != "ssh" || key != a.SSHKeyPath || a.GPGEnabled {
+					t.Fatalf("signing=%q key=%q gpgEnabled=%t", format, key, a.GPGEnabled)
+				}
+			},
+		},
+		{
+			name:  "ssh signing with a separate normalized key",
+			flags: map[string]string{"signing": "ssh", "signing-key": "~/.ssh/id_work"},
+			check: func(t *testing.T, a *models.Account) {
+				if format, signingKey := a.CommitSigning(); format != "ssh" || signingKey != key {
+					t.Fatalf("signing=%q key=%q, want ssh %q", format, signingKey, key)
 				}
 			},
 		},

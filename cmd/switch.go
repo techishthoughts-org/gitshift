@@ -99,6 +99,9 @@ func switchAccount(cmd *cobra.Command, configManager *config.Manager, accountAli
 			return fmt.Errorf("account preflight failed: %w", err)
 		}
 	}
+	if err := checkCommitSigning(targetAccount); err != nil && !force {
+		return fmt.Errorf("signing preflight failed: %w", err)
+	}
 	provider, err := platform.NewFactory().GetPlatform(platform.Type(targetAccount.GetPlatform()), targetAccount.GetDomain())
 	if err != nil {
 		return fmt.Errorf("platform preflight failed: %w", err)
@@ -147,32 +150,20 @@ func switchAccount(cmd *cobra.Command, configManager *config.Manager, accountAli
 		outputf("✅ Git configuration updated\n")
 	}
 
-	// 2.5 Update GPG configuration if account has GPG key
-	if targetAccount.HasGPGKey() {
-		outputf("🔐 Configuring GPG signing...\n")
-		if err := updateGPGConfig(targetAccount); err != nil {
-			if force {
-				outputf("⚠️  GPG config update failed: %v (continuing due to --force)\n", err)
-			} else {
-				return rollback(fmt.Errorf("GPG config update failed: %w", err))
-			}
+	signingFormat, _ := targetAccount.CommitSigning()
+	if err := applyCommitSigning(targetAccount); err != nil {
+		if force {
+			outputf("⚠️  Commit signing update failed: %v (continuing due to --force)\n", err)
 		} else {
-			if targetAccount.IsGPGEnabled() {
-				outputf("✅ GPG signing enabled (key: %s)\n", targetAccount.GPGKeyID)
-			} else {
-				outputf("ℹ️  GPG key configured but automatic signing is disabled\n")
-				outputf("   To enable: gitshift update %s --gpg-signing\n", accountAlias)
-			}
+			return rollback(fmt.Errorf("commit signing update failed: %w", err))
 		}
 	} else {
-		// No GPG key, disable signing
-		outputf("🔓 Disabling GPG signing (no GPG key configured)...\n")
-		if err := disableGPGSigning(); err != nil {
-			if force {
-				outputf("⚠️  Failed to disable GPG signing: %v (continuing due to --force)\n", err)
-			} else {
-				return rollback(fmt.Errorf("failed to disable GPG signing: %w", err))
-			}
+		switch signingFormat {
+		case models.SigningFormatSSH, models.SigningFormatGPG:
+			outputf("🔐 Commit and tag signing enabled (%s)\n", signingFormat)
+		default:
+			outputf("🔓 Commit signing off for this account\n")
+			outputf("   To enable: gitshift update %s --signing ssh\n", accountAlias)
 		}
 	}
 
@@ -248,7 +239,7 @@ func captureSwitchState(target *models.Account, allowMissingGitHubState bool) (*
 		return nil, fmt.Errorf("inspect SSH config: %w", err)
 	}
 
-	keys := []string{"user.name", "user.email", "core.sshCommand", "user.signingkey", "commit.gpgsign", "tag.gpgsign"}
+	keys := []string{"user.name", "user.email", "core.sshCommand", "user.signingkey", "commit.gpgsign", "tag.gpgsign", "gpg.format"}
 	scopes := []string{"--global"}
 	if isGitRepo() {
 		scopes = append(scopes, "--local")
@@ -406,12 +397,12 @@ func validateAccount(configManager *config.Manager, accountAlias string) error {
 		}
 	}
 
-	if targetAccount.HasGPGKey() {
-		if err := exec.Command("gpg", "--batch", "--list-secret-keys", "--", targetAccount.GPGKeyID).Run(); err != nil {
-			fmt.Printf("❌ GPG secret key %s not available: %v\n", targetAccount.GPGKeyID, err)
+	if format, key := targetAccount.CommitSigning(); format != "" {
+		if err := checkCommitSigning(targetAccount); err != nil {
+			fmt.Printf("❌ %v\n", err)
 			issues++
 		} else {
-			fmt.Printf("✅ GPG secret key available: %s\n", targetAccount.GPGKeyID)
+			fmt.Printf("✅ Commit signing (%s) key available: %s\n", format, key)
 		}
 	}
 
@@ -613,66 +604,104 @@ func getCurrentAccount() (string, error) {
 	return currentAccount, nil
 }
 
-// updateGPGConfig updates Git GPG signing configuration for the account
-func updateGPGConfig(account *models.Account) error {
-	if !account.HasGPGKey() {
-		return fmt.Errorf("account has no GPG key configured")
-	}
-
-	// Set the signing key
-	cmd := exec.Command("git", "config", "--global", "user.signingkey", account.GPGKeyID)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to set user.signingkey: %w", err)
-	}
-
-	// Enable or disable automatic signing based on account preference
-	if account.IsGPGEnabled() {
-		// Enable commit signing
-		cmd = exec.Command("git", "config", "--global", "commit.gpgsign", "true")
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to enable commit.gpgsign: %w", err)
+// applyCommitSigning sets Git's global signing settings for the account:
+// gpg.format, user.signingkey, commit.gpgsign and tag.gpgsign.
+func applyCommitSigning(account *models.Account) error {
+	format, key := account.CommitSigning()
+	settings := map[string]string{"commit.gpgsign": "false", "tag.gpgsign": "false"}
+	var unset []string
+	switch format {
+	case models.SigningFormatSSH:
+		keyPath, err := models.NormalizeSSHKeyPath(key)
+		if err != nil {
+			return fmt.Errorf("SSH signing key: %w", err)
 		}
-
-		// Enable tag signing
-		cmd = exec.Command("git", "config", "--global", "tag.gpgsign", "true")
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to enable tag.gpgsign: %w", err)
-		}
-	} else {
-		// Disable automatic signing but keep the key configured
-		cmd = exec.Command("git", "config", "--global", "commit.gpgsign", "false")
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to disable commit.gpgsign: %w", err)
-		}
-
-		cmd = exec.Command("git", "config", "--global", "tag.gpgsign", "false")
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to disable tag.gpgsign: %w", err)
+		settings["gpg.format"] = "ssh"
+		settings["user.signingkey"] = keyPath
+		settings["commit.gpgsign"], settings["tag.gpgsign"] = "true", "true"
+	case models.SigningFormatGPG:
+		settings["gpg.format"] = "openpgp"
+		settings["user.signingkey"] = key
+		settings["commit.gpgsign"], settings["tag.gpgsign"] = "true", "true"
+	default:
+		// A GPG key whose signing is turned off stays selected, as before.
+		if account.HasGPGKey() {
+			settings["gpg.format"] = "openpgp"
+			settings["user.signingkey"] = account.GPGKeyID
+		} else {
+			unset = []string{"user.signingkey", "gpg.format"}
 		}
 	}
-
+	for _, name := range []string{"gpg.format", "user.signingkey", "commit.gpgsign", "tag.gpgsign"} {
+		value, ok := settings[name]
+		if !ok {
+			continue
+		}
+		if output, err := exec.Command("git", "config", "--global", name, value).CombinedOutput(); err != nil {
+			return fmt.Errorf("set %s: %w: %s", name, err, strings.TrimSpace(string(output)))
+		}
+	}
+	for _, name := range unset {
+		if err := clearGitConfigValue("--global", name); err != nil {
+			return fmt.Errorf("unset %s: %w", name, err)
+		}
+	}
 	return nil
 }
 
-// disableGPGSigning disables GPG signing in Git configuration
-func disableGPGSigning() error {
-	// Unset the signing key
-	cmd := exec.Command("git", "config", "--global", "--unset", "user.signingkey")
-	_ = cmd.Run() // Ignore error if key was not set
-
-	// Disable commit signing
-	cmd = exec.Command("git", "config", "--global", "commit.gpgsign", "false")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to disable commit.gpgsign: %w", err)
+// checkCommitSigning reports problems that would make signed commits fail.
+func checkCommitSigning(account *models.Account) error {
+	format, key := account.CommitSigning()
+	switch format {
+	case models.SigningFormatSSH:
+		keyPath, err := models.NormalizeSSHKeyPath(key)
+		if err != nil {
+			return fmt.Errorf("SSH signing key: %w", err)
+		}
+		if strings.HasSuffix(keyPath, ".pub") {
+			if _, err := os.Stat(keyPath); err != nil {
+				return fmt.Errorf("SSH signing key not found at %s: %w", keyPath, err)
+			}
+		} else if err := ssh.CheckPrivateKeyFile(keyPath); err != nil {
+			return fmt.Errorf("SSH signing key: %w", err)
+		}
+		return checkGitSupportsSSHSigning()
+	case models.SigningFormatGPG:
+		if err := exec.Command("gpg", "--batch", "--list-secret-keys", "--", key).Run(); err != nil {
+			return fmt.Errorf("GPG secret key %s not available: %w", key, err)
+		}
 	}
-
-	// Disable tag signing
-	cmd = exec.Command("git", "config", "--global", "tag.gpgsign", "false")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to disable tag.gpgsign: %w", err)
-	}
-
 	return nil
+}
+
+// checkGitSupportsSSHSigning requires Git 2.34, the first release with
+// gpg.format=ssh.
+func checkGitSupportsSSHSigning() error {
+	output, err := exec.Command("git", "version").Output()
+	if err != nil {
+		return fmt.Errorf("read git version: %w", err)
+	}
+	if !gitVersionAtLeast(string(output), 2, 34) {
+		return fmt.Errorf("SSH commit signing needs Git 2.34 or later; found %s", strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func gitVersionAtLeast(output string, major, minor int) bool {
+	fields := strings.Fields(output)
+	if len(fields) < 3 {
+		return false
+	}
+	parts := strings.SplitN(fields[2], ".", 3)
+	if len(parts) < 2 {
+		return false
+	}
+	gotMajor, errMajor := strconv.Atoi(parts[0])
+	gotMinor, errMinor := strconv.Atoi(parts[1])
+	if errMajor != nil || errMinor != nil {
+		return false
+	}
+	return gotMajor > major || (gotMajor == major && gotMinor >= minor)
 }
 
 func init() {

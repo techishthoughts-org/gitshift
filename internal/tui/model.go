@@ -852,9 +852,9 @@ func (m Model) render() string {
 		if a, ok := m.accountAt(); ok {
 			b.WriteString(styles.heading.Render(fit(a.Alias, width)))
 			b.WriteString("\n")
-			lines := []string{"Name: " + a.Name, "Email: " + a.Email, "Username: @" + a.Username, "Provider: " + a.Platform, "Host: " + a.Domain, "SSH key: " + emptyAsDash(a.SSHKeyPath), "GPG key: " + emptyAsDash(a.GPGKeyID), "Description: " + emptyAsDash(a.Description)}
+			lines := []string{"Name: " + a.Name, "Email: " + a.Email, "Username: @" + a.Username, "Provider: " + a.Platform, "Host: " + a.Domain, "SSH key: " + emptyAsDash(a.SSHKeyPath), "GPG key: " + emptyAsDash(a.GPGKeyID), "Signing: " + emptyAsDash(a.Signing), "Description: " + emptyAsDash(a.Description)}
 			if m.height > 0 && m.height < 20 {
-				lines = []string{"Name: " + a.Name, "Email: " + a.Email, "@" + a.Username + " | " + a.Platform + " | " + a.Domain, "SSH: " + emptyAsDash(a.SSHKeyPath), "GPG: " + emptyAsDash(a.GPGKeyID)}
+				lines = []string{"Name: " + a.Name, "Email: " + a.Email, "@" + a.Username + " | " + a.Platform + " | " + a.Domain, "SSH: " + emptyAsDash(a.SSHKeyPath), "GPG: " + emptyAsDash(a.GPGKeyID) + " | signing: " + emptyAsDash(a.Signing)}
 			}
 			for _, line := range lines {
 				b.WriteString(fit(line, width) + "\n")

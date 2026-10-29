@@ -163,6 +163,14 @@ Examples:
 			fmt.Printf("🔐 GPG commit signing will be enabled for this account\n")
 			fmt.Printf("   💡 Generate a GPG key with: gitshift gpg-keygen %s\n", alias)
 		}
+		if signing, _ := cmd.Flags().GetString("signing"); signing != "" {
+			if err := account.SetCommitSigning(signing); err != nil {
+				return fmt.Errorf("invalid --signing: %w", err)
+			}
+			if err := account.Validate(); err != nil {
+				return fmt.Errorf("invalid account: %w", err)
+			}
+		}
 
 		// Add the account to configuration
 		if err := configManager.AddAccount(account); err != nil {
@@ -199,6 +207,7 @@ func init() {
 	addCmd.Flags().StringP("description", "d", "", "Account description (optional)")
 	addCmd.Flags().BoolP("default", "", false, "Set as default account")
 	addCmd.Flags().Bool("non-interactive", false, "Run in non-interactive mode (no prompts)")
+	addCmd.Flags().String("signing", "", "Commit and tag signing: ssh (the account's SSH key) or off")
 	addCmd.Flags().Bool("enable-gpg", false, "Enable GPG commit signing for this account (requires GPG key)")
 }
 

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -77,7 +78,7 @@ Examples:
 		domainChanged := cmd.Flags().Changed("domain")
 		apiEndpointChanged := cmd.Flags().Changed("api-endpoint")
 
-		if newName == "" && newEmail == "" && newUsername == "" && newSSHKey == "" && newDescription == "" && newPlatform == "" && !domainChanged && !apiEndpointChanged && !autoGPG && !setDefault && !cmd.Flags().Changed("gpg-signing") {
+		if newName == "" && newEmail == "" && newUsername == "" && newSSHKey == "" && newDescription == "" && newPlatform == "" && !domainChanged && !apiEndpointChanged && !autoGPG && !setDefault && !cmd.Flags().Changed("signing") && !cmd.Flags().Changed("signing-key") {
 			fmt.Printf("📋 Current account information for '%s':\n", alias)
 			fmt.Printf("   Name: %s\n", existingAccount.Name)
 			fmt.Printf("   Email: %s\n", existingAccount.Email)
@@ -95,12 +96,13 @@ Examples:
 			} else {
 				fmt.Printf("   GPG Key: Not configured\n")
 			}
+			fmt.Printf("   Signing: %s\n", signingSummary(existingAccount))
 			if existingAccount.Description != "" {
 				fmt.Printf("   Description: %s\n", existingAccount.Description)
 			}
 			fmt.Printf("   Default: %t\n", existingAccount.IsDefault)
 			fmt.Println("\n💡 Use flags to update specific fields:")
-			fmt.Println("   --name, --email, --username, --ssh-key, --description, --platform, --domain, --api-endpoint, --auto-gpg, --gpg-signing, --default")
+			fmt.Println("   --name, --email, --username, --ssh-key, --description, --platform, --domain, --api-endpoint, --auto-gpg, --signing, --signing-key, --default")
 			return nil
 		}
 
@@ -175,18 +177,38 @@ Examples:
 			updatedAccount.GPGKeyType = match.GPGKeyType
 			updatedAccount.GPGKeySize = match.GPGKeySize
 			updatedAccount.GPGKeyExpiry = match.GPGKeyExpiry
-			updatedAccount.GPGEnabled = true
+			updatedAccount.EnableGPGSigning()
 			changes = append(changes, fmt.Sprintf("GPG key: associated (%s)", match.GPGKeyID))
 		}
 
-		if cmd.Flags().Changed("gpg-signing") {
-			signing, _ := cmd.Flags().GetBool("gpg-signing")
-			switch {
-			case signing && !updatedAccount.HasGPGKey():
-				return fmt.Errorf("--gpg-signing needs a GPG key; run 'gitshift update %s --auto-gpg' or 'gitshift gpg-keygen %s'", alias, alias)
-			case signing != updatedAccount.GPGEnabled:
-				updatedAccount.GPGEnabled = signing
-				changes = append(changes, fmt.Sprintf("GPG signing: %s", map[bool]string{true: "enabled", false: "disabled"}[signing]))
+		if cmd.Flags().Changed("signing-key") {
+			signingKey, _ := cmd.Flags().GetString("signing-key")
+			if signingKey != "" {
+				keyPath, err := models.NormalizeSSHKeyPath(signingKey)
+				if err != nil {
+					return fmt.Errorf("invalid --signing-key: %w", err)
+				}
+				if _, err := os.Stat(keyPath); err != nil {
+					return fmt.Errorf("signing key not found at %s: %w", keyPath, err)
+				}
+				signingKey = keyPath
+			}
+			if signingKey != updatedAccount.SigningKey {
+				updatedAccount.SigningKey = signingKey
+				changes = append(changes, fmt.Sprintf("signing key: %s", emptyAsDefault(signingKey, "account SSH key")))
+			}
+		}
+		if cmd.Flags().Changed("signing") {
+			signing, _ := cmd.Flags().GetString("signing")
+			before, _ := updatedAccount.CommitSigning()
+			if err := updatedAccount.SetCommitSigning(signing); err != nil {
+				if errors.Is(err, models.ErrSigningKeyMissing) {
+					return fmt.Errorf("--signing gpg needs a GPG key; run 'gitshift update %s --auto-gpg' or 'gitshift gpg-keygen %s'", alias, alias)
+				}
+				return fmt.Errorf("invalid --signing: %w", err)
+			}
+			if after, _ := updatedAccount.CommitSigning(); after != before {
+				changes = append(changes, fmt.Sprintf("commit signing: %s → %s", emptyAsDefault(before, "off"), emptyAsDefault(after, "off")))
 			}
 		}
 
@@ -229,10 +251,8 @@ Examples:
 		}
 		if updatedAccount.HasGPGKey() {
 			fmt.Printf("   GPG Key: %s (%s)\n", updatedAccount.GPGKeyID, updatedAccount.GPGKeyType)
-			if updatedAccount.IsGPGEnabled() {
-				fmt.Printf("   GPG Signing: Enabled\n")
-			}
 		}
+		fmt.Printf("   Signing: %s\n", signingSummary(&updatedAccount))
 		if updatedAccount.Description != "" {
 			fmt.Printf("   Description: %s\n", updatedAccount.Description)
 		}
@@ -256,7 +276,8 @@ func init() {
 	updateCmd.Flags().String("api-endpoint", "", "Set provider API endpoint; use an empty value to clear it")
 	updateCmd.Flags().Bool("auto-gpg", false, "Automatically find and associate GPG key by email")
 	updateCmd.Flags().Bool("default", false, "Set this account as the default")
-	updateCmd.Flags().Bool("gpg-signing", false, "Sign commits and tags with the account's GPG key (--gpg-signing=false to stop)")
+	updateCmd.Flags().String("signing", "", "Commit and tag signing: ssh (account SSH key), gpg (account GPG key) or off")
+	updateCmd.Flags().String("signing-key", "", "SSH key to sign with when --signing is ssh (default: the account's SSH key)")
 }
 
 // scanGPGKeys is replaced in tests.
@@ -271,4 +292,20 @@ func matchGPGKey(keys []*discovery.DiscoveredAccount, email string) *discovery.D
 		}
 	}
 	return nil
+}
+
+func emptyAsDefault(value, fallback string) string {
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+// signingSummary describes an account's commit signing for human output.
+func signingSummary(account *models.Account) string {
+	format, key := account.CommitSigning()
+	if format == "" {
+		return "off"
+	}
+	return fmt.Sprintf("%s (%s)", format, key)
 }
