@@ -28,7 +28,7 @@ What it does:
 
 Then add the public key to the provider (GitHub: Settings, SSH and GPG keys; GitLab: Preferences, SSH Keys), or use `--add-to-github`.
 
-`--add-to-github` uploads to **whichever account is active in the GitHub CLI**, not necessarily the account you named. Run `gh auth switch --user USERNAME` (or `gitshift switch ALIAS`) first. It does not work for GitLab.
+`--add-to-github` uploads the key to the account you named, using the GitHub CLI login for that account's username and host; the active `gh` account does not change. The account must already exist as a GitHub account, and `gh` must be logged in as its user (`gh auth login --hostname HOST`). It does not work for GitLab.
 
 ### Use your own key instead
 
@@ -54,14 +54,12 @@ gitshift ssh-test work --verbose # show the ssh output
 For each account it checks, and reports every failure:
 
 - the private key and `.pub` file exist,
-- the private key mode is `600` (a `.pub` mode other than `644` is only a warning),
-- `~/.ssh/known_hosts` contains the account's host,
+- the private key is owner-only, `600` or `400` (a `.pub` mode other than `644` is only a warning),
+- `~/.ssh/known_hosts` contains the account's host (hashed entries are recognised),
 - `ssh -T git@HOST` authenticates with only this key (your `~/.ssh/config` and agent are ignored, host key checking is strict),
 - whether the key is loaded in your agent (information only).
 
 `ssh-test` is read-only. It never edits `known_hosts`.
-
-The `known_hosts` check is a plain text search for the hostname, so it fails if your `known_hosts` is hashed (`HashKnownHosts yes`) even when the host is trusted. The connection test is the one that matters.
 
 ## Create a GPG signing key
 
@@ -91,8 +89,15 @@ It generates the key **without a passphrase** in your GPG keyring, stores its ID
 gitshift update work --auto-gpg
 ```
 
-This attaches the first secret key in your keyring whose email matches the account's email and turns signing on. It silently does nothing if no key matches; check the output for `GPG key: associated`.
+This attaches the first secret key in your keyring whose email matches the account's email and turns signing on. It fails with an error if no key matches.
 
-There is no command to turn signing off while keeping the key. Set `gpg_enabled: false` for the account in the [configuration file](../reference/configuration.md), then switch to it again.
+### Turn signing on or off
+
+```bash
+gitshift update work --gpg-signing          # sign commits and tags
+gitshift update work --gpg-signing=false    # keep the key, stop signing
+```
+
+Switch to the account again to apply the change to Git.
 
 `add --enable-gpg` only records the preference; it does not create or select a key.

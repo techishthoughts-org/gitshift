@@ -1,143 +1,61 @@
----
-name: 🔒 Security & Compliance
+name: Security
+
 on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: [main]
   schedule:
-    # Run daily at 3 AM UTC
-    - cron: 0 3 * * *
+    - cron: '0 3 * * *'
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 env:
-  GO_VERSION: '1.26.0'
+  GO_VERSION: '1.26.x'
+
 jobs:
-  # 🔍 Security Scanning
-  security-scan:
-    name: 🔍 Security Vulnerability Scan
+  govulncheck:
+    name: Reachable vulnerabilities (govulncheck)
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 Checkout Code
-        uses: actions/checkout@v7
-      - name: 🐹 Setup Go
-        uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
-      - name: 🔍 Run govulncheck
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
-      - name: 🔒 Run gosec Security Scanner
-        run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
-          gosec -fmt sarif -out gosec.sarif ./...
+      - name: Run govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+  static-analysis:
+    name: Static analysis (gosec, Trivy; non-blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Run gosec
+        run: go run github.com/securego/gosec/v2/cmd/gosec@v2.30.0 ./...
         continue-on-error: true
-      - name: 🔍 Run Trivy Vulnerability Scanner
-        uses: aquasecurity/trivy-action@0.32.0
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
           format: table
         continue-on-error: true
 
-  # 🔐 Dependency Security
-  dependency-security:
-    name: 🔐 Dependency Security Check
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 Checkout Code
-        uses: actions/checkout@v7
-      - name: 🐹 Setup Go
-        uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          go-version: ${{ env.GO_VERSION }}
-      - name: 📦 Dependency Review
-        uses: actions/dependency-review-action@v4
-        if: github.event_name == 'pull_request'
-      - name: 🔍 Check for Known Vulnerabilities
-        run: |
-          echo "Checking for known vulnerabilities in dependencies..."
-          # Note: nancy sleuth requires installation - using govulncheck instead
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
-      - name: 🔒 Audit Dependencies
-        run: |
-          go mod download
-          go list -m all | while read -r module; do
-            echo "Auditing: $module"
-          done
-
-  # 🛡️ License Compliance
-  license-compliance:
-    name: 🛡️ License Compliance Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: 📥 Checkout Code
-        uses: actions/checkout@v7
-      - name: 🐹 Setup Go
-        uses: actions/setup-go@v7
-        with:
-          go-version: ${{ env.GO_VERSION }}
-      - name: 📋 Check License Compliance
-        run: |
-          echo "Checking license compliance..."
-          go mod download
-
-          # List all dependencies with their licenses
-          go list -m all | while read -r module; do
-            echo "Module: $module"
-            # Note: This is a simplified check. In production, you'd use a proper license scanner
-          done
-      - name: 📊 License Summary
-        run: |
-          {
-            echo "## 🛡️ Dependency Inventory"
-            echo
-            echo "This job lists Go modules for manual license review."
-            echo "It does not determine licenses or enforce a compatibility policy."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  security-summary:
-    name: 🔐 Security Summary
-    runs-on: ubuntu-latest
-    needs:
-      - security-scan
-      - dependency-security
-      - license-compliance
-    if: always()
-    steps:
-      - name: 📊 Generate Security Summary
-        env:
-          VULNERABILITY_RESULT: ${{ needs.security-scan.result }}
-          DEPENDENCY_RESULT: ${{ needs.dependency-security.result }}
-          LICENSE_RESULT: ${{ needs.license-compliance.result }}
-        run: |-
-          if [ "$VULNERABILITY_RESULT" = "success" ]; then
-            VULNERABILITY_LINE="✅ **Vulnerability Scan**: Passed"
-          else
-            VULNERABILITY_LINE="❌ **Vulnerability Scan**: Failed"
-          fi
-          if [ "$DEPENDENCY_RESULT" = "success" ]; then
-            DEPENDENCY_LINE="✅ **Dependency Security**: Passed"
-          else
-            DEPENDENCY_LINE="❌ **Dependency Security**: Failed"
-          fi
-          if [ "$LICENSE_RESULT" = "success" ]; then
-            LICENSE_LINE="✅ **Dependency Inventory**: Completed"
-          else
-            LICENSE_LINE="❌ **Dependency Inventory**: Failed"
-          fi
-          {
-            echo "## 🔒 Security Summary"
-            echo
-            echo "$VULNERABILITY_LINE"
-            echo "$DEPENDENCY_LINE"
-            echo "$LICENSE_LINE"
-            echo
-            echo "### Tools executed"
-            echo "- govulncheck"
-            echo "- gosec (non-blocking)"
-            echo "- Trivy filesystem scan (non-blocking)"
-            echo
-            echo "No dedicated secrets scanner is configured."
-          } >> "$GITHUB_STEP_SUMMARY"
+          persist-credentials: false
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0

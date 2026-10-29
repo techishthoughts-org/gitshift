@@ -37,6 +37,19 @@ func NewManager() *Manager {
 }
 
 // SwitchToAccount switches SSH configuration to use the specified account with improved isolation
+// CheckPrivateKeyFile reports a missing private key or one that group or other
+// users can access. OpenSSH accepts 0600 and 0400; it rejects anything wider.
+func CheckPrivateKeyFile(keyPath string) error {
+	info, err := os.Stat(keyPath)
+	if err != nil {
+		return fmt.Errorf("SSH key not found at %s: %w", keyPath, err)
+	}
+	if perm := info.Mode().Perm(); runtime.GOOS != "windows" && perm&0o077 != 0 {
+		return fmt.Errorf("SSH key %s has permissions %o; run 'chmod 600 %s'", keyPath, perm, keyPath)
+	}
+	return nil
+}
+
 func (m *Manager) SwitchToAccount(accountAlias, keyPath string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -54,15 +67,9 @@ func (m *Manager) SwitchToAccountContext(ctx context.Context, accountAlias, keyP
 	if strings.IndexFunc(accountAlias+domain, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 || strings.ContainsAny(domain, " /\\") {
 		return fmt.Errorf("invalid SSH account alias or domain")
 	}
-	if _, err := os.Stat(keyPath); err != nil {
-		return fmt.Errorf("SSH key not found at %s: %w", keyPath, err)
-	}
-
 	// Refuse insecure permissions; switching must not silently mutate key files.
-	if info, err := os.Stat(keyPath); err == nil {
-		if info.Mode().Perm() != 0600 {
-			return fmt.Errorf("SSH key %s has permissions %o; expected 600", keyPath, info.Mode().Perm())
-		}
+	if err := CheckPrivateKeyFile(keyPath); err != nil {
+		return err
 	}
 
 	if validate {

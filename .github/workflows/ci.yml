@@ -3,14 +3,14 @@ name: CI
 on:
   push:
     branches: [main, develop]
+  # Every pull request, including ones stacked on another feature branch.
   pull_request:
-    branches: [main, develop]
 
 permissions:
   contents: read
 
 env:
-  GO_VERSION: '1.26.0'
+  GO_VERSION: '1.26.x'
 
 jobs:
   verify:

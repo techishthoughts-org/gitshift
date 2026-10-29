@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/techishthoughts/gitshift/internal/discovery"
+	"github.com/techishthoughts/gitshift/internal/models"
 )
 
 // updateCmd represents the update command for modifying account information
@@ -75,7 +77,7 @@ Examples:
 		domainChanged := cmd.Flags().Changed("domain")
 		apiEndpointChanged := cmd.Flags().Changed("api-endpoint")
 
-		if newName == "" && newEmail == "" && newUsername == "" && newSSHKey == "" && newDescription == "" && newPlatform == "" && !domainChanged && !apiEndpointChanged && !autoGPG && !setDefault {
+		if newName == "" && newEmail == "" && newUsername == "" && newSSHKey == "" && newDescription == "" && newPlatform == "" && !domainChanged && !apiEndpointChanged && !autoGPG && !setDefault && !cmd.Flags().Changed("gpg-signing") {
 			fmt.Printf("📋 Current account information for '%s':\n", alias)
 			fmt.Printf("   Name: %s\n", existingAccount.Name)
 			fmt.Printf("   Email: %s\n", existingAccount.Email)
@@ -98,7 +100,7 @@ Examples:
 			}
 			fmt.Printf("   Default: %t\n", existingAccount.IsDefault)
 			fmt.Println("\n💡 Use flags to update specific fields:")
-			fmt.Println("   --name, --email, --username, --ssh-key, --description, --platform, --domain, --api-endpoint, --auto-gpg, --default")
+			fmt.Println("   --name, --email, --username, --ssh-key, --description, --platform, --domain, --api-endpoint, --auto-gpg, --gpg-signing, --default")
 			return nil
 		}
 
@@ -119,9 +121,18 @@ Examples:
 			updatedAccount.SetUsername(strings.TrimPrefix(newUsername, "@"))
 			changes = append(changes, fmt.Sprintf("username: @%s → @%s", existingAccount.GetUsername(), updatedAccount.GetUsername()))
 		}
-		if newSSHKey != "" && newSSHKey != existingAccount.SSHKeyPath {
-			updatedAccount.SSHKeyPath = newSSHKey
-			changes = append(changes, fmt.Sprintf("SSH key: %s → %s", existingAccount.SSHKeyPath, newSSHKey))
+		if newSSHKey != "" {
+			keyPath, err := models.NormalizeSSHKeyPath(newSSHKey)
+			if err != nil {
+				return fmt.Errorf("invalid --ssh-key: %w", err)
+			}
+			if _, err := os.Stat(keyPath); err != nil {
+				return fmt.Errorf("SSH key not found at %s: %w", keyPath, err)
+			}
+			if keyPath != existingAccount.SSHKeyPath {
+				updatedAccount.SSHKeyPath = keyPath
+				changes = append(changes, fmt.Sprintf("SSH key: %s → %s", existingAccount.SSHKeyPath, keyPath))
+			}
 		}
 		if newDescription != "" && newDescription != existingAccount.Description {
 			updatedAccount.Description = newDescription
@@ -147,23 +158,35 @@ Examples:
 		}
 
 		// Auto-associate GPG key if requested
-		if autoGPG && updatedAccount.Email != "" {
-			gpgScanner := discovery.NewGPGScanner()
-			gpgAccounts, err := gpgScanner.ScanGPGKeys()
-			if err == nil {
-				// Find GPG key matching the account email
-				for _, gpgAcc := range gpgAccounts {
-					if strings.EqualFold(gpgAcc.Email, updatedAccount.Email) {
-						updatedAccount.GPGKeyID = gpgAcc.GPGKeyID
-						updatedAccount.GPGKeyFingerprint = gpgAcc.GPGKeyFingerprint
-						updatedAccount.GPGKeyType = gpgAcc.GPGKeyType
-						updatedAccount.GPGKeySize = gpgAcc.GPGKeySize
-						updatedAccount.GPGKeyExpiry = gpgAcc.GPGKeyExpiry
-						updatedAccount.GPGEnabled = true
-						changes = append(changes, fmt.Sprintf("GPG key: associated (%s)", gpgAcc.GPGKeyID))
-						break
-					}
-				}
+		if autoGPG {
+			if updatedAccount.Email == "" {
+				return fmt.Errorf("--auto-gpg needs an account email to match")
+			}
+			gpgAccounts, err := scanGPGKeys()
+			if err != nil {
+				return fmt.Errorf("--auto-gpg: scan GPG keys: %w", err)
+			}
+			match := matchGPGKey(gpgAccounts, updatedAccount.Email)
+			if match == nil {
+				return fmt.Errorf("--auto-gpg: no GPG secret key with email %s; create one with 'gitshift gpg-keygen %s'", updatedAccount.Email, alias)
+			}
+			updatedAccount.GPGKeyID = match.GPGKeyID
+			updatedAccount.GPGKeyFingerprint = match.GPGKeyFingerprint
+			updatedAccount.GPGKeyType = match.GPGKeyType
+			updatedAccount.GPGKeySize = match.GPGKeySize
+			updatedAccount.GPGKeyExpiry = match.GPGKeyExpiry
+			updatedAccount.GPGEnabled = true
+			changes = append(changes, fmt.Sprintf("GPG key: associated (%s)", match.GPGKeyID))
+		}
+
+		if cmd.Flags().Changed("gpg-signing") {
+			signing, _ := cmd.Flags().GetBool("gpg-signing")
+			switch {
+			case signing && !updatedAccount.HasGPGKey():
+				return fmt.Errorf("--gpg-signing needs a GPG key; run 'gitshift update %s --auto-gpg' or 'gitshift gpg-keygen %s'", alias, alias)
+			case signing != updatedAccount.GPGEnabled:
+				updatedAccount.GPGEnabled = signing
+				changes = append(changes, fmt.Sprintf("GPG signing: %s", map[bool]string{true: "enabled", false: "disabled"}[signing]))
 			}
 		}
 
@@ -233,4 +256,19 @@ func init() {
 	updateCmd.Flags().String("api-endpoint", "", "Set provider API endpoint; use an empty value to clear it")
 	updateCmd.Flags().Bool("auto-gpg", false, "Automatically find and associate GPG key by email")
 	updateCmd.Flags().Bool("default", false, "Set this account as the default")
+	updateCmd.Flags().Bool("gpg-signing", false, "Sign commits and tags with the account's GPG key (--gpg-signing=false to stop)")
+}
+
+// scanGPGKeys is replaced in tests.
+var scanGPGKeys = func() ([]*discovery.DiscoveredAccount, error) {
+	return discovery.NewGPGScanner().ScanGPGKeys()
+}
+
+func matchGPGKey(keys []*discovery.DiscoveredAccount, email string) *discovery.DiscoveredAccount {
+	for _, key := range keys {
+		if key != nil && key.Account != nil && key.GPGKeyID != "" && strings.EqualFold(key.Email, email) {
+			return key
+		}
+	}
+	return nil
 }

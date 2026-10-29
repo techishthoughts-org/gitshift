@@ -49,7 +49,7 @@ Before anything is published, the workflow checks that it runs from the current 
 | `gitshift_X.Y.Z_windows_<arch>.zip` | `amd64` and `arm64` |
 | `checksums.txt` | SHA-256 of every archive |
 
-Each archive holds `gitshift`, `README.md` and `CHANGELOG.md`. The binary reports `gitshift vX.Y.Z`. The cask `Casks/gitshift.rb` in `homebrew-tap` points at the macOS and Linux archives and clears the macOS quarantine attribute on install, because the binaries are not notarized.
+Each archive holds `gitshift`, `LICENSE`, `README.md` and `CHANGELOG.md`. The binary reports `gitshift vX.Y.Z`. The cask `Casks/gitshift.rb` in `homebrew-tap` points at the macOS and Linux archives and clears the macOS quarantine attribute on install, because the binaries are not notarized.
 
 ## Check the build locally
 

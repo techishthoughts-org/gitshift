@@ -551,3 +551,116 @@ func TestDiscoverAliasPlanningFailureDoesNotMigrateOrChmodConfig(t *testing.T) {
 		})
 	}
 }
+
+func setUpdateFlags(t *testing.T, values map[string]string) {
+	t.Helper()
+	for name, value := range values {
+		flag := updateCmd.Flags().Lookup(name)
+		previous, previousChanged := flag.Value.String(), flag.Changed
+		if err := updateCmd.Flags().Set(name, value); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			_ = flag.Value.Set(previous)
+			flag.Changed = previousChanged
+		})
+	}
+}
+
+func TestUpdateValidatesSSHKeyAndGPGOptions(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	key := filepath.Join(home, ".ssh", "id_work")
+	if err := os.MkdirAll(filepath.Dir(key), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(key, []byte("key"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	previousScan := scanGPGKeys
+	t.Cleanup(func() { scanGPGKeys = previousScan })
+	scanGPGKeys = func() ([]*discovery.DiscoveredAccount, error) {
+		return []*discovery.DiscoveredAccount{{}, {Account: &models.Account{Email: "WORK@example.com", GPGKeyID: "ABCDEF12"}}}, nil
+	}
+
+	tests := []struct {
+		name    string
+		flags   map[string]string
+		gpgKey  string
+		email   string
+		wantErr string
+		check   func(*testing.T, *models.Account)
+	}{
+		{name: "missing SSH key", flags: map[string]string{"ssh-key": filepath.Join(home, "missing")}, wantErr: "SSH key not found"},
+		{
+			name:  "SSH key path is normalized",
+			flags: map[string]string{"ssh-key": "~/.ssh/id_work"},
+			check: func(t *testing.T, a *models.Account) {
+				if a.SSHKeyPath != key {
+					t.Fatalf("SSH key = %q, want %q", a.SSHKeyPath, key)
+				}
+			},
+		},
+		{name: "auto-gpg without a matching key", flags: map[string]string{"auto-gpg": "true"}, email: "nobody@example.com", wantErr: "no GPG secret key"},
+		{
+			name:  "auto-gpg attaches the matching key",
+			flags: map[string]string{"auto-gpg": "true"},
+			email: "work@example.com",
+			check: func(t *testing.T, a *models.Account) {
+				if a.GPGKeyID != "ABCDEF12" || !a.GPGEnabled {
+					t.Fatalf("GPG key=%q enabled=%t", a.GPGKeyID, a.GPGEnabled)
+				}
+			},
+		},
+		{name: "signing needs a key", flags: map[string]string{"gpg-signing": "true"}, wantErr: "needs a GPG key"},
+		{
+			name:   "signing can be turned off",
+			flags:  map[string]string{"gpg-signing": "false"},
+			gpgKey: "ABCDEF12",
+			check: func(t *testing.T, a *models.Account) {
+				if a.GPGKeyID != "ABCDEF12" || a.GPGEnabled {
+					t.Fatalf("GPG key=%q enabled=%t, want key kept and signing off", a.GPGKeyID, a.GPGEnabled)
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configFile, _ := createCommandTestConfig(t)
+			useCommandTestConfig(t, configFile)
+			manager := config.NewManagerWithPath(configFile)
+			if err := manager.Load(); err != nil {
+				t.Fatal(err)
+			}
+			account, _ := manager.GetAccount("work")
+			edited := *account
+			if tt.email != "" {
+				edited.Email = tt.email
+			}
+			if tt.gpgKey != "" {
+				edited.GPGKeyID, edited.GPGEnabled = tt.gpgKey, true
+			}
+			if err := manager.UpdateAccount(&edited); err != nil {
+				t.Fatal(err)
+			}
+			setUpdateFlags(t, tt.flags)
+
+			err := updateCmd.RunE(updateCmd, []string{"work"})
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("error = %v, want containing %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			reloaded := config.NewManagerWithPath(configFile)
+			if err := reloaded.Load(); err != nil {
+				t.Fatal(err)
+			}
+			got, _ := reloaded.GetAccount("work")
+			tt.check(t, got)
+		})
+	}
+}

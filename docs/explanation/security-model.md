@@ -22,7 +22,7 @@ A GitLab switch changes no provider login. Nothing is changed on the provider's 
 | --- | --- |
 | `add`, `update`, `remove`, `auto add/remove/default` | the GitShift config only |
 | `discover` | the GitShift config (never with `--dry-run`). On a fresh interactive install it also runs a normal switch |
-| `ssh-keygen` | new unencrypted key pair `~/.ssh/id_<type>_<alias>`, `ssh-add` to your agent, appends `github.com` and `gitlab.com` host keys to `~/.ssh/known_hosts`, the clipboard, the account's `ssh_key_path`; with `--add-to-github`, a new key on the GitHub account active in `gh` |
+| `ssh-keygen` | new unencrypted key pair `~/.ssh/id_<type>_<alias>`, `ssh-add` to your agent, appends `github.com` and `gitlab.com` host keys to `~/.ssh/known_hosts`, the clipboard, the account's `ssh_key_path`; with `--add-to-github`, a new key on the account's own GitHub user (its `gh` login, without changing the active one) |
 | `gpg-keygen` | new unencrypted secret key in your GPG keyring, `~/.gnupg/gitshift-<alias>-public.asc`, the clipboard, the account's GPG fields |
 | `ssh-test`, `list`, `current`, `auto list`, `auto resolve`, `shell-init` | nothing outside the config; `ssh-test`, `list` and `current` (without `--short`) may still normalize the config file |
 
@@ -51,21 +51,22 @@ Host github.com
 # <<< gitshift managed: github.com
 ```
 
-The new file is written to a temporary file with mode `0600` and moved into place. GitShift refuses to use a private key whose mode is not `600`, and never changes the permissions of your key files.
+The new file is written to a temporary file with mode `0600` and moved into place. GitShift refuses to use a private key that group or other users can access (it accepts `600` and `400`, like OpenSSH), and never changes the permissions of your key files.
 
 ## Git SSH command
 
 For an account with a key, GitShift sets:
 
 ```text
-core.sshCommand = ssh -F /dev/null -i '/path/to/key' -o IdentitiesOnly=yes -o IdentityAgent=none
+core.sshCommand = ssh -i '/path/to/key' -o IdentitiesOnly=yes
 ```
 
-This pins Git to exactly one key, which is what makes switching reliable when several accounts share a host. The consequences apply to every SSH remote Git talks to while the account is active, not only the provider's host:
+`-i` puts the account's key first, and `IdentitiesOnly=yes` stops ssh from offering other keys held by your agent. Your `~/.ssh/config` still applies, so host aliases, `Port`, `ProxyJump` and the managed block keep working, and an agent that holds this key (for example, with a passphrase) is used.
 
-- `~/.ssh/config` is not read by Git's SSH: host aliases, `Port`, `ProxyJump` and other per-host options are ignored.
-- The SSH agent is not used, so a passphrase-protected key prompts on every Git operation, and agent-only or hardware keys do not work.
-- Plain `ssh` in your shell still reads `~/.ssh/config`, including the managed block.
+Two consequences to know:
+
+- A key you list with `IdentityFile` in a matching `Host` block is offered after the account's key. If the account's key is not registered on the provider, the provider may accept that other key instead, as a different user. `gitshift switch --validate` and `ssh-test` check the account's key on its own.
+- The setting is global: it applies to every SSH remote while the account is active.
 
 ## Backups and rollback
 

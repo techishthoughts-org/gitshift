@@ -85,7 +85,7 @@ YAML does not expand `~` or variables. Use absolute paths when editing by hand.
 | `created_at`, `last_used` | Timestamps; `last_used` is updated by each switch |
 | `status` | `active` for normal accounts; informational |
 | `missing_fields`, `last_validation`, `validation_errors`, `account_metadata` | Informational; not used to make decisions |
-| `isolation_level`, `isolation_metadata`, `token_path`, `ssh_socket_path` | Legacy fields. `add` still writes default `isolation_metadata` (including `token_isolation`), but no command reads them. GitShift stores no tokens and runs no per-account agent |
+| `isolation_level`, `isolation_metadata`, `token_path`, `ssh_socket_path` | Legacy fields kept so older files still load. New accounts no longer write `isolation_metadata`, and no command reads these fields. GitShift stores no tokens and runs no per-account agent |
 
 ## Directory rules
 

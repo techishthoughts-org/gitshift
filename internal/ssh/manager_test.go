@@ -343,3 +343,42 @@ func TestUpdateSSHConfigMigratesLegacyManagedHost(t *testing.T) {
 		t.Fatalf("unrelated legacy config was lost:\n%s", text)
 	}
 }
+
+func TestCheckPrivateKeyFile(t *testing.T) {
+	dir := t.TempDir()
+	tests := []struct {
+		name    string
+		mode    os.FileMode
+		create  bool
+		wantErr string
+	}{
+		{name: "owner read-write", mode: 0600, create: true},
+		{name: "owner read-only", mode: 0400, create: true},
+		{name: "group readable", mode: 0640, create: true, wantErr: "chmod 600"},
+		{name: "world readable", mode: 0644, create: true, wantErr: "permissions 644"},
+		{name: "missing", wantErr: "not found"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key := filepath.Join(dir, strings.ReplaceAll(tt.name, " ", "_"))
+			if tt.create {
+				if err := os.WriteFile(key, []byte("key"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chmod(key, tt.mode); err != nil {
+					t.Fatal(err)
+				}
+			}
+			err := CheckPrivateKeyFile(key)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("error = %v, want containing %q", err, tt.wantErr)
+			}
+		})
+	}
+}
