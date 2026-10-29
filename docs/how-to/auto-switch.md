@@ -85,7 +85,35 @@ Run what the hook runs, without `--quiet`:
 gitshift auto-switch "$PWD"
 ```
 
+## Let Git pick the identity per directory
+
+The hook switches one global identity, so with several terminals open in different directories the last `cd` decides for all of them. Turn on Git includes to have Git choose the identity for each rule directory by itself:
+
+```bash
+gitshift auto git-includes on
+```
+
+GitShift then:
+
+- writes `git/<alias>.gitconfig` next to its config file (`~/.config/gitshift/git/` by default) for every account a rule uses, with the account's name, email, Git SSH command and [commit signing](keys.md#sign-commits-and-tags). Every key is always set, so nothing leaks in from the last switched account: an account without an SSH key gets plain `ssh`. Accounts used by a rule need a name and an email;
+- adds one `includeIf "gitdir:<rule directory>/"` entry per rule at the end of your global Git config (`gitdir/i:` on macOS and Windows, whose file systems ignore capitalisation), deeper directories last so they win;
+- keeps both in sync whenever you change an account or a rule, and after every switch, moving its entries back to the end if anything added settings after them. A sync builds every file before changing anything, and only deletes files it generated;
+- stops writing identity values into a repository's `.git/config` when you switch inside it, because local values would override the includes.
+
+Every repository under a rule directory now uses that rule's identity in every terminal at once, with no switching. Outside rule directories Git uses the global identity, which the hook still sets from your default account. The hook also keeps switching the GitHub CLI account and `~/.ssh/config`, which Git cannot choose per directory.
+
+```bash
+gitshift auto git-includes status   # entries in your Git config
+gitshift auto git-includes off      # remove the entries and files
+```
+
+Git matches `gitdir` against the repository's Git directory, not the folder you work in. A [worktree](https://git-scm.com/docs/git-worktree) therefore uses the rule for where its main repository lives: a worktree checked out under `~/dev/work` from a repository in `~/dev/personal` gets the personal identity, even though the hook and the prompt follow the working folder. Keep worktrees under the same rule as their repository.
+
+Repositories where you switched before turning this on may still hold local values. Check with `git config --local --list` inside the repository and remove `user.name`, `user.email` and `core.sshCommand` there if they are not what you want.
+
 ## Show the active account in your prompt
+
+`gitshift current --short` prints the active alias. With Git includes on, inside a rule directory it prints that rule's account, the one Git uses there.
 
 `gitshift current --short` (or `-s`) prints only the alias the last switch applied, or nothing if there is none. It reads the config without writing it and exits 0 when nothing is set, so it is safe on every prompt. Aliases only contain `A-Z a-z 0-9 . _ -`, so the output is safe to embed in a prompt.
 

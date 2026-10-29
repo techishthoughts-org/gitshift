@@ -239,6 +239,9 @@ type AutoSwitchConfig struct {
 	// DefaultAccount is switched to when no rule matches; empty leaves the
 	// current identity unchanged.
 	DefaultAccount string `json:"default_account,omitempty" yaml:"default_account,omitempty" mapstructure:"default_account"`
+	// GitIncludes makes Git choose the identity per rule directory through
+	// includeIf entries in the global Git config, independent of switching.
+	GitIncludes bool `json:"git_includes,omitempty" yaml:"git_includes,omitempty" mapstructure:"git_includes"`
 }
 
 // AutoSwitchRule selects an existing account for a canonical directory tree.

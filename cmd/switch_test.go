@@ -61,7 +61,7 @@ func TestUpdateGitConfigClearsPreviousSSHIdentityForKeylessAccount(t *testing.T)
 		t.Fatal(err)
 	}
 	account := models.NewAccount("keyless", "Keyless User", "keyless@example.com", "")
-	if err := updateGitConfig(account); err != nil {
+	if err := updateGitConfig(account, true); err != nil {
 		t.Fatal(err)
 	}
 	if err := exec.Command("git", "config", "--global", "--get", "core.sshCommand").Run(); err == nil {

@@ -21,6 +21,7 @@ A GitLab switch changes no provider login. Nothing is changed on the provider's 
 | Command | Changes |
 | --- | --- |
 | `add`, `update`, `remove`, `auto add/remove/default` | the GitShift config only |
+| `auto git-includes on/off`, and any change to accounts or rules while it is on | `<config dir>/git/<alias>.gitconfig` include files (mode `0600`) and `includeIf "gitdir:..."` entries at the end of the global Git config whose `path` points into that directory. Entries pointing elsewhere are never touched. `off` removes both |
 | `discover` | the GitShift config (never with `--dry-run`). On a fresh interactive install it also runs a normal switch |
 | `ssh-keygen` | new unencrypted key pair `~/.ssh/id_<type>_<alias>`, `ssh-add` to your agent, appends `github.com` and `gitlab.com` host keys to `~/.ssh/known_hosts`, the clipboard, the account's `ssh_key_path`; with `--add-to-github`, a new key on the account's own GitHub user (its `gh` login, without changing the active one) |
 | `gpg-keygen` | new unencrypted secret key in your GPG keyring, `~/.gnupg/gitshift-<alias>-public.asc`, the clipboard, the account's GPG fields |

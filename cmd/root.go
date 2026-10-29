@@ -8,6 +8,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	gitshiftconfig "github.com/techishthoughts/gitshift/internal/config"
+	"github.com/techishthoughts/gitshift/internal/gitidentity"
+	"github.com/techishthoughts/gitshift/internal/models"
 )
 
 var (
@@ -63,10 +65,21 @@ func Execute() error {
 }
 
 func newConfigManager() *gitshiftconfig.Manager {
+	manager := gitshiftconfig.NewManager()
 	if cfgFile != "" {
-		return gitshiftconfig.NewManagerWithPath(cfgFile)
+		manager = gitshiftconfig.NewManagerWithPath(cfgFile)
 	}
-	return gitshiftconfig.NewManager()
+	// Keep per-directory Git identities in step with every saved change to
+	// accounts or rules. A failure must not undo the saved config.
+	manager.OnSave(func(cfg *models.Config) {
+		if !cfg.AutoSwitch.GitIncludes {
+			return
+		}
+		if err := gitidentity.Sync(cfg, gitIncludeDir(manager)); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: Git includes not updated: %v; run 'gitshift auto git-includes on'\n", err)
+		}
+	})
+	return manager
 }
 
 func init() {
