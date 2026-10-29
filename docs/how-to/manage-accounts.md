@@ -65,7 +65,7 @@ gitshift update work --auto-gpg          # attach a local GPG key whose email ma
 gitshift update work --default
 ```
 
-Flags: `--name`/`-n`, `--email`/`-e`, `--username`, `--github-username`/`-g` (must match `--username` if both are given), `--ssh-key`/`-k`, `--description`/`-d`, `--platform`/`-p`, `--domain`, `--api-endpoint`, `--auto-gpg`, `--gpg-signing`, `--default`. `--ssh-key` must point at an existing file.
+Flags: `--name`/`-n`, `--email`/`-e`, `--username`, `--github-username`/`-g` (must match `--username` if both are given), `--ssh-key`/`-k`, `--description`/`-d`, `--platform`/`-p`, `--domain`, `--api-endpoint`, `--auto-gpg`, `--signing ssh|gpg|off`, `--signing-key`, `--default`. `--ssh-key` must point at an existing file.
 
 Changing `--platform` also resets the domain and API endpoint to defaults unless you pass them in the same command.
 

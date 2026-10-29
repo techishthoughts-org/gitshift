@@ -12,7 +12,9 @@ import (
 
 type Account struct {
 	Alias, Name, Email, Username, Platform, Domain, SSHKeyPath, GPGKeyID, Description string
-	Current, Default                                                                  bool
+	// Signing summarises commit signing, e.g. "ssh (~/.ssh/id_work)" or "off".
+	Signing          string
+	Current, Default bool
 }
 
 type Rule struct{ Path, Account string }

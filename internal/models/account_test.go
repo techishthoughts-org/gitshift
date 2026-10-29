@@ -1,6 +1,7 @@
 package models
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -78,5 +79,65 @@ func TestNewAccountDoesNotAdvertiseTokenStorage(t *testing.T) {
 		if account.IsolationMetadata != nil || account.RequiresTokenIsolation() {
 			t.Fatalf("%s writes unused isolation metadata: %#v", account.Alias, account.IsolationMetadata)
 		}
+	}
+}
+
+func TestCommitSigning(t *testing.T) {
+	tests := []struct {
+		name                string
+		account             Account
+		wantFormat, wantKey string
+		wantValidErr        bool
+	}{
+		{name: "off by default", account: Account{}},
+		{name: "legacy gpg enabled", account: Account{GPGKeyID: "K", GPGEnabled: true}, wantFormat: "gpg", wantKey: "K"},
+		{name: "legacy gpg disabled", account: Account{GPGKeyID: "K"}},
+		{name: "ssh uses account key", account: Account{SigningFormat: "ssh", SSHKeyPath: "/k"}, wantFormat: "ssh", wantKey: "/k"},
+		{name: "ssh with signing key", account: Account{SigningFormat: "ssh", SSHKeyPath: "/k", SigningKey: "/s.pub"}, wantFormat: "ssh", wantKey: "/s.pub"},
+		{name: "ssh wins over gpg_enabled", account: Account{SigningFormat: "ssh", SSHKeyPath: "/k", GPGKeyID: "K", GPGEnabled: true}, wantFormat: "ssh", wantKey: "/k"},
+		{name: "ssh without any key", account: Account{SigningFormat: "ssh"}, wantFormat: "ssh", wantValidErr: true},
+		{name: "gpg without key", account: Account{SigningFormat: "gpg"}, wantFormat: "gpg", wantValidErr: true},
+		{name: "unknown format", account: Account{SigningFormat: "x509"}, wantValidErr: true},
+		{name: "signing key without ssh", account: Account{SigningKey: "/s"}, wantValidErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			format, key := tt.account.CommitSigning()
+			if format != tt.wantFormat || key != tt.wantKey {
+				t.Fatalf("CommitSigning() = %q, %q; want %q, %q", format, key, tt.wantFormat, tt.wantKey)
+			}
+			if err := tt.account.validateSigning(); (err != nil) != tt.wantValidErr {
+				t.Fatalf("validateSigning() error = %v, want error %t", err, tt.wantValidErr)
+			}
+		})
+	}
+}
+
+func TestSetCommitSigning(t *testing.T) {
+	account := Account{SSHKeyPath: "/k", GPGKeyID: "K", GPGEnabled: true, SigningKey: ""}
+	if err := account.SetCommitSigning("SSH"); err != nil {
+		t.Fatal(err)
+	}
+	if format, _ := account.CommitSigning(); format != "ssh" || account.GPGEnabled {
+		t.Fatalf("ssh: format=%q gpgEnabled=%t", format, account.GPGEnabled)
+	}
+	account.SigningKey = "/s"
+	if err := account.SetCommitSigning("gpg"); err != nil {
+		t.Fatal(err)
+	}
+	if format, key := account.CommitSigning(); format != "gpg" || key != "K" || account.SigningKey != "" {
+		t.Fatalf("gpg: format=%q key=%q signingKey=%q", format, key, account.SigningKey)
+	}
+	if err := account.SetCommitSigning("off"); err != nil {
+		t.Fatal(err)
+	}
+	if format, _ := account.CommitSigning(); format != "" || account.GPGKeyID != "K" {
+		t.Fatalf("off: format=%q, key kept=%t", format, account.GPGKeyID == "K")
+	}
+	if err := (&Account{}).SetCommitSigning("gpg"); !errors.Is(err, ErrSigningKeyMissing) {
+		t.Fatalf("gpg without key: %v", err)
+	}
+	if err := account.SetCommitSigning("pgp"); err == nil {
+		t.Fatal("unknown format accepted")
 	}
 }

@@ -79,8 +79,10 @@ YAML does not expand `~` or variables. Use absolute paths when editing by hand.
 | `ssh_key_path` | Private key used for SSH and `core.sshCommand`. Empty: no SSH changes, and `core.sshCommand` is unset on switch |
 | `description` | Free text |
 | `is_default` | The default account. GitShift keeps it on one account: the first one added, or the one last set with `--default`. Switching does not change it. See the [identity model](../explanation/identity-model.md) |
-| `gpg_key_id` | GPG key used for `user.signingkey`. Empty: switching turns signing off |
-| `gpg_enabled` | With a key, sets `commit.gpgsign` and `tag.gpgsign` to `true`; otherwise `false` |
+| `gpg_key_id` | GPG key used for `user.signingkey` with GPG signing |
+| `gpg_enabled` | Older way to turn on GPG signing; used when `signing_format` is empty |
+| `signing_format` | `ssh` or `gpg` signs every commit and tag while the account is active; empty follows `gpg_enabled`. Set with `update --signing` |
+| `signing_key` | SSH key for `signing_format: ssh`; empty means `ssh_key_path`. Set with `update --signing-key` |
 | `gpg_key_type`, `gpg_key_size`, `gpg_key_fingerprint`, `gpg_key_expiry` | Informational details of the attached GPG key |
 | `created_at`, `last_used` | Timestamps; `last_used` is updated by each switch |
 | `status` | `active` for normal accounts; informational |

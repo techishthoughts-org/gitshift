@@ -53,6 +53,7 @@ gitshift add [alias] [flags]
   -n, --name string              Git user name (required)
       --non-interactive          Run in non-interactive mode (no prompts)
       --platform string          Git hosting platform (github or gitlab) (default "github")
+      --signing string           Commit and tag signing: ssh (the account's SSH key) or off
   -k, --ssh-key string           Path to SSH private key (optional)
       --username string          Platform username without @ (required)
 ```

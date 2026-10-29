@@ -94,7 +94,7 @@ func (s *uiService) Load(_ context.Context) (gitshifttui.Snapshot, error) {
 }
 
 func accountDTO(a *models.Account, current string) gitshifttui.Account {
-	return gitshifttui.Account{Alias: a.Alias, Name: a.Name, Email: a.Email, Username: a.GetUsername(), Platform: a.GetPlatform(), Domain: a.GetDomain(), SSHKeyPath: a.SSHKeyPath, GPGKeyID: a.GPGKeyID, Description: a.Description, Current: a.Alias == current, Default: a.IsDefault}
+	return gitshifttui.Account{Alias: a.Alias, Name: a.Name, Email: a.Email, Username: a.GetUsername(), Platform: a.GetPlatform(), Domain: a.GetDomain(), SSHKeyPath: a.SSHKeyPath, GPGKeyID: a.GPGKeyID, Description: a.Description, Signing: signingSummary(a), Current: a.Alias == current, Default: a.IsDefault}
 }
 
 func (s *uiService) writable() error { return s.manager.Load() }

@@ -161,6 +161,7 @@ func printAccountsDefault(accounts []*models.Account, currentAccount string) err
 			} else {
 				fmt.Printf("    ⚪ GPG: Not configured\n")
 			}
+			fmt.Printf("    ✍️  Signing: %s\n", signingSummary(account))
 
 			if account.Description != "" {
 				fmt.Printf("    Description: %s\n", account.Description)
@@ -304,6 +305,8 @@ type accountJSON struct {
 	GPGKeyID          string `json:"gpg_key_id,omitempty"`
 	GPGEnabled        *bool  `json:"gpg_enabled,omitempty"`
 	GPGKeyFingerprint string `json:"gpg_fingerprint,omitempty"`
+	SigningFormat     string `json:"signing_format,omitempty"`
+	SigningKey        string `json:"signing_key,omitempty"`
 	Description       string `json:"description,omitempty"`
 	IsDefault         bool   `json:"is_default"`
 	CreatedAt         string `json:"created_at"`
@@ -330,6 +333,7 @@ func newAccountJSON(account *models.Account) accountJSON {
 		entry.GPGEnabled = &gpgEnabled
 		entry.GPGKeyFingerprint = account.GPGKeyFingerprint
 	}
+	entry.SigningFormat, entry.SigningKey = account.CommitSigning()
 	if account.LastUsed != nil {
 		entry.LastUsed = account.LastUsed.Format(time.RFC3339)
 	}

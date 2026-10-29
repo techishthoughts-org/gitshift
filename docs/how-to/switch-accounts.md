@@ -14,7 +14,7 @@ In this order:
 
 1. **SSH config** (only if the account has a key): rewrites the GitShift-managed block for the account's host in `~/.ssh/config`.
 2. **Git identity**: sets global `user.name`, `user.email` and `core.sshCommand` (unset when the account has no key). If you run the command inside a Git repository, it sets the same three values in that repository's local config.
-3. **GPG signing**: with a GPG key, sets global `user.signingkey` and sets `commit.gpgsign` and `tag.gpgsign` to the account's preference. Without one, unsets `user.signingkey` and sets both to `false`.
+3. **Commit signing**: applies the account's signing to global `gpg.format`, `user.signingkey`, `commit.gpgsign` and `tag.gpgsign`. With `ssh` or `gpg` signing, both `*.gpgsign` values become `true`; with signing off they become `false`, and `user.signingkey` and `gpg.format` are unset unless the account has a GPG key. See [sign commits and tags](keys.md#sign-commits-and-tags).
 4. **GitHub CLI** (GitHub accounts only): `gh auth switch --hostname HOST --user USERNAME`.
 5. **Check**: confirms global `user.name`/`user.email` and tests SSH authentication with the account's key.
 6. **Record**: saves the alias as `current_account` and marks the account as the default.
@@ -57,7 +57,7 @@ With `--force` the account is recorded as current even when a tolerated step fai
 Before changing anything, GitShift saves:
 
 - the contents and mode of `~/.ssh/config` (or that it did not exist),
-- the global values, and the repository-local values if you are in a repository, of `user.name`, `user.email`, `core.sshCommand`, `user.signingkey`, `commit.gpgsign` and `tag.gpgsign`,
+- the global values, and the repository-local values if you are in a repository, of `user.name`, `user.email`, `core.sshCommand`, `user.signingkey`, `commit.gpgsign`, `tag.gpgsign` and `gpg.format`,
 - the active GitHub CLI user for the account's host.
 
 If a required step fails, GitShift restores those in reverse order and leaves `current_account` unchanged. If the restore itself fails, the error says `rollback also failed` and names what could not be restored.

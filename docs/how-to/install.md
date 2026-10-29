@@ -157,6 +157,6 @@ This leaves your configuration and the Git, SSH and GitHub CLI state of the last
 
 1. Delete `~/.config/gitshift/`.
 2. In `~/.ssh/config`, delete the `# >>> gitshift managed: HOST` to `# <<< gitshift managed: HOST` blocks and uncomment any lines prefixed with `# gitshift-disabled: `. Your config from before GitShift's first write is in `~/.ssh/config.gitshift-orig`.
-3. Review `git config --global --list` for `user.name`, `user.email`, `core.sshCommand`, `user.signingkey`, `commit.gpgsign` and `tag.gpgsign`.
+3. Review `git config --global --list` for `user.name`, `user.email`, `core.sshCommand`, `user.signingkey`, `gpg.format`, `commit.gpgsign` and `tag.gpgsign`.
 
 The [security model](../explanation/security-model.md) lists everything GitShift may have changed.

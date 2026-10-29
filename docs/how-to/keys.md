@@ -61,6 +61,43 @@ For each account it checks, and reports every failure:
 
 `ssh-test` is read-only. It never edits `known_hosts`.
 
+## Sign commits and tags
+
+Each account chooses how its commits and tags are signed: `ssh`, `gpg` or `off`. `gitshift switch` applies the choice to your global Git config (`gpg.format`, `user.signingkey`, `commit.gpgsign`, `tag.gpgsign`), so signing follows the active account. For example, sign every work commit and leave personal commits unsigned:
+
+```bash
+gitshift update work --signing ssh
+gitshift update personal --signing off
+gitshift switch work
+```
+
+`gitshift list` and `gitshift update ALIAS` show each account's signing, and `gitshift switch ALIAS --validate` checks that its key is usable.
+
+### Sign with your SSH key
+
+`--signing ssh` signs with the account's SSH key. Use `--signing-key` for a different key:
+
+```bash
+gitshift update work --signing ssh --signing-key ~/.ssh/id_ed25519_work_signing
+```
+
+- Point `--signing-key` at the private key. A `.pub` path works only while ssh-agent holds the matching key.
+- SSH signing needs Git 2.34 or later.
+- Register the public key with the provider **as a signing key**, or commits show as unverified. On GitHub: `gh ssh-key add ~/.ssh/id_ed25519.pub --type signing --title "work signing"`. On GitLab, add it under **SSH Keys** with usage **Signing** or **Authentication & Signing**.
+- To verify signatures locally (`git log --show-signature`), Git also needs `gpg.ssh.allowedSignersFile`, which GitShift does not manage.
+
+### Sign with a GPG key
+
+Attach a key with `gitshift gpg-keygen ALIAS --enable` or `gitshift update ALIAS --auto-gpg` (below), or switch an account that already has one with `gitshift update ALIAS --signing gpg`.
+
+### Turn signing off
+
+```bash
+gitshift update personal --signing off
+```
+
+An attached GPG key stays on the account and stays selected as `user.signingkey`; only `commit.gpgsign` and `tag.gpgsign` become `false`.
+
 ## Create a GPG signing key
 
 The account must exist and have a name.
@@ -89,14 +126,7 @@ It generates the key **without a passphrase** in your GPG keyring, stores its ID
 gitshift update work --auto-gpg
 ```
 
-This attaches the first secret key in your keyring whose email matches the account's email and turns signing on. It fails with an error if no key matches.
-
-### Turn signing on or off
-
-```bash
-gitshift update work --gpg-signing          # sign commits and tags
-gitshift update work --gpg-signing=false    # keep the key, stop signing
-```
+This attaches the first secret key in your keyring whose email matches the account's email and turns GPG signing on. It fails with an error if no key matches.
 
 Switch to the account again to apply the change to Git.
 

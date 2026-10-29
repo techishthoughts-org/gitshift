@@ -102,6 +102,14 @@ type Account struct {
 	// GPGKeyFingerprint is the full GPG key fingerprint for verification
 	GPGKeyFingerprint string `json:"gpg_key_fingerprint,omitempty" yaml:"gpg_key_fingerprint,omitempty" mapstructure:"gpg_key_fingerprint"`
 
+	// SigningFormat selects commit and tag signing: "ssh", "gpg", or empty to
+	// follow GPGEnabled (older configs). See CommitSigning.
+	SigningFormat string `json:"signing_format,omitempty" yaml:"signing_format,omitempty" mapstructure:"signing_format"`
+
+	// SigningKey is the SSH key used when SigningFormat is "ssh". Empty means
+	// the account's SSH key. A .pub path only works while ssh-agent holds the key.
+	SigningKey string `json:"signing_key,omitempty" yaml:"signing_key,omitempty" mapstructure:"signing_key"`
+
 	// GPGKeyExpiry stores the GPG key expiration date if set
 	GPGKeyExpiry *time.Time `json:"gpg_key_expiry,omitempty" yaml:"gpg_key_expiry,omitempty" mapstructure:"gpg_key_expiry"`
 }
@@ -324,6 +332,10 @@ func (a *Account) Validate() error {
 
 	if !hasBasicInfo && !hasGitHubInfo {
 		return ErrInvalidConfig // Need at least basic info or GitHub info
+	}
+
+	if err := a.validateSigning(); err != nil {
+		return err
 	}
 
 	// If we have email, validate its format
@@ -621,6 +633,53 @@ func (a *Account) IsGPGEnabled() bool {
 	return a.GPGEnabled && a.HasGPGKey()
 }
 
+// Commit signing formats.
+const (
+	SigningFormatSSH = "ssh"
+	SigningFormatGPG = "gpg"
+)
+
+// CommitSigning returns the effective signing format ("ssh", "gpg", or "" for
+// none) and the value for Git's user.signingkey.
+func (a *Account) CommitSigning() (format, key string) {
+	switch a.SigningFormat {
+	case SigningFormatSSH:
+		if a.SigningKey != "" {
+			return SigningFormatSSH, a.SigningKey
+		}
+		return SigningFormatSSH, a.SSHKeyPath
+	case SigningFormatGPG:
+		return SigningFormatGPG, a.GPGKeyID
+	}
+	if a.IsGPGEnabled() {
+		return SigningFormatGPG, a.GPGKeyID
+	}
+	return "", ""
+}
+
+// SetCommitSigning selects the signing format: "ssh", "gpg", or "off".
+func (a *Account) SetCommitSigning(format string) error {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case SigningFormatSSH:
+		a.SigningFormat = SigningFormatSSH
+		a.GPGEnabled = false
+	case SigningFormatGPG:
+		if !a.HasGPGKey() {
+			return ErrSigningKeyMissing
+		}
+		a.SigningFormat = SigningFormatGPG
+		a.SigningKey = ""
+		a.GPGEnabled = true
+	case "off", "none", "false":
+		a.SigningFormat = ""
+		a.SigningKey = ""
+		a.GPGEnabled = false
+	default:
+		return fmt.Errorf("unknown signing format %q; use ssh, gpg or off", format)
+	}
+	return nil
+}
+
 // SetGPGKey sets the GPG key information for this account
 func (a *Account) SetGPGKey(keyID, keyType string, keySize int, fingerprint string, expiry *time.Time) {
 	a.GPGKeyID = keyID
@@ -634,12 +693,17 @@ func (a *Account) SetGPGKey(keyID, keyType string, keySize int, fingerprint stri
 func (a *Account) EnableGPGSigning() {
 	if a.HasGPGKey() {
 		a.GPGEnabled = true
+		a.SigningFormat = SigningFormatGPG
+		a.SigningKey = ""
 	}
 }
 
 // DisableGPGSigning disables automatic GPG signing for this account
 func (a *Account) DisableGPGSigning() {
 	a.GPGEnabled = false
+	if a.SigningFormat == SigningFormatGPG {
+		a.SigningFormat = ""
+	}
 }
 
 // IsGPGKeyExpired returns true if the GPG key has expired
@@ -648,4 +712,30 @@ func (a *Account) IsGPGKeyExpired() bool {
 		return false // No expiry set, key doesn't expire
 	}
 	return time.Now().After(*a.GPGKeyExpiry)
+}
+
+func (a *Account) validateSigning() error {
+	switch a.SigningFormat {
+	case "":
+		if a.SigningKey != "" {
+			return fmt.Errorf("signing_key is set but signing_format is not ssh")
+		}
+	case SigningFormatSSH:
+		if a.SigningKey == "" && a.SSHKeyPath == "" {
+			return ErrSigningKeyMissing
+		}
+		if strings.IndexFunc(a.SigningKey, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
+			return fmt.Errorf("signing key path contains control characters")
+		}
+	case SigningFormatGPG:
+		if !a.HasGPGKey() {
+			return ErrSigningKeyMissing
+		}
+		if a.SigningKey != "" {
+			return fmt.Errorf("signing_key applies only to ssh signing; gpg uses gpg_key_id")
+		}
+	default:
+		return fmt.Errorf("unknown signing_format %q; use ssh or gpg", a.SigningFormat)
+	}
+	return nil
 }

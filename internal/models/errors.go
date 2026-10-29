@@ -13,10 +13,11 @@ var (
 	ErrInvalidGitHubUsernameFormat = errors.New("invalid GitHub username format")
 
 	// Account management errors
-	ErrAccountNotFound  = errors.New("account not found")
-	ErrAccountExists    = errors.New("account already exists")
-	ErrNoAccountsFound  = errors.New("no accounts configured")
-	ErrNoCurrentAccount = errors.New("no account is active; run 'gitshift switch ALIAS'")
+	ErrAccountNotFound   = errors.New("account not found")
+	ErrAccountExists     = errors.New("account already exists")
+	ErrNoAccountsFound   = errors.New("no accounts configured")
+	ErrSigningKeyMissing = errors.New("signing needs a key: an SSH key for ssh signing, a GPG key for gpg signing")
+	ErrNoCurrentAccount  = errors.New("no account is active; run 'gitshift switch ALIAS'")
 
 	// Configuration errors
 	ErrConfigNotFound  = errors.New("configuration file not found")

@@ -71,7 +71,7 @@ sequenceDiagram
         C->>SSH: Back up and rewrite managed block in ~/.ssh/config
     end
     C->>G: Set user.name, user.email, core.sshCommand (global, and local in a repo)
-    C->>G: Set or clear signing key, commit.gpgsign, tag.gpgsign
+    C->>G: Apply signing: gpg.format, user.signingkey, commit/tag.gpgsign
     opt GitHub account
         C->>GH: gh auth switch --hostname HOST --user USER
     end
