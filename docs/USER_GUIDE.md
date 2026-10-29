@@ -83,7 +83,7 @@ gitshift add work \
 
 For GitHub Enterprise or self-managed GitLab, add `--domain git.company.example`. `--api-endpoint` records a custom API URL but does not add support for another provider.
 
-The first account becomes the configured default/current alias. Adding a later account with `--default` changes that configured selection, but account creation alone does not apply the new identity to external Git, SSH, GPG, or GitHub CLI state; run `switch` when ready.
+The first account becomes the default alias. Adding a later account with `--default` changes the default, but account creation never applies an identity to Git, SSH, GPG, or GitHub CLI and never marks it current; run `switch` when ready.
 
 ## SSH keys
 

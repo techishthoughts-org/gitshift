@@ -73,6 +73,9 @@ func TestAutoSwitchAlreadyCurrentDoesNotMutateConfigOrExternalState(t *testing.T
 	if err := manager.AddAccount(models.NewAccount("personal", "Personal", "p@example.com", "")); err != nil {
 		t.Fatal(err)
 	}
+	if err := manager.SetCurrentAccount("personal"); err != nil {
+		t.Fatal(err)
+	}
 	projects := filepath.Join(root, "projects")
 	if err := os.Mkdir(projects, 0700); err != nil {
 		t.Fatal(err)

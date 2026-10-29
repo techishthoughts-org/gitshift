@@ -31,6 +31,10 @@ func createCommandTestConfig(t *testing.T) (string, *models.Account) {
 	if err := manager.AddAccount(account); err != nil {
 		t.Fatal(err)
 	}
+	// Model an account that a previous switch applied.
+	if err := manager.SetCurrentAccount(account.Alias); err != nil {
+		t.Fatal(err)
+	}
 	return configFile, account
 }
 

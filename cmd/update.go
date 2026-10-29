@@ -96,7 +96,7 @@ Examples:
 			if existingAccount.Description != "" {
 				fmt.Printf("   Description: %s\n", existingAccount.Description)
 			}
-			fmt.Printf("   Default: %t\n", configManager.GetConfig().CurrentAccount == alias)
+			fmt.Printf("   Default: %t\n", existingAccount.IsDefault)
 			fmt.Println("\n💡 Use flags to update specific fields:")
 			fmt.Println("   --name, --email, --username, --ssh-key, --description, --platform, --domain, --api-endpoint, --auto-gpg, --default")
 			return nil
@@ -213,7 +213,7 @@ Examples:
 		if updatedAccount.Description != "" {
 			fmt.Printf("   Description: %s\n", updatedAccount.Description)
 		}
-		fmt.Printf("   Default: %t\n", configManager.GetConfig().CurrentAccount == alias)
+		fmt.Printf("   Default: %t\n", updatedAccount.IsDefault)
 
 		return nil
 	},
