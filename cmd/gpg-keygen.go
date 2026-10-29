@@ -207,8 +207,7 @@ func runGPGKeygen(cmd *cobra.Command, args []string) error {
 
 	if !gpgEnableSign {
 		fmt.Printf("\n💡 To enable automatic GPG commit signing:\n")
-		fmt.Printf("   gitshift gpg-keygen %s --enable\n", accountAlias)
-		fmt.Printf("   OR edit your account and set gpg_enabled: true\n")
+		fmt.Printf("   gitshift update %s --gpg-signing\n", accountAlias)
 	}
 
 	return nil
