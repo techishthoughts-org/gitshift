@@ -1,0 +1,70 @@
+# GoReleaser builds, checksums, publishes the GitHub release, and updates the
+# Homebrew tap. The release workflow creates and pushes the tag first.
+version: 2
+
+project_name: gitshift
+
+before:
+  hooks:
+    - go mod verify
+
+builds:
+  - id: gitshift
+    main: .
+    binary: gitshift
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/techishthoughts/gitshift/cmd.version={{ .Tag }}
+      - -X github.com/techishthoughts/gitshift/cmd.buildTime={{ .Date }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+
+archives:
+  - id: gitshift
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - CHANGELOG.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  # Release notes come from CHANGELOG.md (passed with --release-notes).
+  disable: true
+
+release:
+  github:
+    owner: techishthoughts-org
+    name: gitshift
+  name_template: "GitShift {{ .Tag }}"
+  mode: replace
+
+homebrew_casks:
+  - name: gitshift
+    binaries: [gitshift]
+    description: Switch Git, SSH, GPG and GitHub CLI identities between accounts
+    homepage: https://github.com/techishthoughts-org/gitshift
+    commit_author:
+      name: github-actions[bot]
+      email: 41898282+github-actions[bot]@users.noreply.github.com
+    commit_msg_template: "gitshift {{ .Tag }}"
+    repository:
+      owner: techishthoughts-org
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    hooks:
+      post:
+        # Binaries are not notarized; clear Gatekeeper quarantine on install.
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/gitshift"]
+          end

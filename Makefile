@@ -1,7 +1,7 @@
 # gitshift - SSH-first GitHub and GitLab identity management
 # Manage multiple provider identities with Git, SSH, GPG, and GitHub CLI integration
 
-.PHONY: build test clean lint fmt vet install deps help demo
+.PHONY: all build test clean lint fmt vet install deps dev help demo docs release-check
 
 # Build variables
 BINARY_NAME=gitshift
@@ -65,7 +65,7 @@ deps:
 clean:
 	@echo "🧹 Cleaning build artifacts..."
 	@go clean
-	@rm -f $(BINARY_NAME) coverage.out
+	@rm -rf $(BINARY_NAME) coverage.out dist
 	@echo "✅ Clean complete"
 
 ## Development workflow: build and test
@@ -101,6 +101,8 @@ help:
 	@echo "  clean      Clean build artifacts"
 	@echo "  dev        Full development workflow"
 	@echo "  demo       Show gitshift in action"
+	@echo "  docs       Regenerate docs/reference/commands"
+	@echo "  release-check  Build release archives locally (no publish)"
 	@echo "  help       Show this help"
 	@echo ""
 	@echo "🚀 Quick start:"
@@ -108,25 +110,14 @@ help:
 	@echo "  ./gitshift discover  # Find existing SSH keys"
 	@echo "  ./gitshift ssh-keygen myaccount --email me@example.com"
 
-# Release targets for cross-platform builds
-.PHONY: release
-release:
-	@echo "🚀 Building release binaries..."
-	@mkdir -p dist
-	@echo "Building for Linux AMD64..."
-	@GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-linux-amd64 .
-	@echo "Building for Linux ARM64..."
-	@GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-linux-arm64 .
-	@echo "Building for macOS AMD64..."
-	@GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-amd64 .
-	@echo "Building for macOS ARM64..."
-	@GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-darwin-arm64 .
-	@echo "Building for Windows AMD64..."
-	@GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-windows-amd64.exe .
-	@if command -v sha256sum >/dev/null 2>&1; then \
-		cd dist && sha256sum $(BINARY_NAME)-* > checksums.txt; \
-	else \
-		cd dist && shasum -a 256 $(BINARY_NAME)-* > checksums.txt; \
-	fi
-	@echo "✅ Release binaries built in dist/"
-	@ls -la dist/
+## Regenerate the command reference in docs/reference/commands
+docs:
+	@go run ./tools/gendocs
+	@echo "✅ Command reference regenerated"
+
+## Build every release archive locally with GoReleaser (nothing is published)
+release-check:
+	@command -v goreleaser >/dev/null 2>&1 || { echo "❌ Install GoReleaser v2: https://goreleaser.com/install/"; exit 1; }
+	@goreleaser check
+	@HOMEBREW_TAP_TOKEN=unused goreleaser release --snapshot --clean --skip=publish
+	@echo "✅ Snapshot archives, checksums and cask written to dist/"
