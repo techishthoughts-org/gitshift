@@ -570,3 +570,26 @@ func TestAutoSwitchDefaultAccountLifecycle(t *testing.T) {
 		t.Fatalf("remove kept a removed default: %q", got)
 	}
 }
+
+func TestSetCurrentAccountKeepsDefault(t *testing.T) {
+	manager := NewManagerWithPath(filepath.Join(t.TempDir(), "config.yaml"))
+	if err := manager.Load(); err != nil {
+		t.Fatal(err)
+	}
+	for _, alias := range []string{"work", "personal"} {
+		if err := manager.AddAccount(testAccount(alias)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := manager.SetCurrentAccount("personal"); err != nil {
+		t.Fatal(err)
+	}
+	work, _ := manager.GetAccount("work")
+	personal, _ := manager.GetAccount("personal")
+	if !work.IsDefault || personal.IsDefault {
+		t.Fatalf("switch moved the default: work=%t personal=%t", work.IsDefault, personal.IsDefault)
+	}
+	if manager.GetConfig().CurrentAccount != "personal" || personal.LastUsed == nil {
+		t.Fatalf("current=%q lastUsed=%v", manager.GetConfig().CurrentAccount, personal.LastUsed)
+	}
+}

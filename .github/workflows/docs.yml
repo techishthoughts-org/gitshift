@@ -1,67 +1,29 @@
----
-name: 📚 Documentation Validation
+name: Documentation
+
 on:
   push:
     branches: [main]
-    paths: [docs/**, README.md, .github/workflows/docs.yml]
+    paths: ['**.md', .github/workflows/docs.yml]
+  pull_request:
+    paths: ['**.md', .github/workflows/docs.yml]
   workflow_dispatch:
-env:
-  GO_VERSION: '1.26.0'
+
+permissions:
+  contents: read
+
 jobs:
-  # 📚 Documentation Validation
-  docs-validation:
-    name: 📚 Validate Documentation
+  links:
+    name: Check relative links
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 Checkout Code
-        uses: actions/checkout@v7
-      - name: 🔍 Check Markdown Links
-        uses: gaurav-nelson/github-action-markdown-link-check@v1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          use-quiet-mode: 'yes'
-          use-verbose-mode: 'yes'
-          config-file: .github/markdown-link-check.json
-          folder-path: docs/
-      - name: 🔍 Check Root README Links
-        uses: gaurav-nelson/github-action-markdown-link-check@v1
-        with:
-          use-quiet-mode: 'yes'
-          use-verbose-mode: 'yes'
-          config-file: .github/markdown-link-check.json
-          file-path: README.md
-      - name: 📝 Check Documentation Structure
-        run: |
-          echo "Validating documentation structure..."
+          persist-credentials: false
 
-          # Check if all required docs exist
-          required_docs=("README.md" "docs/INSTALLATION.md" "docs/USER_GUIDE.md" "docs/COMMAND_REFERENCE.md" "docs/CONFIGURATION.md" "docs/TROUBLESHOOTING.md" "docs/ARCHITECTURE.md" "docs/SECURITY.md" "docs/CONTRIBUTING.md")
-          for doc in "${required_docs[@]}"; do
-            if [ -f "$doc" ]; then
-              echo "✅ $doc exists"
-            else
-              echo "❌ $doc missing"
-              exit 1
-            fi
-          done
-          echo "✅ All required documentation files present"
-      - name: 📊 Documentation Metrics
-        run: |
-          # Count documentation files
-          DOC_COUNT=$(find docs/ -name "*.md" | wc -l)
-          DOC_LINES=$(find docs/ -name "*.md" -exec wc -l {} + | tail -1 | awk '{print $1}')
-          README_LINES=$(wc -l < README.md)
-          {
-            echo "## 📚 Documentation Metrics"
-            echo
-            echo "**Documentation Files**: $DOC_COUNT"
-            echo "**Total Documentation Lines**: $DOC_LINES"
-            echo "**README Lines**: $README_LINES"
-            echo
-            echo "### 📋 Documentation Coverage"
-            echo "- ✅ User Guide"
-            echo "- ✅ Configuration Guide"
-            echo "- ✅ Troubleshooting Guide"
-            echo "- ✅ Architecture Guide"
-            echo "- ✅ Security Guide"
-            echo "- ✅ Contributing Guide"
-          } >> "$GITHUB_STEP_SUMMARY"
+      # Offline: only links between files in this repository are checked, so
+      # the result does not depend on external sites or unpublished releases.
+      - name: Check Markdown links
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          args: --offline --no-progress --include-fragments README.md CONTRIBUTING.md CHANGELOG.md 'docs/**/*.md'
+          fail: true

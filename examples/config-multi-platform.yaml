@@ -32,6 +32,9 @@ accounts:
 current_account: personal-github
 
 auto_switch:
+  # Applied by the zsh hook when no rule below matches. Omit to keep the
+  # current identity outside rule directories.
+  default_account: personal-github
   rules:
     - path: /home/alex/dev/personal
       account: personal-github

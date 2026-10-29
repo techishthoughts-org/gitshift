@@ -1,311 +1,277 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to gitshift are recorded here, newest first. Each version
+section matches a Git tag; the Unreleased section collects changes that will
+ship in the next release.
 
-Historical entries record what releases announced at the time and may mention behavior that was later changed or never reached the published binaries. Use the current README, command help, and `docs/` guides for supported behavior. The latest public asset compatibility issue is documented in [Installation](docs/INSTALLATION.md).
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+These are the notes for v2.0.0.
+
+### Highlights
+
+- An interactive terminal UI, which `gitshift` now opens when run without a subcommand.
+- Directory-based automatic switching with a zsh hook and a fallback default account.
+- Multi-account discovery across GitHub CLI hosts, SSH keys and GPG keys, with chosen aliases.
+- Safer switching: every change is rolled back if a step fails, and your SSH config is preserved.
+- Prebuilt archives for six platforms that report their real version, plus a Homebrew cask.
+
+### Breaking changes for v1.x users
+
+- Only `switch` (CLI, terminal UI or auto-switch) marks an account as current. `add --default`,
+  `update --default`, discovery import/overwrite and removing the default account no longer do.
+- `switch` no longer writes `GIT_SSH_COMMAND` into shell startup files or clears the shared
+  ssh-agent; isolation now comes from the managed `~/.ssh/config` block and `core.sshCommand`.
+- A GitHub switch now requires GitHub CLI (`gh`) authenticated as the account's username on its
+  host; a failed `gh auth switch` rolls the switch back unless `--force` is given.
+- `switch` refuses SSH private keys whose permissions are not `600` instead of working around them.
+- Supported platforms are `github` and `gitlab`. Corporate email domains are no longer assumed to
+  be GitLab during discovery.
+- The configuration file is migrated in place to `config_version: 1.1.0`, rewritten with
+  owner-only permissions, and unknown newer versions are rejected.
+- `ssh-keygen --passphrase` and `gpg-keygen --passphrase` are removed; generated keys are
+  passwordless, so create protected keys with `ssh-keygen`/`gpg` directly.
+- Release assets are now `gitshift_<version>_<os>_<arch>.tar.gz` (`.zip` on Windows), replacing
+  the bare `gitshift-<os>-<arch>` binaries. Update any download scripts.
+- macOS and Linux users can install with `brew install --cask techishthoughts-org/tap/gitshift`.
+
 ### Added
-- **Auto-switch default account**: `gitshift auto default ALIAS` sets the
-  account auto-switch applies outside every rule directory; `--clear` removes
-  it. `auto resolve` shows it as `ALIAS (default)`.
-- **Prompt-friendly current alias**: `gitshift current --short` prints only
-  the active alias, read-only, for shell prompts such as Starship.
-- **Interactive terminal UI**: Added `gitshift ui` (`tui`) using Bubble Tea,
-  Bubbles, and Lip Gloss, with account and directory-rule management, confirmed
-  validated switching/removal, selective multi-account discovery import,
-  responsive help/status views, light/dark styling, and `NO_COLOR` support.
-- **UI by default**: Running `gitshift` without a subcommand now opens the
-  interactive terminal UI; explicit subcommands and help/version flags retain
-  their existing behavior.
-- **Atomic discovery import**: The terminal UI validates every selected account
-  before adding the batch in one configuration write without replacing existing
-  state.
-- **GPG Key Discovery**: Automatic discovery of GPG signing keys from system keyring
-  - Scans GPG keyring for secret keys with signing capability
-  - Merges SSH and GPG key information by email address
-  - Supports RSA, DSA, and EdDSA key types
-  - Displays GPG key information in discovery output
-- **Enhanced Platform Detection**: Improved automatic platform detection
-  - Corporate email addresses default to GitLab
-  - Personal email domains (gmail, yahoo, etc.) default to GitHub
-  - Domain-based platform detection (gitlab.*, github.* in domain)
-- **SSH Key Switching**: Fixed SSH key isolation when switching accounts
-  - Properly sets `core.sshCommand` with account-specific SSH key
-  - Uses `IdentitiesOnly=yes` for complete SSH isolation
-  - Updates both global and local Git configuration
+
+- `gitshift ui` (alias `tui`, `--inline` for the current screen buffer): dashboard, account
+  add/edit, confirmed switch and removal, directory-rule management, and discovery import.
+- Running `gitshift` with no subcommand opens the terminal UI; subcommands and
+  `--help`/`--version` behave as before.
+- `auto add`, `auto list`, `auto remove` and `auto resolve` manage per-directory account rules;
+  the deepest matching directory wins.
+- `auto default ALIAS` (and `--clear`) sets the account used outside every rule directory.
+- `auto-switch` applies the matching rule through the same transaction as `switch`, and
+  `shell-init zsh` prints a hook that runs it on directory change.
+- `current --short` prints only the active alias, read-only, for shell prompts such as Starship.
+- `discover` imports every authenticated GitHub CLI identity on all configured hosts and tests
+  each SSH key in isolation to learn which username it authenticates as.
+- `discover --alias SELECTOR=ALIAS` and `--prompt-aliases` choose aliases before import; a fresh
+  interactive `discover` asks for aliases and which account to activate, then applies it.
+- `add` and `update` accept `--username`, `--platform`, `--domain` and `--api-endpoint`, so
+  GitLab and self-hosted accounts no longer need hand-edited YAML.
+- The global `--config PATH` flag is honoured by every command.
+- A generated per-command reference in `docs/reference/commands`.
+
+### Changed
+
+- `switch` captures Git, SSH and GitHub CLI state first and restores it if any step fails;
+  concurrent switches are serialized with a lock file.
+- Git and SSH validation use only the account's key (`-F /dev/null`, `IdentitiesOnly=yes`,
+  `IdentityAgent=none`), so another key in `~/.ssh/config` or the agent cannot answer instead.
+- Configuration writes are atomic, locked, and refused when the file changed since it was read.
+- `update` changes only the fields you pass and keeps every other account setting.
+- `list --format json` emits properly escaped JSON.
+- Release binaries embed their real tag, so `gitshift --version` reports the installed version.
+- Builds require Go 1.26.
 
 ### Fixed
-- **Silent config loading**: Commands no longer print `Using config file: …`
-  to stderr on every run, which showed on each directory change with the
-  auto-switch hook.
-- **SSH config global options**: Options above the first `Host`/`Match` line
-  (for example `StrictHostKeyChecking`, `IdentityAgent`, `Include`) now stay
-  ahead of the managed block instead of being moved under `Host github.com`.
-  Configs rewritten by earlier versions are repaired on the next switch.
-- **SSH config user blocks and backups**: A hand-written block for the managed
-  host is now commented out with `# gitshift-disabled:` instead of deleted, and
-  the config as it was before gitshift first changed it is kept in
-  `~/.ssh/config.gitshift-orig`; `.backup` still holds the previous version.
-- **Default vs current account**: `add --default`, `update --default`,
-  discovery import/overwrite, and removing the default account no longer mark
-  an account as current. Only `switch` (CLI, TUI, or auto-switch) does.
-- **TUI domain default**: The account form no longer pre-fills `github.com`,
-  so GitLab accounts and platform changes get the correct default domain.
-- **Dependencies**: Upgraded `golang.org/x/text` to v0.39.0 (GO-2026-5970) and
-  `golang.org/x/crypto` to v0.52.0 (GO-2026-5018).
-- **Switch Command Early Exit Bug**: Fixed premature exit when switching accounts
-  - Removed early exit check that skipped configuration updates
-  - Now always applies SSH and Git configuration when switching accounts
-  - Ensures system configuration stays in sync with gitshift config
-  - Fixes issue where `gitshift switch` would report success but not update SSH/Git configs
-- **Platform Detection in List Command**: Fixed account categorization by platform
-  - Accounts are now properly grouped by platform (GitHub, GitLab, etc.)
-  - Platform field is now set correctly during account discovery
-  - List command displays accounts under correct platform sections
-  - Fixed issue where all accounts showed under "GitHub" regardless of actual platform
-- **Configuration Persistence**: Fixed account alias corruption for aliases with dots
-  - Replaced Viper-based config I/O with direct yaml.v3 marshaling
-  - Properly handles account aliases containing special characters
-- **SSH Key Path Configuration**: Account switching now correctly updates SSH command
-  - Fixed bug where Git would use wrong SSH key after account switch
-  - Ensures proper SSH key isolation per account
-- **Make Install Path**: Changed install target from `/usr/local/bin` to `$GOPATH/bin`
-  - No longer requires sudo for installation
-  - Follows Go ecosystem conventions
-- **GitHub Username Validation**: SSH scanner validates GitHub username format
-  - Only sets GitHubUsername if it matches GitHub's format requirements
-  - Prevents invalid usernames from SSH key filenames
 
-### Changed
-- Updated all documentation to reflect multi-platform support
-- Enhanced documentation structure with new guides
-- Configuration now uses direct YAML marshaling for better reliability
+- Options above the first `Host`/`Match` line in `~/.ssh/config` (such as `Include` or
+  `IdentityAgent`) stay at the top instead of moving under the managed host block.
+- A hand-written block for the managed host is commented out with `# gitshift-disabled:`
+  instead of deleted, and the original config is kept once in `~/.ssh/config.gitshift-orig`.
+- Duplicate `Host` entries for the managed domain no longer offer the previous account's key.
+- The terminal UI account form no longer pre-fills `github.com`, so GitLab accounts get the
+  correct default domain.
+- Quit requests in the terminal UI wait until a running switch or removal finishes.
+- Commands no longer print `Using config file: …` to stderr on every run.
+- Switching no longer moves the default account to the account you switched to.
+- The zsh hook calls the `gitshift` on your `PATH` (for Homebrew, `$(brew --prefix)/bin/gitshift`)
+  instead of a versioned path, so open shells keep working after `brew upgrade`.
 
-### Documentation
-- Added verified Linux, macOS, and Windows release download and checksum instructions
-- Added upgrade, uninstall, command reference, configuration recovery, and release-compatibility guidance
-- Corrected unsupported provider, cloning, workflow, security-scan, and release-automation claims
-- Documented Git/SSH/GPG/GitHub CLI side effects, validation scope, and rollback limits
+### Removed
 
-### Delivery
-- Replaced competing automatic tag/build/publish workflows with one manually dispatched release workflow
-- Made an explicit validated `vMAJOR.MINOR.PATCH` input the sole release-version authority
-- Added pre-tag tests, vet, five-platform builds, checksum/version verification, and post-publish asset checks
-- Removed the stale unused `VERSION` file and personal-token workflow chaining
-
-## [0.2.0] - 2025-11-12
-
-### Added
-
-#### Multi-Platform Support 🚀
-- **GitHub Support**: Full support for GitHub.com and GitHub Enterprise
-- **GitLab Support**: Full support for GitLab.com and self-hosted GitLab instances
-- **Platform Abstraction Layer**: Clean interface for adding new platforms in the future
-- **Custom Domain Support**: Use custom domains for GitHub Enterprise and self-hosted GitLab
-- **Platform Auto-Detection**: Automatically detect platform from repository URLs
-- **API Endpoint Configuration**: Custom API endpoints for enterprise/self-hosted instances
-
-#### New Configuration Fields
-- `platform` - Specify the Git hosting platform (github, gitlab)
-- `username` - Platform-specific username (replaces `github_username`)
-- `domain` - Custom domain for enterprise/self-hosted instances
-- `api_endpoint` - Custom API endpoint URL
-
-#### Platform-Specific Features
-- Platform-aware SSH configuration generation
-- Platform-specific SSH host entries
-- Automatic platform detection from Git URLs
-- Platform-based account grouping in `list` command
-
-#### Documentation
-- Added comprehensive [Multi-Platform Support Guide](docs/MULTI_PLATFORM_SUPPORT.md)
-- Added migration guide from GitHub-only to multi-platform
-- Added platform-specific examples in configuration guide
-- Updated all documentation to reflect multi-platform capabilities
-
-### Changed
-- **Account Model**: Extended to support multiple platforms
-- **SSH Configuration**: Enhanced to support platform-specific settings
-- **CLI Output**: Shows platform information in `list` and `current` commands
-- **Repository Detection**: Enhanced URL parsing for multi-platform support
-
-### Deprecated
-- `github_username` field (use `username` + `platform` instead)
-  - Note: Still fully supported for backward compatibility
-
-### Backward Compatibility
-- ✅ Existing GitHub-only configurations work without changes
-- ✅ Accounts without `platform` field default to GitHub
-- ✅ Old `github_username` field still supported
-- ✅ All existing CLI commands work as before
-
-## [0.1.2] - 2025-11-11
+- Writing `GIT_SSH_COMMAND` to `~/.zshrc`/`~/.zsh_secrets` and clearing ssh-agent during `switch`.
+- The `--passphrase` flags of `ssh-keygen` and `gpg-keygen`.
+- The `VERSION` file and the chained automatic tag/build/publish workflows.
 
 ### Security
-- **Go Version Upgrade**: Updated from Go 1.23 to Go 1.24.0
-  - Resolves stdlib security vulnerabilities
-  - Updated in `go.mod` and all CI/CD workflows
-  - See [CVE details](https://go.dev/security/) for specific vulnerabilities addressed
+
+- The configuration directory is created `0700` and the file `0600`, and provider tokens are
+  never written to configuration or shown in the terminal UI.
+- Upgraded to Go 1.26, `golang.org/x/text` v0.39.0 (GO-2026-5970) and `golang.org/x/crypto`
+  v0.52.0 (GO-2026-5018).
+
+### Maintenance
+
+- Releases are cut by one manually dispatched workflow that tests, builds with
+  GoReleaser, publishes `checksums.txt`, verifies the uploaded assets and updates the Homebrew tap.
+
+## [1.4.2] - 2026-01-04
+
+Source-only tag; no release binaries.
 
 ### Fixed
-- Security vulnerabilities in Go standard library (via Go 1.24.0 upgrade)
 
-## [0.1.1] - 2025-10-15
+- `.tool-versions` pinned a non-existent Go release; it now matches the `go.mod` toolchain (1.23.2).
+
+## [1.4.1] - 2025-11-30
+
+Source-only tag; no release binaries.
 
 ### Added
-- Initial release of gitshift
-- SSH-first Git account management
-- Multiple GitHub account support
-- SSH key generation and management
-- Account switching with validation
-- Auto-discovery of Git accounts
-- GitHub CLI integration
-- Token management for GitHub
-- Automatic `GITHUB_TOKEN` updates in zsh secrets
-- Comprehensive documentation
 
-### Features
+- `update --platform` and `update --auto-gpg` (finds a local GPG key by the account email).
 
-#### Core Commands
-- `gitshift add` - Add new Git accounts
-- `gitshift switch` - Switch between accounts
-- `gitshift list` - List all configured accounts
-- `gitshift current` - Show current active account
-- `gitshift ssh-keygen` - Generate SSH keys
-- `gitshift ssh-test` - Test SSH connections
-- `gitshift discover` - Auto-discover Git accounts
-- `gitshift remove` - Remove accounts
-- `gitshift update` - Update account information
+### Fixed
 
-#### SSH Management
-- Ed25519 SSH key generation (default)
-- RSA SSH key support
-- Complete SSH key isolation per account using `IdentitiesOnly=yes`
-- Automatic SSH config generation
-- SSH connection testing and validation
+- `switch` always reapplies SSH and Git configuration, even for the account already recorded as
+  current, so a reported switch can no longer leave stale settings.
+- `list` groups accounts under their real platform instead of showing every account as GitHub.
 
-#### GitHub Integration
-- GitHub CLI (`gh`) integration
-- Automatic token management
-- `GITHUB_TOKEN` updates in `~/.zsh_secrets`
-- GitHub API support for account validation
+## [1.4.0] - 2025-11-29
 
-#### Configuration
-- YAML-based configuration (`~/.gitshift/config.yaml`)
-- Support for multiple isolation levels (basic, standard, strict)
-- Default account configuration
-- Global Git config integration
-- Auto-detect mode for repository-based account selection
+Source-only tag; no release binaries.
 
-#### Documentation
-- Comprehensive user guide
-- Configuration reference
-- Architecture documentation
-- Security best practices guide
-- Troubleshooting guide
-- Migration guide from other tools
-- Contribution guidelines
+### Added
 
----
+- Discovery reads signing-capable GPG secret keys (RSA, DSA, EdDSA) and merges them with SSH keys
+  by email.
+- Discovery guesses the platform from the email: `gitlab`/`github` in the domain, personal
+  providers as GitHub, and other corporate domains as GitLab (reversed in 2.0.0).
 
-## Version Comparison
+### Changed
 
-### Key Differences Between Versions
+- `make install` installs to `$GOPATH/bin` (default `~/go/bin`) without `sudo`.
 
-| Feature | v0.1.1 | v0.1.2 | v0.2.0 |
-|---------|--------|--------|--------|
-| **Platform Support** | GitHub only | GitHub only | GitHub + GitLab + Enterprise |
-| **Go Version** | 1.23+ | 1.24.0 | 1.24.0 |
-| **Security Patches** | - | ✅ Stdlib fixes | ✅ Stdlib fixes |
-| **Custom Domains** | ❌ | ❌ | ✅ Full support |
-| **Platform Auto-Detection** | N/A | N/A | ✅ Automatic |
-| **API Endpoints** | GitHub.com only | GitHub.com only | ✅ Configurable |
-| **Backward Compatible** | N/A | ✅ | ✅ |
+### Fixed
 
----
+- `switch` sets `core.sshCommand` with the account key and `IdentitiesOnly=yes` in global and
+  repository Git config, so Git stops using the previous account's key.
+- Account aliases containing dots no longer corrupt the configuration file.
+- The SSH scanner only takes a GitHub username from a key filename when it is a valid username.
 
-## Upgrade Guide
+## [1.3.0] - 2025-11-26
 
-### Upgrading to v0.2.0 from v0.1.x
+Source-only tag; no release binaries.
 
-**No action required** - Your existing configuration will continue to work!
+### Added
 
-**Optional improvements:**
+- `gpg-keygen` generates RSA, ECC or DSA signing keys for an account and copies the public key.
+- `add --enable-gpg`; `switch` configures or disables commit signing for the target account.
+- `list` shows GPG status and warns about expiring keys.
 
-1. **Modernize your config** (recommended for clarity):
-   ```yaml
-   # Old format (still works)
-   github_username: johndoe
+### Fixed
 
-   # New format (recommended)
-   platform: github
-   username: johndoe
-   ```
+- Clipboard copy no longer leaks resources after key generation.
 
-2. **Add GitLab accounts** if needed:
-   ```bash
-   gitshift add my-gitlab --platform gitlab
-   ```
+## [1.2.1] - 2025-11-18
 
-3. **Test multi-platform features**:
-   ```bash
-   gitshift list  # Now shows platform column
-   ```
+Source-only tag; no release binaries.
 
-See [Multi-Platform Support Guide](docs/MULTI_PLATFORM_SUPPORT.md) for detailed migration instructions.
+### Fixed
 
-### Upgrading to v0.1.2 from v0.1.1
+- Copying the public key works on Linux (`xclip`, `xsel`, `wl-copy`) and Windows (`clip`), not
+  only macOS.
+- The shell setup step detects bash, zsh, fish and ksh and writes the right file and syntax;
+  Windows gets manual instructions.
+- Maintenance: `go.mod` returned to Go 1.23 with a pinned 1.23.2 toolchain.
 
-**No configuration changes required** - Security update only.
+## [1.2.0] - 2025-11-14
 
-1. Update gitshift binary
-2. Verify Go version: `go version` (should show 1.24.0+)
+Source-only tag; no release binaries.
 
----
+### Added
 
-## Deprecation Timeline
+- `ssh-keygen` adds GitLab host keys to `known_hosts` and points to the GitLab key settings page.
 
-### Current Deprecations
+### Changed
 
-| Field/Feature | Deprecated In | Alternative | Removal Planned |
-|--------------|---------------|-------------|-----------------|
-| `github_username` | v0.2.0 | `username` + `platform` | No removal planned (backward compat maintained) |
+- Command help and examples cover GitHub, GitLab, GitHub Enterprise and self-hosted instances.
 
-### Planned Changes
+## [1.1.2] - 2025-11-12
 
-No breaking changes planned for the foreseeable future. gitshift maintains strong backward compatibility guarantees.
+Source-only tag; no release binaries.
 
----
+### Changed
 
-## Migration Guides
+- Maintenance: README rewritten around multi-platform use.
 
-- **From GitHub-only to Multi-Platform**: See [Multi-Platform Support Guide](docs/MULTI_PLATFORM_SUPPORT.md#migration-from-github-only)
-- **From other tools**: See [Migration Guide](docs/MIGRATION_GUIDE.md)
+## [1.1.1] - 2025-11-12
 
----
+Source-only tag; no release binaries.
 
-## Contributing
+### Changed
 
-See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines on:
-- Reporting bugs
-- Suggesting features
-- Submitting pull requests
-- Adding support for new platforms
+- Maintenance: release process documentation.
 
----
+## [1.1.0] - 2025-11-12
 
-## Links
+Source-only tag; no release binaries.
 
-- [Documentation](docs/)
-- [GitHub Repository](https://github.com/yourusername/gitshift)
-- [Issue Tracker](https://github.com/yourusername/gitshift/issues)
-- [Releases](https://github.com/yourusername/gitshift/releases)
+### Added
 
----
+- GitLab and self-hosted/enterprise support through new account fields `platform`, `username`,
+  `domain` and `api_endpoint`, with platform-specific SSH host entries.
+- `ssh-keygen` adds the new key to ssh-agent and copies the public key to the clipboard.
 
-**Note:** Version numbers and dates reflect major milestones. See Git commit history for detailed change tracking.
+### Deprecated
+
+- `github_username` in favour of `username` plus `platform`; existing configs keep working.
+
+### Security
+
+- Built with Go 1.24 to pick up standard-library vulnerability fixes.
+
+## [1.0.3] - 2025-09-27
+
+Release binaries were published on GitHub only and report version v0.1.0.
+
+### Changed
+
+- Maintenance: release titles use the `gitshift-vX.Y.Z` format.
+
+## [1.0.2] - 2025-09-27
+
+Release binaries were published on GitHub only and report version v0.1.0.
+
+### Changed
+
+- Maintenance: CI builds binaries for multiple platforms and publishes releases automatically.
+
+## [1.0.1] - 2025-09-27
+
+Release binaries were published on GitHub only and report version v0.1.0.
+
+### Fixed
+
+- Maintenance: release workflow fix.
+
+## [1.0.0] - 2025-09-27
+
+Release binaries were published on GitHub only and report version v0.1.0.
+
+### Added
+
+- First release: SSH-first management of multiple GitHub accounts with commands `add`, `list`,
+  `current`, `switch`, `update`, `remove`, `discover`, `ssh-keygen` and `ssh-test`.
+- `switch` writes an isolated `~/.ssh/config` entry (`IdentitiesOnly=yes`), reloads ssh-agent
+  with the account key, exports `GIT_SSH_COMMAND` in `~/.zsh_secrets`, and updates Git
+  `user.name`/`user.email` and the GitHub CLI account.
+- `ssh-keygen` creates Ed25519, RSA or ECDSA keys, manages GitHub entries in `known_hosts`, and
+  can upload the key with `--add-to-github` via GitHub CLI.
+- `discover` finds existing accounts from SSH keys in `~/.ssh`, with `--dry-run`,
+  `--auto-import` and `--overwrite`.
+- YAML configuration in `~/.config/gitshift/config.yaml`.
+
+[Unreleased]: https://github.com/techishthoughts-org/gitshift/compare/v1.4.2...HEAD
+[1.4.2]: https://github.com/techishthoughts-org/gitshift/compare/v1.4.1...v1.4.2
+[1.4.1]: https://github.com/techishthoughts-org/gitshift/compare/v1.4.0...v1.4.1
+[1.4.0]: https://github.com/techishthoughts-org/gitshift/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/techishthoughts-org/gitshift/compare/v1.2.1...v1.3.0
+[1.2.1]: https://github.com/techishthoughts-org/gitshift/compare/v1.2.0...v1.2.1
+[1.2.0]: https://github.com/techishthoughts-org/gitshift/compare/v1.1.2...v1.2.0
+[1.1.2]: https://github.com/techishthoughts-org/gitshift/compare/v1.1.1...v1.1.2
+[1.1.1]: https://github.com/techishthoughts-org/gitshift/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/techishthoughts-org/gitshift/compare/v1.0.3...v1.1.0
+[1.0.3]: https://github.com/techishthoughts-org/gitshift/compare/v1.0.2...v1.0.3
+[1.0.2]: https://github.com/techishthoughts-org/gitshift/compare/v1.0.1...v1.0.2
+[1.0.1]: https://github.com/techishthoughts-org/gitshift/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/techishthoughts-org/gitshift/releases/tag/v1.0.0

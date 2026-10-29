@@ -72,3 +72,50 @@ func TestZshHookKillSwitchAndRepeatedSource(t *testing.T) {
 		t.Fatalf("repeated source/chpwd invoked gitshift %d times, want 3", got)
 	}
 }
+
+func TestHookExecutablePrefersStablePathEntry(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	versioned := filepath.Join(root, "Caskroom", "gitshift", "2.0.0", "gitshift")
+	other := filepath.Join(root, "other", "gitshift")
+	for _, path := range []string{versioned, other} {
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	link := filepath.Join(root, "bin", "gitshift")
+	if err := os.MkdirAll(filepath.Dir(link), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(versioned, link); err != nil {
+		t.Fatal(err)
+	}
+	found := func(path string) func(string) (string, error) {
+		return func(string) (string, error) { return path, nil }
+	}
+	missing := func(string) (string, error) { return "", exec.ErrNotFound }
+
+	tests := []struct {
+		name       string
+		executable string
+		lookPath   func(string) (string, error)
+		want       string
+	}{
+		{name: "symlink on PATH runs this binary", executable: versioned, lookPath: found(link), want: link},
+		{name: "invoked through the symlink", executable: link, lookPath: found(link), want: link},
+		{name: "PATH entry is a different binary", executable: versioned, lookPath: found(other), want: versioned},
+		{name: "not on PATH", executable: link, lookPath: missing, want: versioned},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := hookExecutable(tt.executable, tt.lookPath); got != tt.want {
+				t.Fatalf("hookExecutable() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

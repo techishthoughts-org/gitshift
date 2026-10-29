@@ -27,13 +27,16 @@ jobs:
 
     steps:
       - name: Check out main
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           fetch-tags: true
+          # The write token is used only for the tag push and GoReleaser below,
+          # never stored in .git/config while tests run third-party code.
+          persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -41,6 +44,7 @@ jobs:
       - name: Validate release request
         env:
           GH_TOKEN: ${{ github.token }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           VERSION: ${{ inputs.version }}
         shell: bash
         run: |
@@ -114,7 +118,28 @@ jobs:
             fi
           fi
 
+          if [[ -z "${HOMEBREW_TAP_TOKEN:-}" ]]; then
+            echo "::error::Repository secret HOMEBREW_TAP_TOKEN is not set; GoReleaser cannot update techishthoughts-org/homebrew-tap"
+            exit 1
+          fi
+
           echo "Validated $VERSION from $GITHUB_SHA (previous: ${LATEST_TAG:-none})"
+
+      - name: Extract release notes from CHANGELOG.md
+        env:
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The release must have a dated "## [X.Y.Z] - YYYY-MM-DD" section.
+          awk -v want="${VERSION#v}" '
+            /^(## \[|\[[^]]+\]: )/ { if (found) exit; found = index($0, "## [" want "] - ") == 1; next }
+            found
+          ' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+          if [[ ! -s "$RUNNER_TEMP/release-notes.md" ]]; then
+            echo "::error::CHANGELOG.md has no '## [${VERSION#v}] - YYYY-MM-DD' section"
+            exit 1
+          fi
 
       - name: Test
         run: go test -race ./...
@@ -122,77 +147,22 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      - name: Build release assets
-        env:
-          VERSION: ${{ inputs.version }}
-        shell: bash
+      - name: Check generated command reference is current
         run: |
-          set -euo pipefail
-          BUILD_TIME="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-          LDFLAGS="-X github.com/techishthoughts/gitshift/cmd.version=$VERSION -X github.com/techishthoughts/gitshift/cmd.buildTime=$BUILD_TIME -w -s"
-          mkdir -p dist
+          go run ./tools/gendocs
+          git diff --exit-code -- docs/reference/commands
 
-          while read -r GOOS GOARCH OUTPUT; do
-            echo "Building $OUTPUT"
-            CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" \
-              go build -trimpath -ldflags "$LDFLAGS" -o "dist/$OUTPUT" .
-          done <<'TARGETS'
-          linux amd64 gitshift-linux-amd64
-          linux arm64 gitshift-linux-arm64
-          darwin amd64 gitshift-darwin-amd64
-          darwin arm64 gitshift-darwin-arm64
-          windows amd64 gitshift-windows-amd64.exe
-          TARGETS
-
-          (cd dist && sha256sum gitshift-* > checksums.txt)
-
-      - name: Verify release assets
-        env:
-          VERSION: ${{ inputs.version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          (cd dist && sha256sum --check checksums.txt)
-
-          VERSION_OUTPUT="$(./dist/gitshift-linux-amd64 --version)"
-          if [[ "$(head -n 1 <<< "$VERSION_OUTPUT")" != "gitshift $VERSION" ]]; then
-            echo "::error::Linux binary does not report gitshift $VERSION"
-            printf '%s\n' "$VERSION_OUTPUT"
-            exit 1
-          fi
-
-          EXPECTED_ASSETS=(
-            gitshift-linux-amd64
-            gitshift-linux-arm64
-            gitshift-darwin-amd64
-            gitshift-darwin-arm64
-            gitshift-windows-amd64.exe
-            checksums.txt
-          )
-          for asset in "${EXPECTED_ASSETS[@]}"; do
-            test -s "dist/$asset" || {
-              echo "::error::Missing or empty release asset: $asset"
-              exit 1
-            }
-          done
-
-          for asset in dist/gitshift-*; do
-            if ! grep -aF "$VERSION" "$asset" >/dev/null; then
-              echo "::error::$asset does not contain the expected embedded version"
-              exit 1
-            fi
-          done
-
-      - name: Preserve verified assets for recovery
-        uses: actions/upload-artifact@v7
+      - name: Verify release build without publishing
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
-          name: release-${{ inputs.version }}
-          path: dist/
-          if-no-files-found: error
-          retention-days: 14
+          version: v2.19.0
+          args: release --snapshot --clean --skip=publish
+        env:
+          HOMEBREW_TAP_TOKEN: unused-for-snapshot
 
       - name: Create annotated tag
         env:
+          GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
         shell: bash
         run: |
@@ -206,19 +176,16 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git tag -a "$VERSION" "$GITHUB_SHA" -m "GitShift $VERSION"
-          git push origin "refs/tags/$VERSION"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/$VERSION"
 
-      - name: Publish release
+      - name: Publish release and Homebrew cask
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          version: v2.19.0
+          args: release --clean --release-notes ${{ runner.temp }}/release-notes.md
         env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ inputs.version }}
-        run: |
-          gh release create "$VERSION" dist/* \
-            --verify-tag \
-            --generate-notes \
-            --fail-on-no-commits \
-            --latest \
-            --title "GitShift $VERSION"
+          GITHUB_TOKEN: ${{ github.token }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
       - name: Verify published release
         env:
@@ -227,27 +194,34 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          verify_dir="$RUNNER_TEMP/verify"
+          mkdir -p "$verify_dir"
+          gh release download "$VERSION" --dir "$verify_dir"
+          (cd "$verify_dir" && sha256sum --check checksums.txt)
 
-          if [[ "$(git cat-file -t "refs/tags/$VERSION")" != "tag" ]]; then
-            echo "::error::$VERSION is not an annotated tag"
-            exit 1
-          fi
-          if [[ "$(git rev-list -n 1 "$VERSION")" != "$GITHUB_SHA" ]]; then
-            echo "::error::$VERSION does not target $GITHUB_SHA"
-            exit 1
-          fi
-
-          EXPECTED="$(printf '%s\n' \
-            checksums.txt \
-            gitshift-darwin-amd64 \
-            gitshift-darwin-arm64 \
-            gitshift-linux-amd64 \
-            gitshift-linux-arm64 \
-            gitshift-windows-amd64.exe | sort)"
+          number="${VERSION#v}"
+          EXPECTED="$(for target in darwin_amd64 darwin_arm64 linux_amd64 linux_arm64; do
+              echo "gitshift_${number}_${target}.tar.gz"
+            done
+            echo "gitshift_${number}_windows_amd64.zip"
+            echo "gitshift_${number}_windows_arm64.zip"
+            echo checksums.txt)"
           ACTUAL="$(gh release view "$VERSION" --json assets --jq '.assets[].name' | sort)"
-          if [[ "$ACTUAL" != "$EXPECTED" ]]; then
+          if [[ "$ACTUAL" != "$(sort <<< "$EXPECTED")" ]]; then
             echo "::error::Published asset set does not match the release contract"
-            diff <(printf '%s\n' "$EXPECTED") <(printf '%s\n' "$ACTUAL") || true
+            diff <(sort <<< "$EXPECTED") <(printf '%s\n' "$ACTUAL") || true
+            exit 1
+          fi
+
+          tar -xzf "$verify_dir/gitshift_${number}_linux_amd64.tar.gz" -C "$verify_dir" gitshift
+          if [[ "$("$verify_dir/gitshift" --version | head -n 1)" != "gitshift $VERSION" ]]; then
+            echo "::error::Linux binary does not report gitshift $VERSION"
+            exit 1
+          fi
+
+          cask="$(gh api "repos/techishthoughts-org/homebrew-tap/contents/Casks/gitshift.rb" --jq .content | base64 -d)"
+          if ! grep -q "version \"${number}\"" <<< "$cask"; then
+            echo "::error::Homebrew cask was not updated to ${number}"
             exit 1
           fi
 
@@ -259,6 +233,7 @@ jobs:
             echo "## Released $VERSION"
             echo
             echo "- Commit: \`$GITHUB_SHA\`"
-            echo "- Assets: five platform binaries plus \`checksums.txt\`"
+            echo "- Assets: six platform archives plus \`checksums.txt\`"
+            echo "- Homebrew: \`brew install --cask techishthoughts-org/tap/gitshift\`"
             echo "- URL: https://github.com/$GITHUB_REPOSITORY/releases/tag/$VERSION"
           } >> "$GITHUB_STEP_SUMMARY"

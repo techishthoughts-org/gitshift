@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -20,9 +21,7 @@ var shellInitCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("locate gitshift executable: %w", err)
 		}
-		if physical, resolveErr := filepath.EvalSymlinks(executable); resolveErr == nil {
-			executable = physical
-		}
+		executable = hookExecutable(executable, exec.LookPath)
 		configArgument := ""
 		if cfgFile != "" {
 			absoluteConfig, absErr := filepath.Abs(cfgFile)
@@ -34,6 +33,28 @@ var shellInitCmd = &cobra.Command{
 		_, err = fmt.Fprint(cmd.OutOrStdout(), zshHook(executable, configArgument))
 		return err
 	},
+}
+
+// hookExecutable prefers the PATH entry that runs this same binary, such as
+// Homebrew's /opt/homebrew/bin/gitshift symlink, so the hook survives upgrades
+// that remove the versioned file. Otherwise it uses the physical path.
+func hookExecutable(executable string, lookPath func(string) (string, error)) string {
+	physical := executable
+	if resolved, err := filepath.EvalSymlinks(executable); err == nil {
+		physical = resolved
+	}
+	onPath, err := lookPath(filepath.Base(executable))
+	if err != nil {
+		return physical
+	}
+	onPath, err = filepath.Abs(onPath)
+	if err != nil {
+		return physical
+	}
+	if resolved, err := filepath.EvalSymlinks(onPath); err == nil && resolved == physical {
+		return filepath.Clean(onPath)
+	}
+	return physical
 }
 
 func zshHook(executable, configArgument string) string {
