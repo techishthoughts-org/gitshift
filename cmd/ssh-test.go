@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/techishthoughts/gitshift/internal/config"
 	"github.com/techishthoughts/gitshift/internal/models"
+	"github.com/techishthoughts/gitshift/internal/ssh"
 )
 
 var sshTestCmd = &cobra.Command{
@@ -210,16 +211,8 @@ func (t *SSHTester) testKeyExists(keyPath string) bool {
 func (t *SSHTester) testKeyPermissions(keyPath string) bool {
 	fmt.Printf("🔒 Checking SSH key permissions...")
 
-	// Check private key permissions (should be 600)
-	if info, err := os.Stat(keyPath); err == nil {
-		perm := info.Mode().Perm()
-		if perm != 0600 {
-			fmt.Printf(" ❌ Private key has wrong permissions: %o (should be 600)\n", perm)
-
-			return false
-		}
-	} else {
-		fmt.Printf(" ❌ Cannot check private key permissions: %v\n", err)
+	if err := ssh.CheckPrivateKeyFile(keyPath); err != nil {
+		fmt.Printf(" ❌ %v\n", err)
 		return false
 	}
 
@@ -246,22 +239,25 @@ func (t *SSHTester) testKnownHosts(domain string) bool {
 	}
 
 	knownHostsPath := filepath.Join(homeDir, ".ssh", "known_hosts")
-	content, err := os.ReadFile(knownHostsPath)
-	if err != nil {
+	if _, err := os.Stat(knownHostsPath); err != nil {
 		fmt.Printf(" ❌ Cannot read known_hosts: %v\n", err)
 		return false
 	}
 
-	contentStr := string(content)
-	hasGitHub := strings.Contains(contentStr, domain)
-
-	if !hasGitHub {
+	if !knownHostsContains(knownHostsPath, domain) {
 		fmt.Printf(" ❌ %s not found in known_hosts\n", domain)
 		return false
 	}
 
 	fmt.Printf(" ✅\n")
 	return true
+}
+
+// knownHostsContains asks ssh-keygen, which understands hashed entries
+// (HashKnownHosts yes) as well as plain ones.
+func knownHostsContains(knownHostsPath, domain string) bool {
+	output, err := exec.Command("ssh-keygen", "-F", domain, "-f", knownHostsPath).Output()
+	return err == nil && len(strings.TrimSpace(string(output))) > 0
 }
 
 func (t *SSHTester) fixGitHubKnownHosts(knownHostsPath string) bool {

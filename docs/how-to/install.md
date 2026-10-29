@@ -28,7 +28,7 @@ Each [GitHub release](https://github.com/techishthoughts-org/gitshift/releases) 
 | Windows x86-64 | `gitshift_2.0.0_windows_amd64.zip` |
 | Windows ARM64 | `gitshift_2.0.0_windows_arm64.zip` |
 
-Each archive contains `gitshift` (`gitshift.exe` on Windows), `README.md` and `CHANGELOG.md`.
+Each archive contains `gitshift` (`gitshift.exe` on Windows), `LICENSE`, `README.md` and `CHANGELOG.md`.
 
 ### Linux
 

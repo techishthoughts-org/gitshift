@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GO_VERSION: '1.26.0'
+  GO_VERSION: '1.26.x'
   BINARY_NAME: gitshift
 
 jobs:

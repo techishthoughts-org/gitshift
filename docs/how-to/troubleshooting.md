@@ -19,19 +19,19 @@ Run `command -v gitshift`. If it prints nothing, the install directory is not on
 
 Manual downloads are quarantined and the binary is not notarized. After verifying the checksum, run `xattr -d com.apple.quarantine "$(command -v gitshift)"`. The Homebrew cask does this for you. See [install](install.md).
 
-## `gitshift current` says `no default account set`
+## `gitshift current` says `no account is active`
 
-No switch has applied an account yet (or the current account was removed). Run `gitshift switch ALIAS`. The message says "default", but it means "current"; see the [identity model](../explanation/identity-model.md).
+No switch has applied an account yet (or the current account was removed). Run `gitshift switch ALIAS`; see the [identity model](../explanation/identity-model.md).
 
-## Switch fails: `SSH key ... has permissions 644; expected 600`
+## Switch fails: `SSH key ... has permissions 644`
 
-GitShift refuses to use a private key that others can read, and it does not change your key files:
+GitShift refuses to use a private key that group or other users can access (`600` and `400` are fine), and it does not change your key files:
 
 ```bash
 chmod 600 ~/.ssh/id_ed25519_work
 ```
 
-`switch --validate` does not check this, so it can pass while the switch fails.
+`switch --validate` reports the same problem without switching.
 
 ## Switch fails: `SSH preflight failed`
 
@@ -67,9 +67,9 @@ git config --show-origin --get-regexp '^(user\.|core\.sshcommand)'
 
 A repository-local value overrides the global one. Switching inside a repository writes local values that stay there; see [repository-local identity](switch-accounts.md#repository-local-identity).
 
-## Git over SSH ignores my `~/.ssh/config`
+## Git over SSH uses the wrong key
 
-While an account with a key is active, Git runs `ssh -F /dev/null -i KEY -o IdentitiesOnly=yes -o IdentityAgent=none`. Host aliases, `ProxyJump`, custom ports and agent keys from your SSH config do not apply to Git, for any remote. See the [security model](../explanation/security-model.md#git-ssh-command). To use your own SSH config for one repository, set a local override: `git config --local core.sshCommand ssh`.
+While an account with a key is active, Git runs `ssh -i KEY -o IdentitiesOnly=yes`, so the account's key is offered first and your `~/.ssh/config` still applies. If the provider authenticates you as another user, the account's key is probably not registered there and a key from an `IdentityFile` line answered instead. Check with `gitshift ssh-test ALIAS`; see the [security model](../explanation/security-model.md#git-ssh-command).
 
 ## GPG signing fails
 

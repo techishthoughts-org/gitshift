@@ -49,3 +49,7 @@ Run `gitshift` with no arguments to open the interactive terminal UI.
 - [Reference](docs/reference/README.md): every command and the configuration file.
 - [Explanation](docs/README.md#explanation): architecture, identity model, security model.
 - [Contributing](CONTRIBUTING.md) and [changelog](CHANGELOG.md).
+
+## License
+
+[MIT](LICENSE)

@@ -65,7 +65,7 @@ gitshift update work --auto-gpg          # attach a local GPG key whose email ma
 gitshift update work --default
 ```
 
-Flags: `--name`/`-n`, `--email`/`-e`, `--username`, `--github-username`/`-g` (must match `--username` if both are given), `--ssh-key`/`-k`, `--description`/`-d`, `--platform`/`-p`, `--domain`, `--api-endpoint`, `--auto-gpg`, `--default`.
+Flags: `--name`/`-n`, `--email`/`-e`, `--username`, `--github-username`/`-g` (must match `--username` if both are given), `--ssh-key`/`-k`, `--description`/`-d`, `--platform`/`-p`, `--domain`, `--api-endpoint`, `--auto-gpg`, `--gpg-signing`, `--default`. `--ssh-key` must point at an existing file.
 
 Changing `--platform` also resets the domain and API endpoint to defaults unless you pass them in the same command.
 
@@ -78,7 +78,7 @@ gitshift remove work        # asks for confirmation
 gitshift remove work -f     # no prompt
 ```
 
-Aliases: `rm`, `delete`, `del`. Removal deletes the account, its directory rules, and the auto-switch default if it pointed at this account. If it was the current account, GitShift no longer records any current account. If it was the default, another account becomes the default.
+Aliases: `rm`, `delete`, `del`. Removal deletes the account, its directory rules, and the auto-switch default if it pointed at this account. If it was the current account, GitShift no longer records any current account. If it was the default, the current account becomes the default, or, if that was the one removed, the first remaining alias in alphabetical order.
 
 Removal does not touch Git, SSH, GPG or the GitHub CLI. Your global identity stays as the last switch left it, and keys stay on disk and on the provider.
 

@@ -46,6 +46,7 @@ gitshift update [alias] [flags]
       --domain string            Set provider domain; use an empty value to restore the platform default
   -e, --email string             New email address for the account
   -g, --github-username string   New GitHub username (without @)
+      --gpg-signing              Sign commits and tags with the account's GPG key (--gpg-signing=false to stop)
   -h, --help                     help for update
   -n, --name string              New display name for the account
   -p, --platform string          Set platform (github or gitlab)

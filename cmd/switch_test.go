@@ -113,11 +113,69 @@ func TestShellQuote(t *testing.T) {
 	}
 }
 
-func TestIsolatedGitSSHCommandIgnoresOtherConfiguredKeys(t *testing.T) {
+func TestIsolatedGitSSHCommandPinsKeyAndKeepsSSHConfig(t *testing.T) {
 	command := isolatedGitSSHCommand("/tmp/key with space")
-	for _, required := range []string{"-F " + shellQuote(os.DevNull), "-i '/tmp/key with space'", "IdentitiesOnly=yes", "IdentityAgent=none"} {
-		if !strings.Contains(command, required) {
-			t.Fatalf("isolated Git SSH command does not contain %q: %s", required, command)
+	if command != "ssh -i '/tmp/key with space' -o IdentitiesOnly=yes" {
+		t.Fatalf("Git SSH command = %s", command)
+	}
+	for _, forbidden := range []string{"-F", "IdentityAgent"} {
+		if strings.Contains(command, forbidden) {
+			t.Fatalf("Git SSH command must keep the user's SSH config and agent, found %q: %s", forbidden, command)
 		}
+	}
+}
+
+// fakeGH installs a gh script that answers 'auth status' with state for
+// login "alice" and records every invocation with GH_TOKEN/GH_HOST.
+func fakeGH(t *testing.T, state string) string {
+	t.Helper()
+	dir := t.TempDir()
+	logFile := filepath.Join(dir, "gh.log")
+	script := `#!/bin/sh
+printf '%s|GH_TOKEN=%s|GH_HOST=%s\n' "$*" "$GH_TOKEN" "$GH_HOST" >> "$GH_LOG"
+case "$1 $2" in
+  "auth status") case "$*" in *'"alice"'*) printf '%s' "$GH_STATE" ;; esac ;;
+  "auth token") case "$*" in *"--user alice"*) echo token-for-alice ;; *) exit 1 ;; esac ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("GH_LOG", logFile)
+	t.Setenv("GH_STATE", state)
+	t.Setenv("GH_TOKEN", "")
+	return logFile
+}
+
+func TestCheckGitHubCLIAccount(t *testing.T) {
+	tests := []struct {
+		name, state, user, wantErr string
+	}{
+		{name: "logged in", state: "success", user: "alice"},
+		{name: "not logged in", user: "bob", wantErr: "not logged in as @bob"},
+		{name: "expired token", state: "error", user: "alice", wantErr: "is error"},
+		{name: "no username", user: "", wantErr: "no username"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeGH(t, tt.state)
+			err := checkGitHubCLIAccount("github.com", tt.user)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("error = %v, want containing %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestRootCommandPrintsErrorsOnce(t *testing.T) {
+	if !rootCmd.SilenceErrors || !rootCmd.SilenceUsage {
+		t.Fatal("root command must leave error printing to main and skip usage on errors")
 	}
 }

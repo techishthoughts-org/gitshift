@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -575,13 +576,19 @@ func (m *Manager) RemoveAccount(alias string) error {
 		m.config.CurrentAccount = ""
 	}
 
-	// If we removed the default account, set a new one
+	// A removed default passes to the active account if it remains, otherwise
+	// to the first alias in sorted order, so the choice is reproducible.
 	if account.IsDefault && len(m.config.Accounts) > 0 {
-		// Set the first remaining account as default
-		for _, acc := range m.config.Accounts {
-			acc.IsDefault = true
-			break
+		next, ok := m.config.Accounts[m.config.CurrentAccount]
+		if !ok {
+			aliases := make([]string, 0, len(m.config.Accounts))
+			for remaining := range m.config.Accounts {
+				aliases = append(aliases, remaining)
+			}
+			sort.Strings(aliases)
+			next = m.config.Accounts[aliases[0]]
 		}
+		next.IsDefault = true
 	}
 
 	return m.saveLocked()
@@ -717,7 +724,7 @@ func (m *Manager) GetCurrentAccount() (*models.Account, error) {
 	alias := m.config.CurrentAccount
 	m.mu.RUnlock()
 	if alias == "" {
-		return nil, models.ErrNoDefaultAccount
+		return nil, models.ErrNoCurrentAccount
 	}
 
 	return m.GetAccount(alias)

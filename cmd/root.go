@@ -36,6 +36,9 @@ Features:
 - 🌐 Public and self-hosted GitHub/GitLab domains`,
 	Args: cobra.NoArgs,
 	RunE: runRootCommand,
+	// main prints each error once; usage stays in --help instead of every error.
+	SilenceErrors: true,
+	SilenceUsage:  true,
 }
 
 func runRootCommand(cmd *cobra.Command, _ []string) error {

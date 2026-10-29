@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/techishthoughts/gitshift/internal/models"
 )
 
 var sshKeygenCmd = &cobra.Command{
@@ -145,7 +146,7 @@ func runSSHKeygen(cmd *cobra.Command, args []string) error {
 
 	// Add to GitHub if requested
 	if addToGitHub {
-		if err := addKeyToGitHub(keyPath+".pub", accountAlias); err != nil {
+		if err := addKeyToGitHub(keyPath+".pub", accountAlias, account); err != nil {
 			fmt.Printf("⚠️  Warning: Failed to add key to GitHub: %v\n", err)
 			fmt.Printf("💡 Please add this key manually: https://github.com/settings/keys\n")
 		} else {
@@ -365,26 +366,27 @@ func showPublicKey(pubKeyPath string) error {
 	return nil
 }
 
-func addKeyToGitHub(pubKeyPath, alias string) error {
-	// Check if GitHub CLI is available
+// addKeyToGitHub uploads the key to the account's own GitHub user, using that
+// user's gh token for this one command instead of whichever login is active.
+func addKeyToGitHub(pubKeyPath, alias string, account *models.Account) error {
+	if account == nil || account.GetPlatform() != "github" || account.GetUsername() == "" {
+		return fmt.Errorf("--add-to-github needs an existing GitHub account with a username; add the account first")
+	}
 	if _, err := exec.LookPath("gh"); err != nil {
 		return fmt.Errorf("GitHub CLI (gh) not found. Install it first: https://cli.github.com/")
 	}
-
-	// Check if authenticated
-	cmd := exec.Command("gh", "auth", "status")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("not authenticated with GitHub CLI. Run: gh auth login")
+	domain, username := account.GetDomain(), account.GetUsername()
+	token, err := exec.Command("gh", "auth", "token", "--hostname", domain, "--user", username).Output()
+	if err != nil || len(strings.TrimSpace(string(token))) == 0 {
+		return fmt.Errorf("GitHub CLI is not logged in as @%s on %s; run 'gh auth login --hostname %s'", username, domain, domain)
 	}
 
-	// Add the key
 	title := fmt.Sprintf("gitshift-%s-%s", alias, generateKeyID())
-	cmd = exec.Command("gh", "ssh-key", "add", pubKeyPath, "--title", title)
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to add SSH key to GitHub: %w", err)
+	cmd := exec.Command("gh", "ssh-key", "add", pubKeyPath, "--title", title)
+	cmd.Env = append(os.Environ(), "GH_TOKEN="+strings.TrimSpace(string(token)), "GH_HOST="+domain)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to add SSH key to @%s: %w: %s", username, err, strings.TrimSpace(string(output)))
 	}
-
 	return nil
 }
 
