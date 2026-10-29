@@ -342,9 +342,8 @@ func (m *Manager) UpdateSSHConfig(accountAlias, keyPath, domain string) error {
 	// Read current SSH config (if exists)
 	existingContent := ""
 	if content, err := os.ReadFile(m.configPath); err == nil {
-		backupPath := m.configPath + ".backup"
-		if err := os.WriteFile(backupPath, content, 0600); err != nil {
-			return fmt.Errorf("failed to backup SSH config: %w", err)
+		if err := backupSSHConfig(m.configPath, content); err != nil {
+			return err
 		}
 		existingContent = string(content)
 	}
@@ -416,10 +415,50 @@ Host %s
 %s
 `, startMarker, platformName, accountAlias, domain, domain, quoteSSHConfigValue(keyPath), endMarker)
 
-	if strings.TrimSpace(existingConfig) == "" {
-		return managed
+	// Options before the first Host/Match line apply to every host, so they must
+	// stay ahead of the managed block instead of falling under its Host line.
+	preamble, hosts := splitSSHConfigPreamble(existingConfig)
+	var b strings.Builder
+	if preamble != "" {
+		b.WriteString(preamble + "\n\n")
 	}
-	return managed + "\n" + strings.TrimLeft(existingConfig, "\n")
+	b.WriteString(managed)
+	if hosts != "" {
+		b.WriteString("\n" + hosts + "\n")
+	}
+	return b.String()
+}
+
+// splitSSHConfigPreamble returns the trimmed global section (everything before
+// the first Host or Match line) and the trimmed remainder.
+func splitSSHConfigPreamble(config string) (string, string) {
+	lines := strings.Split(config, "\n")
+	for i, line := range lines {
+		if isSSHBlockStart(line) {
+			return strings.TrimSpace(strings.Join(lines[:i], "\n")), strings.TrimSpace(strings.Join(lines[i:], "\n"))
+		}
+	}
+	return strings.TrimSpace(config), ""
+}
+
+func isSSHBlockStart(line string) bool {
+	fields := strings.Fields(strings.TrimSpace(line))
+	return len(fields) > 0 && (strings.EqualFold(fields[0], "Host") || strings.EqualFold(fields[0], "Match"))
+}
+
+// backupSSHConfig keeps the pre-gitshift config once in .gitshift-orig and the
+// most recent previous config in .backup.
+func backupSSHConfig(configPath string, content []byte) error {
+	origPath := configPath + ".gitshift-orig"
+	if _, err := os.Lstat(origPath); os.IsNotExist(err) {
+		if err := os.WriteFile(origPath, content, 0600); err != nil {
+			return fmt.Errorf("failed to save original SSH config: %w", err)
+		}
+	}
+	if err := os.WriteFile(configPath+".backup", content, 0600); err != nil {
+		return fmt.Errorf("failed to backup SSH config: %w", err)
+	}
+	return nil
 }
 
 func stripManagedSSHBlock(config, startMarker, endMarker string) string {
@@ -470,11 +509,11 @@ func stripLegacyManagedSSHHost(config, domain string) string {
 	return strings.TrimSpace(strings.Join(kept, "\n")) + "\n"
 }
 
-// stripExactSSHHost removes the target host from pre-existing Host blocks.
+// stripExactSSHHost disables the target host in pre-existing Host blocks.
 // IdentityFile is additive across every matching block, so retaining a second
 // exact Host github.com entry defeats IdentitiesOnly and can offer the previous
 // account's key after the managed key. Mixed blocks are narrowed to their
-// remaining host patterns rather than discarded.
+// remaining host patterns; exact single-host blocks are commented out.
 func stripExactSSHHost(config, domain string) string {
 	lines := strings.Split(config, "\n")
 	kept := make([]string, 0, len(lines))
@@ -505,16 +544,22 @@ func stripExactSSHHost(config, domain string) string {
 			continue
 		}
 
-		for i+1 < len(lines) {
-			nextFields := strings.Fields(strings.TrimSpace(lines[i+1]))
-			if len(nextFields) > 0 && (strings.EqualFold(nextFields[0], "Host") || strings.EqualFold(nextFields[0], "Match")) {
-				break
-			}
+		kept = append(kept, disabledSSHLinePrefix+lines[i])
+		for i+1 < len(lines) && !isSSHBlockStart(lines[i+1]) {
 			i++
+			if strings.TrimSpace(lines[i]) == "" {
+				kept = append(kept, lines[i])
+			} else {
+				kept = append(kept, disabledSSHLinePrefix+lines[i])
+			}
 		}
 	}
 	return strings.TrimSpace(strings.Join(kept, "\n")) + "\n"
 }
+
+// disabledSSHLinePrefix marks user lines gitshift commented out so the user can
+// restore them; commented lines are never parsed as Host blocks again.
+const disabledSSHLinePrefix = "# gitshift-disabled: "
 
 func quoteSSHConfigValue(value string) string {
 	value = strings.ReplaceAll(value, `\`, `\\`)

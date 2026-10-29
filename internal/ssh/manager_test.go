@@ -150,11 +150,165 @@ func TestUpdateSSHConfigRemovesConflictingExactHostIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(updated)
-	if strings.Contains(text, "/old/github-key") || strings.Contains(text, "Host github.com other.example.com") {
+	active := activeSSHConfig(text)
+	if strings.Contains(active, "/old/github-key") || strings.Contains(active, "Host github.com other.example.com") {
 		t.Fatalf("conflicting GitHub identity was retained:\n%s", text)
+	}
+	if !strings.Contains(text, "# gitshift-disabled: Host github.com\n# gitshift-disabled:   IdentityFile /old/github-key") {
+		t.Fatalf("conflicting exact host was not kept as a comment:\n%s", text)
 	}
 	if !strings.Contains(text, "Host other.example.com\n  IdentityFile /old/shared-key") || !strings.Contains(text, "Host keep.example.com") {
 		t.Fatalf("unrelated host settings were lost:\n%s", text)
+	}
+}
+
+// activeSSHConfig drops comment lines so assertions see only effective config.
+func activeSSHConfig(config string) string {
+	var kept []string
+	for _, line := range strings.Split(config, "\n") {
+		if !strings.HasPrefix(strings.TrimSpace(line), "#") {
+			kept = append(kept, line)
+		}
+	}
+	return strings.Join(kept, "\n")
+}
+
+func writeSSHTestKey(t *testing.T) (string, string) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	sshDir := filepath.Join(home, ".ssh")
+	if err := os.MkdirAll(sshDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	key := filepath.Join(sshDir, "id_work")
+	if err := os.WriteFile(key, []byte("key"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Join(sshDir, "config"), key
+}
+
+func TestUpdateSSHConfigKeepsGlobalOptionsAboveManagedBlock(t *testing.T) {
+	tests := []struct {
+		name     string
+		original string
+		global   string
+	}{
+		{
+			name:     "global options before host blocks",
+			original: "# my settings\nInclude ~/.orbstack/ssh/config\nStrictHostKeyChecking yes\n\nHost example.com\n  User deploy\n",
+			global:   "# my settings\nInclude ~/.orbstack/ssh/config\nStrictHostKeyChecking yes",
+		},
+		{
+			name:     "only global options",
+			original: "IdentityAgent ~/.1password/agent.sock\n",
+			global:   "IdentityAgent ~/.1password/agent.sock",
+		},
+		{
+			name:     "lowercase match block ends the global section",
+			original: "ServerAliveInterval 30\nmatch host *.internal\n  User ops\n",
+			global:   "ServerAliveInterval 30",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configPath, key := writeSSHTestKey(t)
+			if err := os.WriteFile(configPath, []byte(tt.original), 0600); err != nil {
+				t.Fatal(err)
+			}
+			manager := NewManager()
+			// Switching twice must stay stable and repair nothing twice.
+			for _, alias := range []string{"work", "personal"} {
+				if err := manager.UpdateSSHConfig(alias, key, "github.com"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			updated, err := os.ReadFile(configPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			text := string(updated)
+			if !strings.HasPrefix(text, tt.global+"\n\n# >>> gitshift managed: github.com") {
+				t.Fatalf("global options are not ahead of the managed block:\n%s", text)
+			}
+			if strings.Count(text, tt.global) != 1 {
+				t.Fatalf("global options were duplicated:\n%s", text)
+			}
+		})
+	}
+}
+
+func TestUpdateSSHConfigRepairsGlobalOptionsMovedByOlderVersions(t *testing.T) {
+	configPath, key := writeSSHTestKey(t)
+	broken := "# >>> gitshift managed: github.com\n# GitHub account: old\nHost github.com\n    HostName github.com\n    User git\n    IdentityFile \"/old\"\n    IdentitiesOnly yes\n\n# <<< gitshift managed: github.com\n\nStrictHostKeyChecking yes\n\nHost example.com\n  User deploy\n"
+	if err := os.WriteFile(configPath, []byte(broken), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewManager().UpdateSSHConfig("work", key, "github.com"); err != nil {
+		t.Fatal(err)
+	}
+	updated, _ := os.ReadFile(configPath)
+	if !strings.HasPrefix(string(updated), "StrictHostKeyChecking yes\n\n# >>> gitshift managed: github.com") {
+		t.Fatalf("misplaced global option was not moved back to the top:\n%s", updated)
+	}
+}
+
+func TestUpdateSSHConfigKeepsOriginalBackupAcrossSwitches(t *testing.T) {
+	configPath, key := writeSSHTestKey(t)
+	original := "Host github.com\n  HostName ssh.github.com\n  Port 443\n"
+	if err := os.WriteFile(configPath, []byte(original), 0600); err != nil {
+		t.Fatal(err)
+	}
+	manager := NewManager()
+	for _, alias := range []string{"work", "personal", "work"} {
+		if err := manager.UpdateSSHConfig(alias, key, "github.com"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	orig, err := os.ReadFile(configPath + ".gitshift-orig")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(orig) != original {
+		t.Fatalf("original backup = %q, want %q", orig, original)
+	}
+	info, err := os.Stat(configPath + ".gitshift-orig")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0600 {
+		t.Fatalf("original backup mode = %o, want 600", info.Mode().Perm())
+	}
+	last, err := os.ReadFile(configPath + ".backup")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(last), "# >>> gitshift managed: github.com") {
+		t.Fatalf(".backup should hold the previous config, got:\n%s", last)
+	}
+	updated, _ := os.ReadFile(configPath)
+	text := string(updated)
+	if strings.Count(text, "# gitshift-disabled: Host github.com") != 1 || !strings.Contains(text, "# gitshift-disabled:   Port 443") {
+		t.Fatalf("user block was not disabled exactly once:\n%s", text)
+	}
+	if strings.Contains(activeSSHConfig(text), "Port 443") {
+		t.Fatalf("disabled user block is still active:\n%s", text)
+	}
+}
+
+func TestUpdateSSHConfigWithoutExistingFileCreatesNoBackup(t *testing.T) {
+	configPath, key := writeSSHTestKey(t)
+	if err := NewManager().UpdateSSHConfig("work", key, "github.com"); err != nil {
+		t.Fatal(err)
+	}
+	for _, suffix := range []string{".gitshift-orig", ".backup"} {
+		if _, err := os.Stat(configPath + suffix); !os.IsNotExist(err) {
+			t.Fatalf("%s exists without a prior config: %v", suffix, err)
+		}
+	}
+	updated, _ := os.ReadFile(configPath)
+	if !strings.HasPrefix(string(updated), "# >>> gitshift managed: github.com") {
+		t.Fatalf("unexpected new config:\n%s", updated)
 	}
 }
 
