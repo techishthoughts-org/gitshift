@@ -705,11 +705,8 @@ func (m *Manager) SetCurrentAccount(alias string) error {
 		return models.ErrAccountNotFound
 	}
 
+	// Applying an account never changes which account is the default.
 	m.config.CurrentAccount = alias
-	for _, existing := range m.config.Accounts {
-		existing.IsDefault = false
-	}
-	account.IsDefault = true
 	account.MarkAsUsed()
 	return m.saveLocked()
 }
