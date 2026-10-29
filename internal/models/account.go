@@ -262,31 +262,6 @@ func NewAccount(alias, name, email, sshKeyPath string) *Account {
 		CreatedAt:       time.Now(),
 		IsolationLevel:  IsolationLevelStandard, // Default to standard isolation
 		AccountMetadata: make(map[string]string),
-		IsolationMetadata: &IsolationMetadata{
-			SSHIsolation: &SSHIsolationSettings{
-				UseIsolatedAgent:    true,
-				ForceIdentitiesOnly: true,
-				AgentTimeout:        3600, // 1 hour
-				AutoCleanup:         true,
-			},
-			TokenIsolation: &TokenIsolationSettings{
-				UseEncryptedStorage: true,
-				AutoValidation:      true,
-				ValidationInterval:  60, // 1 hour
-				StrictValidation:    true,
-			},
-			GitIsolation: &GitIsolationSettings{
-				UseLocalConfig:    true,
-				IsolateSSHCommand: true,
-				CustomGitConfig:   make(map[string]string),
-			},
-			EnvironmentIsolation: &EnvironmentIsolationSettings{
-				IsolateEnvironment:  false, // Default to non-isolated environment
-				CustomEnvironment:   make(map[string]string),
-				ClearEnvironment:    false,
-				PreserveEnvironment: []string{"HOME", "USER", "PATH"},
-			},
-		},
 	}
 }
 
@@ -296,12 +271,6 @@ func NewIsolatedAccount(alias, name, email, sshKeyPath, githubUsername string) *
 	account.GitHubUsername = githubUsername
 	account.IsolationLevel = IsolationLevelComplete
 	account.Status = AccountStatusIsolated
-
-	// Enhanced isolation settings
-	account.IsolationMetadata.SSHIsolation.UseIsolatedAgent = true
-	account.IsolationMetadata.TokenIsolation.StrictValidation = true
-	account.IsolationMetadata.EnvironmentIsolation.IsolateEnvironment = true
-	account.IsolationMetadata.EnvironmentIsolation.ClearEnvironment = true
 
 	return account
 }

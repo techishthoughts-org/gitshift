@@ -16,7 +16,7 @@ var (
 	ErrAccountNotFound  = errors.New("account not found")
 	ErrAccountExists    = errors.New("account already exists")
 	ErrNoAccountsFound  = errors.New("no accounts configured")
-	ErrNoDefaultAccount = errors.New("no default account set")
+	ErrNoCurrentAccount = errors.New("no account is active; run 'gitshift switch ALIAS'")
 
 	// Configuration errors
 	ErrConfigNotFound  = errors.New("configuration file not found")

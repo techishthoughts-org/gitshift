@@ -593,3 +593,53 @@ func TestSetCurrentAccountKeepsDefault(t *testing.T) {
 		t.Fatalf("current=%q lastUsed=%v", manager.GetConfig().CurrentAccount, personal.LastUsed)
 	}
 }
+
+func TestRemoveDefaultAccountPicksNextDeterministically(t *testing.T) {
+	tests := []struct {
+		name, current, remove, wantDefault string
+	}{
+		{name: "current account inherits the default", current: "zeta", remove: "alpha", wantDefault: "zeta"},
+		{name: "first alias when the removed default was current", current: "alpha", remove: "alpha", wantDefault: "beta"},
+		{name: "first alias when nothing is current", remove: "alpha", wantDefault: "beta"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			manager := NewManagerWithPath(filepath.Join(t.TempDir(), "config.yaml"))
+			if err := manager.Load(); err != nil {
+				t.Fatal(err)
+			}
+			for _, alias := range []string{"alpha", "zeta", "gamma", "beta"} {
+				if err := manager.AddAccount(testAccount(alias)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tt.current != "" {
+				if err := manager.SetCurrentAccount(tt.current); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := manager.RemoveAccount(tt.remove); err != nil {
+				t.Fatal(err)
+			}
+			for _, account := range manager.ListAccounts() {
+				if account.IsDefault != (account.Alias == tt.wantDefault) {
+					t.Fatalf("%s default=%t, want default %s", account.Alias, account.IsDefault, tt.wantDefault)
+				}
+			}
+		})
+	}
+}
+
+func TestGetCurrentAccountWithoutSwitchExplainsNoActiveAccount(t *testing.T) {
+	manager := NewManagerWithPath(filepath.Join(t.TempDir(), "config.yaml"))
+	if err := manager.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.AddAccount(testAccount("work")); err != nil {
+		t.Fatal(err)
+	}
+	_, err := manager.GetCurrentAccount()
+	if !errors.Is(err, models.ErrNoCurrentAccount) || !strings.Contains(err.Error(), "no account is active") {
+		t.Fatalf("error = %v", err)
+	}
+}

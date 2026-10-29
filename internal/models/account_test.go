@@ -69,3 +69,14 @@ func TestAccountValidateAppliesGitHubUsernameRulesToCanonicalUsername(t *testing
 		t.Fatalf("GitLab username was incorrectly rejected: %v", err)
 	}
 }
+
+func TestNewAccountDoesNotAdvertiseTokenStorage(t *testing.T) {
+	for _, account := range []*Account{
+		NewAccount("work", "Work", "w@example.com", ""),
+		NewIsolatedAccount("iso", "Iso", "i@example.com", "", "iso"),
+	} {
+		if account.IsolationMetadata != nil || account.RequiresTokenIsolation() {
+			t.Fatalf("%s writes unused isolation metadata: %#v", account.Alias, account.IsolationMetadata)
+		}
+	}
+}
