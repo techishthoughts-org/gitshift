@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/techishthoughts/gitshift/internal/models"
 )
 
 type fakeService struct {
@@ -383,5 +384,49 @@ func TestResponsiveRenderBoundsAtCommonTerminalSizes(t *testing.T) {
 				t.Fatalf("form uses %d lines at %dx%d", lines, size.Width, size.Height)
 			}
 		}
+	}
+}
+
+func TestAccountFormDomainFollowsPlatform(t *testing.T) {
+	tests := []struct {
+		name       string
+		account    Account
+		platform   string
+		wantField  string
+		wantDomain string
+	}{
+		{name: "new gitlab account", platform: "gitlab", wantField: "", wantDomain: "gitlab.com"},
+		{name: "new github account", platform: "github", wantField: "", wantDomain: "github.com"},
+		{name: "edit gitlab default domain", account: Account{Alias: "lab", Platform: "gitlab", Domain: "gitlab.com"}, platform: "gitlab", wantField: "", wantDomain: "gitlab.com"},
+		{name: "edit platform change drops old default", account: Account{Alias: "hub", Platform: "github", Domain: "github.com"}, platform: "gitlab", wantField: "", wantDomain: "gitlab.com"},
+		{name: "edit keeps self-managed domain", account: Account{Alias: "corp", Platform: "gitlab", Domain: "git.example.com"}, platform: "gitlab", wantField: "git.example.com", wantDomain: "git.example.com"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := New(&fakeService{}, true)
+			m.openAccountForm(tt.account)
+			domainIdx, platformIdx := -1, -1
+			for i, label := range m.labels {
+				switch label {
+				case "Domain":
+					domainIdx = i
+				case "Platform":
+					platformIdx = i
+				}
+			}
+			if got := m.inputs[domainIdx].Value(); got != tt.wantField {
+				t.Fatalf("Domain field = %q, want %q", got, tt.wantField)
+			}
+			m.inputs[platformIdx].SetValue(tt.platform)
+			v := m.values()
+			resolved := (&models.Account{Platform: v[platformIdx], Domain: v[domainIdx]}).GetDomain()
+			if resolved != tt.wantDomain {
+				t.Fatalf("saved account resolves to %q, want %q", resolved, tt.wantDomain)
+			}
+			in := AccountInput{Alias: "acct", Name: "Name", Email: "n@example.com", Username: "user", Platform: v[platformIdx], Domain: v[domainIdx]}
+			if err := in.Validate(); err != nil {
+				t.Fatalf("form values do not validate: %v", err)
+			}
+		})
 	}
 }

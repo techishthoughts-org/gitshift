@@ -52,6 +52,10 @@ func (d *AccountDiscovery) ScanExistingAccountsContext(ctx context.Context) ([]*
 	if err != nil {
 		return nil, fmt.Errorf("SSH scan failed: %w", err)
 	}
+	// A key filename or comment is only a hint. Ask each discovered provider
+	// host which account the key actually authenticates as so generic names such
+	// as ~/.ssh/id_ed25519 can still be matched safely.
+	enrichSSHAccountsWithProviderIdentity(ctx, githubAccounts, sshAccounts)
 	fmt.Fprintln(d.output)
 	gpgScanner := NewGPGScanner()
 	gpgScanner.output = d.output

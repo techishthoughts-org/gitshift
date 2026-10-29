@@ -111,7 +111,7 @@ Use the aliases shown by `gitshift list`. Rules only accept existing directories
 | `auto-switch [PATH]` | Apply the matching rule; normally called by the hook |
 | `shell-init zsh` | Print the opt-in zsh hook without editing shell files |
 | `remove ALIAS` | Remove an account from GitShift |
-| `discover` | Inspect all GitHub CLI identities plus local SSH/GPG metadata |
+| `discover` | Discover identities; on a fresh interactive setup, name and activate one |
 | `ui` / `tui` | Open the interactive terminal interface |
 | `ssh-keygen ALIAS` | Generate a passwordless SSH key for an account |
 | `gpg-keygen ALIAS` | Generate and optionally enable a GPG signing key |
@@ -129,7 +129,10 @@ gitshift discover \
   --alias 'github|github.com|arthurcosta-marks-and-spencer=work'
 ```
 
-Alternatively, `gitshift discover --prompt-aliases` asks only for accounts that do not already have an explicit `--alias`; pressing Enter accepts the suggestion. Add `--dry-run` to preview without writing.
+On a fresh interactive installation, plain `gitshift discover` asks for aliases,
+asks which account to activate, and applies its Git, SSH, and GitHub CLI state.
+Later additive imports can use `--prompt-aliases`; pressing Enter accepts each
+suggestion. Add `--dry-run` for a report-only preview.
 
 ## Documentation
 

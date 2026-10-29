@@ -35,6 +35,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updates both global and local Git configuration
 
 ### Fixed
+- **SSH config global options**: Options above the first `Host`/`Match` line
+  (for example `StrictHostKeyChecking`, `IdentityAgent`, `Include`) now stay
+  ahead of the managed block instead of being moved under `Host github.com`.
+  Configs rewritten by earlier versions are repaired on the next switch.
+- **SSH config user blocks and backups**: A hand-written block for the managed
+  host is now commented out with `# gitshift-disabled:` instead of deleted, and
+  the config as it was before gitshift first changed it is kept in
+  `~/.ssh/config.gitshift-orig`; `.backup` still holds the previous version.
+- **Default vs current account**: `add --default`, `update --default`,
+  discovery import/overwrite, and removing the default account no longer mark
+  an account as current. Only `switch` (CLI, TUI, or auto-switch) does.
+- **TUI domain default**: The account form no longer pre-fills `github.com`,
+  so GitLab accounts and platform changes get the correct default domain.
+- **Dependencies**: Upgraded `golang.org/x/text` to v0.39.0 (GO-2026-5970) and
+  `golang.org/x/crypto` to v0.52.0 (GO-2026-5018).
 - **Switch Command Early Exit Bug**: Fixed premature exit when switching accounts
   - Removed early exit check that skipped configuration updates
   - Now always applies SSH and Git configuration when switching accounts

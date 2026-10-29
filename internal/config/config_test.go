@@ -288,12 +288,12 @@ func TestUpdateAccountPreservesFieldsAndDefault(t *testing.T) {
 	if err := reloaded.Load(); err != nil {
 		t.Fatal(err)
 	}
-	got, err := reloaded.GetCurrentAccount()
+	got, err := reloaded.GetAccount("work")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Alias != "work" || !got.IsDefault {
-		t.Fatalf("current/default account = %#v, want work default", got)
+	if !got.IsDefault || reloaded.GetConfig().CurrentAccount != "" {
+		t.Fatalf("default=%t current=%q, want work default and nothing applied", got.IsDefault, reloaded.GetConfig().CurrentAccount)
 	}
 	if got.APIEndpoint != account.APIEndpoint || got.TokenPath != account.TokenPath ||
 		got.Status != account.Status || got.IsolationLevel != account.IsolationLevel ||
@@ -303,7 +303,7 @@ func TestUpdateAccountPreservesFieldsAndDefault(t *testing.T) {
 	}
 }
 
-func TestReplaceAccountsSetsOneDefaultAndCurrent(t *testing.T) {
+func TestReplaceAccountsSetsOneDefaultWithoutApplyingIt(t *testing.T) {
 	configFile := filepath.Join(t.TempDir(), "config.yaml")
 	manager := NewManagerWithPath(configFile)
 	if err := manager.Load(); err != nil {
@@ -317,7 +317,7 @@ func TestReplaceAccountsSetsOneDefaultAndCurrent(t *testing.T) {
 		t.Fatalf("ReplaceAccounts() error = %v", err)
 	}
 
-	if manager.GetConfig().CurrentAccount != "first" || !first.IsDefault || second.IsDefault {
+	if manager.GetConfig().CurrentAccount != "" || !first.IsDefault || second.IsDefault {
 		t.Fatalf("default invariants not maintained: current=%q first=%t second=%t", manager.GetConfig().CurrentAccount, first.IsDefault, second.IsDefault)
 	}
 	if len(manager.ListAccounts()) != 2 || len(manager.ListPendingAccounts()) != 1 {
@@ -408,5 +408,111 @@ func TestSwitchLockIsExclusive(t *testing.T) {
 	defer release()
 	if _, err := manager.AcquireSwitchLock(); err == nil {
 		t.Fatal("second switch lock unexpectedly succeeded")
+	}
+}
+
+func TestDefaultChangesNeverMarkAnAccountCurrent(t *testing.T) {
+	tests := []struct {
+		name        string
+		applied     string
+		act         func(*Manager) error
+		wantCurrent string
+	}{
+		{
+			name: "first add",
+			act:  func(m *Manager) error { return m.AddAccount(testAccount("first")) },
+		},
+		{
+			name: "add as default",
+			act: func(m *Manager) error {
+				if err := m.AddAccount(testAccount("first")); err != nil {
+					return err
+				}
+				second := testAccount("second")
+				second.IsDefault = true
+				return m.AddAccount(second)
+			},
+		},
+		{
+			name: "batch import",
+			act: func(m *Manager) error {
+				return m.AddAccounts([]*models.Account{testAccount("first"), testAccount("second")})
+			},
+		},
+		{
+			name:    "update to default keeps the applied account",
+			applied: "first",
+			act: func(m *Manager) error {
+				if err := m.AddAccount(testAccount("second")); err != nil {
+					return err
+				}
+				second, _ := m.GetAccount("second")
+				updated := *second
+				updated.IsDefault = true
+				return m.UpdateAccount(&updated)
+			},
+			wantCurrent: "first",
+		},
+		{
+			name:    "removing the applied default clears current",
+			applied: "first",
+			act: func(m *Manager) error {
+				if err := m.AddAccount(testAccount("second")); err != nil {
+					return err
+				}
+				return m.RemoveAccount("first")
+			},
+		},
+		{
+			name:    "replace keeps an applied account that still exists",
+			applied: "first",
+			act: func(m *Manager) error {
+				return m.ReplaceAccounts([]*models.Account{testAccount("second"), testAccount("first")}, nil)
+			},
+			wantCurrent: "first",
+		},
+		{
+			name:    "replace clears an applied account that is gone",
+			applied: "first",
+			act: func(m *Manager) error {
+				return m.ReplaceAccounts([]*models.Account{testAccount("second")}, nil)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configFile := filepath.Join(t.TempDir(), "config.yaml")
+			manager := NewManagerWithPath(configFile)
+			if err := manager.Load(); err != nil {
+				t.Fatal(err)
+			}
+			if tt.applied != "" {
+				if err := manager.AddAccount(testAccount(tt.applied)); err != nil {
+					t.Fatal(err)
+				}
+				if err := manager.SetCurrentAccount(tt.applied); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := tt.act(manager); err != nil {
+				t.Fatal(err)
+			}
+			reloaded := NewManagerWithPath(configFile)
+			if err := reloaded.Load(); err != nil {
+				t.Fatal(err)
+			}
+			if got := reloaded.GetConfig().CurrentAccount; got != tt.wantCurrent {
+				t.Fatalf("current account = %q, want %q", got, tt.wantCurrent)
+			}
+			defaults := 0
+			for _, account := range reloaded.ListAccounts() {
+				if account.IsDefault {
+					defaults++
+				}
+			}
+			if defaults != 1 {
+				t.Fatalf("default accounts = %d, want 1", defaults)
+			}
+		})
 	}
 }

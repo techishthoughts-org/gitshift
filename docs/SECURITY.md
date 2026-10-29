@@ -10,11 +10,16 @@ GitShift coordinates tools that each own part of your developer identity. Review
 | --- | --- |
 | Global Git config | `user.name`, `user.email`, SSH command, and optional GPG signing |
 | Current repository | Local identity and SSH command when run inside a Git repository; signing settings remain global |
-| SSH config | Managed host entries and identity selection in `~/.ssh/config`; writes may create `.bak`/`.backup` copies |
+| SSH config | Managed host entries and identity selection in `~/.ssh/config`; a hand-written block for the managed host is commented out with `# gitshift-disabled:`. Each write saves the previous file as `config.backup`, and the first write also keeps `config.gitshift-orig` |
 | GitHub CLI | Active account for the configured GitHub hostname |
 | GitShift config | Selected/default account and last-used timestamp |
 
 GitLab switches do not change a provider CLI login. Removing GitShift or an account does not revert any external state.
+
+Discovery performs read-only SSH authentication probes for local key pairs
+against provider hosts reported by the GitHub CLI. These probes ignore
+`~/.ssh/config` and the shared agent and offer only the key being inspected;
+they do not upload keys or open a shell.
 
 ## Safer operation
 

@@ -381,14 +381,13 @@ func (m *Manager) AddAccount(account *models.Account) error {
 		return models.ErrAccountExists
 	}
 
-	// The first account, or an explicitly default account, becomes current in
-	// the same persistence transaction as the add.
+	// The first account, or an explicitly default account, becomes the default.
+	// It only becomes current once a switch applies it.
 	if len(m.config.Accounts) == 0 || account.IsDefault {
 		for _, existing := range m.config.Accounts {
 			existing.IsDefault = false
 		}
 		account.IsDefault = true
-		m.config.CurrentAccount = account.Alias
 	}
 
 	m.config.Accounts[account.Alias] = account
@@ -446,7 +445,6 @@ func (m *Manager) AddAccounts(accounts []*models.Account) error {
 	for _, account := range prepared {
 		if first {
 			account.IsDefault = true
-			m.config.CurrentAccount = account.Alias
 			first = false
 		}
 		m.config.Accounts[account.Alias] = account
@@ -482,7 +480,6 @@ func (m *Manager) UpdateAccount(account *models.Account) error {
 		for _, existing := range m.config.Accounts {
 			existing.IsDefault = false
 		}
-		m.config.CurrentAccount = account.Alias
 	} else if previous.IsDefault {
 		account.IsDefault = true
 	}
@@ -541,7 +538,10 @@ func (m *Manager) ReplaceAccounts(accounts []*models.Account, pendingAccounts []
 		}
 	}
 	m.config.AutoSwitch.Rules = keptRules
-	m.config.CurrentAccount = defaultAlias
+	// The applied identity is unchanged; only forget it if its account is gone.
+	if _, exists := active[m.config.CurrentAccount]; !exists {
+		m.config.CurrentAccount = ""
+	}
 	return m.saveLocked()
 }
 
@@ -574,7 +574,6 @@ func (m *Manager) RemoveAccount(alias string) error {
 		// Set the first remaining account as default
 		for _, acc := range m.config.Accounts {
 			acc.IsDefault = true
-			m.config.CurrentAccount = acc.Alias
 			break
 		}
 	}

@@ -23,6 +23,19 @@ func planDiscoveryAliases(
 	existingAccounts []*models.Account,
 	existingPending []*models.PendingAccount,
 ) ([]string, error) {
+	return planDiscoveryAliasesWithReader(cmd, discovered, specs, prompt, overwrite, existingAccounts, existingPending, nil)
+}
+
+func planDiscoveryAliasesWithReader(
+	cmd *cobra.Command,
+	discovered []*discovery.DiscoveredAccount,
+	specs []string,
+	prompt bool,
+	overwrite bool,
+	existingAccounts []*models.Account,
+	existingPending []*models.PendingAccount,
+	reader *bufio.Reader,
+) ([]string, error) {
 	aliases := make([]string, len(discovered))
 	selected := make([]bool, len(discovered))
 	identityIndexes := make(map[string][]int)
@@ -79,7 +92,9 @@ func planDiscoveryAliases(
 	}
 
 	if prompt {
-		reader := bufio.NewReader(cmd.InOrStdin())
+		if reader == nil {
+			reader = bufio.NewReader(cmd.InOrStdin())
+		}
 		for i, account := range discovered {
 			if selected[i] {
 				continue

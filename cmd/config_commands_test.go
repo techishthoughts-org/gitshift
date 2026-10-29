@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/techishthoughts/gitshift/internal/config"
 	"github.com/techishthoughts/gitshift/internal/discovery"
 	"github.com/techishthoughts/gitshift/internal/models"
@@ -28,6 +29,10 @@ func createCommandTestConfig(t *testing.T) (string, *models.Account) {
 	account.ValidationErrors = []string{"preserve me"}
 	account.AccountMetadata = map[string]string{"owner": "platform"}
 	if err := manager.AddAccount(account); err != nil {
+		t.Fatal(err)
+	}
+	// Model an account that a previous switch applied.
+	if err := manager.SetCurrentAccount(account.Alias); err != nil {
 		t.Fatal(err)
 	}
 	return configFile, account
@@ -312,6 +317,55 @@ func TestDiscoverPromptAliasCanCreatePendingAccount(t *testing.T) {
 	}
 	if pending, err := manager.GetPendingAccount("personal"); err != nil || pending.GitHubUsername != "person" {
 		t.Fatalf("pending account = %#v, %v", pending, err)
+	}
+}
+
+func TestDiscoverFreshInteractiveSetupPromptsAndAppliesSelection(t *testing.T) {
+	configFile := filepath.Join(t.TempDir(), "gitshift.yaml")
+	useCommandTestConfig(t, configFile)
+
+	previousTerminalCheck := terminalCheck
+	previousApply := applyDiscoveredAccount
+	terminalCheck = func() bool { return true }
+	applied := ""
+	applyDiscoveredAccount = func(_ *cobra.Command, manager *config.Manager, alias string, _, _, _ bool) error {
+		applied = alias
+		return manager.SetCurrentAccount(alias)
+	}
+	t.Cleanup(func() {
+		terminalCheck = previousTerminalCheck
+		applyDiscoveredAccount = previousApply
+	})
+
+	discoverCmd.SetIn(strings.NewReader("personal\nwork\n2\n"))
+	discoverCmd.SetOut(&bytes.Buffer{})
+	t.Cleanup(func() {
+		discoverCmd.SetIn(nil)
+		discoverCmd.SetOut(nil)
+	})
+
+	results := []*discovery.DiscoveredAccount{
+		aliasTestResult("alice", "github|github.com|alice"),
+		aliasTestResult("bob", "github|github.com|bob"),
+	}
+	if err := runDiscoverCommandWithScanner(discoverCmd, nil, func() ([]*discovery.DiscoveredAccount, error) {
+		return results, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if applied != "work" {
+		t.Fatalf("applied account = %q, want work", applied)
+	}
+	manager := config.NewManagerWithPath(configFile)
+	if err := manager.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if len(manager.ListAccounts()) != 2 {
+		t.Fatalf("accounts = %#v", manager.ListAccounts())
+	}
+	current, err := manager.GetCurrentAccount()
+	if err != nil || current.Alias != "work" {
+		t.Fatalf("current account = %#v, %v", current, err)
 	}
 }
 

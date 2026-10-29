@@ -103,10 +103,10 @@ Prints a zsh hook using the absolute path of the running GitShift executable. It
 
 ### `discover`
 
-Enumerates successfully authenticated GitHub CLI identities on all configured hosts, then scans conventional SSH key pairs and local GPG metadata. GitHub identities use `github|hostname|username`, allowing multiple accounts for the same provider and host. A unique SSH filename username can identify one provider identity on one host; remaining SSH/GPG evidence is merged only for a unique email match. Ambiguous evidence remains separate.
+Enumerates successfully authenticated GitHub CLI identities on all configured hosts, then scans conventional SSH key pairs and local GPG metadata. Each key is tested in isolation against discovered provider hosts so a generic `id_ed25519` can be matched by the username it actually authenticates as. GitHub identities use `github|hostname|username`, allowing multiple accounts for the same provider and host. Remaining SSH/GPG evidence is merged only for a unique filename username or email match. Ambiguous evidence remains separate.
 
 - `--dry-run` is the only guaranteed report-only mode. It scans even when accounts exist and does not create, chmod, migrate, or rewrite configuration.
-- Plain `discover` writes complete results at confidence 6 or above without prompting and can store incomplete higher-confidence results as pending.
+- On a fresh interactive installation, plain `discover` asks for aliases and which imported account to activate, then applies it. In redirected/non-interactive use it imports without prompting.
 - `--auto-import` bypasses the confidence threshold for otherwise complete results.
 - `--overwrite` permits replacement when accounts already exist; replacement occurs only after a successful nonempty scan.
 - `--alias SELECTOR=ALIAS` assigns a user-chosen alias and can be repeated. Prefer the displayed canonical identity key as `SELECTOR`; an original suggested alias works only when it identifies exactly one result.
