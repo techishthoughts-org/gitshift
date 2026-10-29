@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `gitshift auto git-includes on|off|status`: Git picks the identity for each rule directory through
+  managed `includeIf "gitdir:..."` entries and per-account include files (name, email, Git SSH
+  command, commit signing). Every terminal uses the right identity for its directory at once,
+  without switching; entries follow account and rule changes automatically.
+
+### Changed
+
+- With Git includes on, `switch` no longer writes the identity into the current repository's
+  `.git/config`, and `current --short` shows the account of the working directory's rule.
+
 ## [2.0.0] - 2026-10-29
 
 ### Highlights
