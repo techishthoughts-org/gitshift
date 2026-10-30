@@ -382,3 +382,54 @@ func TestCheckPrivateKeyFile(t *testing.T) {
 		})
 	}
 }
+
+func TestRemoveSSHConfigStripsOnlyManagedBlock(t *testing.T) {
+	configPath, key := writeSSHTestKey(t)
+	original := "AddKeysToAgent yes\n\nHost example.com\n  User deploy\n"
+	if err := os.WriteFile(configPath, []byte(original), 0600); err != nil {
+		t.Fatal(err)
+	}
+	manager := NewManager()
+	if err := manager.UpdateSSHConfig("work", key, "github.com"); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.RemoveSSHConfig("github.com"); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(updated), "gitshift managed") || strings.Contains(string(updated), key) {
+		t.Fatalf("managed block was not removed:\n%s", updated)
+	}
+	for _, want := range []string{"AddKeysToAgent yes", "Host example.com\n  User deploy"} {
+		if !strings.Contains(string(updated), want) {
+			t.Fatalf("unrelated SSH config %q lost:\n%s", want, updated)
+		}
+	}
+}
+
+func TestRemoveSSHConfigWithoutManagedBlockLeavesFileUntouched(t *testing.T) {
+	configPath, _ := writeSSHTestKey(t)
+	original := "Host github.com\n  User git\n"
+	if err := os.WriteFile(configPath, []byte(original), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewManager().RemoveSSHConfig("github.com"); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := os.ReadFile(configPath)
+	if err != nil || string(updated) != original {
+		t.Fatalf("SSH config changed: %q, %v", updated, err)
+	}
+	if _, err := os.Stat(configPath + ".backup"); !os.IsNotExist(err) {
+		t.Fatalf("no-op removal wrote a backup: %v", err)
+	}
+	if err := os.Remove(configPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewManager().RemoveSSHConfig("github.com"); err != nil {
+		t.Fatalf("missing SSH config: %v", err)
+	}
+}
