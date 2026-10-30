@@ -144,7 +144,13 @@ func switchAccount(cmd *cobra.Command, configManager *config.Manager, accountAli
 	outputf("   Name: %s\n", targetAccount.Name)
 	outputf("   Email: %s\n", targetAccount.Email)
 
-	if targetAccount.SSHKeyPath != "" {
+	if configManager.GetConfig().AutoSwitch.GitIncludes {
+		// Git pins each directory's key through core.sshCommand. A Host block
+		// with the global account's key would be offered first and win.
+		if err := ssh.NewManager().RemoveSSHConfig(provider.GetSSHHost()); err != nil {
+			return rollback(fmt.Errorf("SSH switch failed: %w", err))
+		}
+	} else if targetAccount.SSHKeyPath != "" {
 		outputf("🔑 Updating SSH configuration for %s...\n", provider.GetSSHHost())
 		if err := ssh.NewManager().SwitchToAccountContext(ctx, accountAlias, targetAccount.SSHKeyPath, provider.GetSSHHost(), false); err != nil {
 			return rollback(fmt.Errorf("SSH switch failed: %w", err))

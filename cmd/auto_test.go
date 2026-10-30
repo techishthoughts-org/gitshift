@@ -312,15 +312,18 @@ func TestCurrentShortPrintsOnlyAlias(t *testing.T) {
 	}
 }
 
-func TestAutoSwitchSkipsNetworkValidation(t *testing.T) {
+// setupAutoSwitchWork prepares a "work" account with a rule for the returned
+// projects directory, fake ssh/gh on PATH, and returns the call log path.
+func setupAutoSwitchWork(t *testing.T) (manager *config.Manager, projects, logFile string) {
+	t.Helper()
 	oldConfig := cfgFile
-	defer func() { cfgFile = oldConfig }()
+	t.Cleanup(func() { cfgFile = oldConfig })
 	root := t.TempDir()
 	t.Setenv("HOME", root)
 	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(root, "global.gitconfig"))
 	t.Chdir(root)
 	cfgFile = filepath.Join(root, "config.yaml")
-	manager := config.NewManagerWithPath(cfgFile)
+	manager = config.NewManagerWithPath(cfgFile)
 	if err := manager.Load(); err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +336,7 @@ func TestAutoSwitchSkipsNetworkValidation(t *testing.T) {
 	if err := manager.AddAccount(work); err != nil {
 		t.Fatal(err)
 	}
-	projects := filepath.Join(root, "projects")
+	projects = filepath.Join(root, "projects")
 	if err := os.Mkdir(projects, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -342,7 +345,7 @@ func TestAutoSwitchSkipsNetworkValidation(t *testing.T) {
 	}
 
 	bin := t.TempDir()
-	logFile := filepath.Join(bin, "calls.log")
+	logFile = filepath.Join(bin, "calls.log")
 	scripts := map[string]string{
 		"ssh": "#!/bin/sh\necho \"ssh $*\" >> \"$CALLS_LOG\"\nexit 255\n",
 		"gh":  "#!/bin/sh\necho \"gh $*\" >> \"$CALLS_LOG\"\ncase \"$1 $2\" in \"config get\") echo bob ;; esac\n",
@@ -354,8 +357,12 @@ func TestAutoSwitchSkipsNetworkValidation(t *testing.T) {
 	}
 	t.Setenv("CALLS_LOG", logFile)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-
 	autoSwitchCmd.SetContext(context.Background())
+	return manager, projects, logFile
+}
+
+func TestAutoSwitchSkipsNetworkValidation(t *testing.T) {
+	_, projects, logFile := setupAutoSwitchWork(t)
 	if err := autoSwitchCmd.RunE(autoSwitchCmd, []string{projects}); err != nil {
 		t.Fatal(err)
 	}
@@ -372,5 +379,66 @@ func TestAutoSwitchSkipsNetworkValidation(t *testing.T) {
 	}
 	if got := reloaded.GetConfig().CurrentAccount; got != "work" {
 		t.Fatalf("current account = %q, want work", got)
+	}
+}
+
+func TestAutoSwitchWithoutGitIncludesPinsSSHKey(t *testing.T) {
+	_, projects, _ := setupAutoSwitchWork(t)
+	if err := autoSwitchCmd.RunE(autoSwitchCmd, []string{projects}); err != nil {
+		t.Fatal(err)
+	}
+	sshConfig, err := os.ReadFile(filepath.Join(os.Getenv("HOME"), ".ssh", "config"))
+	if err != nil || !strings.Contains(string(sshConfig), "# >>> gitshift managed: github.com") {
+		t.Fatalf("managed SSH block missing: %q, %v", sshConfig, err)
+	}
+}
+
+// A Host block pinning the global account's key is tried before the key in a
+// directory's core.sshCommand, so in git-includes mode it must not exist.
+func TestAutoSwitchWithGitIncludesRemovesManagedSSHBlock(t *testing.T) {
+	manager, projects, _ := setupAutoSwitchWork(t)
+	sshConfig := filepath.Join(os.Getenv("HOME"), ".ssh", "config")
+	if err := os.MkdirAll(filepath.Dir(sshConfig), 0700); err != nil {
+		t.Fatal(err)
+	}
+	stale := "# >>> gitshift managed: github.com\nHost github.com\n    IdentityFile /old/key\n\n# <<< gitshift managed: github.com\n\nHost example.com\n  User deploy\n"
+	if err := os.WriteFile(sshConfig, []byte(stale), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.SetGitIncludes(true); err != nil {
+		t.Fatal(err)
+	}
+	if err := autoSwitchCmd.RunE(autoSwitchCmd, []string{projects}); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := os.ReadFile(sshConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(updated), "gitshift managed") || !strings.Contains(string(updated), "Host example.com") {
+		t.Fatalf("SSH config after switch:\n%s", updated)
+	}
+}
+
+func TestGitIncludesOnRemovesManagedSSHBlock(t *testing.T) {
+	_, _, _ = setupAutoSwitchWork(t)
+	sshConfig := filepath.Join(os.Getenv("HOME"), ".ssh", "config")
+	if err := os.MkdirAll(filepath.Dir(sshConfig), 0700); err != nil {
+		t.Fatal(err)
+	}
+	stale := "# >>> gitshift managed: github.com\nHost github.com\n    IdentityFile /old/key\n\n# <<< gitshift managed: github.com\n"
+	if err := os.WriteFile(sshConfig, []byte(stale), 0600); err != nil {
+		t.Fatal(err)
+	}
+	autoGitIncludesCmd.SetOut(&bytes.Buffer{})
+	if err := autoGitIncludesCmd.RunE(autoGitIncludesCmd, []string{"on"}); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := os.ReadFile(sshConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(updated), "gitshift managed") {
+		t.Fatalf("SSH config after git-includes on:\n%s", updated)
 	}
 }

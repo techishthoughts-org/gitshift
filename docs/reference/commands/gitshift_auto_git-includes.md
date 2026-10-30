@@ -17,8 +17,9 @@ kept in sync whenever accounts or rules change.
 
 'off' removes the entries and files. 'status' (the default) shows them.
 
-Switching still sets the GitHub CLI account and ~/.ssh/config, which Git
-cannot choose per directory.
+Switching still sets the GitHub CLI account, which Git cannot choose per
+directory. gitshift's Host block in ~/.ssh/config is removed, since it would
+offer the global account's key ahead of each directory's.
 
 ```
 gitshift auto git-includes [on|off|status] [flags]

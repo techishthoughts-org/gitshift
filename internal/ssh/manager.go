@@ -355,10 +355,31 @@ func (m *Manager) UpdateSSHConfig(accountAlias, keyPath, domain string) error {
 		existingContent = string(content)
 	}
 
-	// Build the new config
-	newConfig := m.buildIsolatedSSHConfigForPlatform(accountAlias, keyPath, domain, existingContent)
+	return m.writeSSHConfig(m.buildIsolatedSSHConfigForPlatform(accountAlias, keyPath, domain, existingContent))
+}
 
-	// Write the updated config
+// RemoveSSHConfig deletes gitshift's managed Host block for domain, keeping
+// every other entry. It is a no-op when the block is absent.
+func (m *Manager) RemoveSSHConfig(domain string) error {
+	content, err := os.ReadFile(m.configPath)
+	if os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("read SSH config: %w", err)
+	}
+	startMarker := fmt.Sprintf("# >>> gitshift managed: %s", domain)
+	if !strings.Contains(string(content), startMarker) {
+		return nil
+	}
+	if err := backupSSHConfig(m.configPath, content); err != nil {
+		return err
+	}
+	return m.writeSSHConfig(stripManagedSSHBlock(string(content), startMarker, fmt.Sprintf("# <<< gitshift managed: %s", domain)))
+}
+
+// writeSSHConfig atomically replaces the SSH config with newConfig.
+func (m *Manager) writeSSHConfig(newConfig string) error {
+	sshDir := filepath.Dir(m.configPath)
 	tmp, err := os.CreateTemp(sshDir, ".gitshift-ssh-config-*")
 	if err != nil {
 		return fmt.Errorf("create temporary SSH config: %w", err)
