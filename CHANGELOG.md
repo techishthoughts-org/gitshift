@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-10-30
+
+### Changed
+
+- `gitshift auto-switch` (run on every directory change by the shell hook) takes about 0.5 s
+  instead of about 4 s when it switches accounts. It skips the SSH connection tests, which
+  `gitshift switch` still runs; the key file and the written Git identity are still checked.
+  Switching reads the active GitHub CLI user from gh's local config instead of
+  `gh auth status`, renders Git include files without running `git`, and reads each Git
+  config scope in one call.
+
+### Fixed
+
+- With `auto git-includes on`, repositories now push with their directory's key instead of
+  the globally active account's. Switching and `git-includes on` remove gitshift's managed
+  `Host` block from `~/.ssh/config`, whose key ssh offered first; other entries are kept.
+
 ## [2.1.0] - 2026-10-29
 
 ### Added
@@ -302,7 +319,8 @@ Release binaries were published on GitHub only and report version v0.1.0.
   `--auto-import` and `--overwrite`.
 - YAML configuration in `~/.config/gitshift/config.yaml`.
 
-[Unreleased]: https://github.com/techishthoughts-org/gitshift/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/techishthoughts-org/gitshift/compare/v2.1.1...HEAD
+[2.1.1]: https://github.com/techishthoughts-org/gitshift/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/techishthoughts-org/gitshift/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/techishthoughts-org/gitshift/compare/v1.4.2...v2.0.0
 [1.4.2]: https://github.com/techishthoughts-org/gitshift/compare/v1.4.1...v1.4.2
