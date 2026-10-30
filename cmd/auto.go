@@ -214,7 +214,9 @@ var autoSwitchCmd = &cobra.Command{
 		}
 		// Automatic switching deliberately has no force mode: any failed
 		// validation aborts and rolls back through the shared switch path.
-		return switchAccount(cmd, manager, target, false, false, quiet)
+		// It runs on every directory change, so it skips the SSH round-trips
+		// and keeps the local key and identity checks.
+		return switchAccount(cmd, manager, target, false, true, quiet)
 	},
 }
 
