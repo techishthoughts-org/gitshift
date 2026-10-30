@@ -88,7 +88,7 @@ func Sync(cfg *models.Config, includeDir string) error {
 		if _, done := rendered[include.File]; done {
 			continue
 		}
-		content, err := renderIncludeFile(cfg.Accounts[include.Account], includeDir)
+		content, err := renderIncludeFile(cfg.Accounts[include.Account])
 		if err != nil {
 			return err
 		}
@@ -136,32 +136,35 @@ func InSync(cfg *models.Config, includeDir string) (bool, error) {
 	return inPlace(entries, Plan(cfg, includeDir), includeDir), nil
 }
 
-// renderIncludeFile writes the account's settings with `git config --file`
-// into a scratch file, so values are quoted exactly as Git reads them.
-func renderIncludeFile(account *models.Account, includeDir string) ([]byte, error) {
+// renderIncludeFile formats the account's settings as a gitconfig file in
+// process: Sync runs on every switch, and a git process per key cost ~15 ms.
+func renderIncludeFile(account *models.Account) ([]byte, error) {
 	settings, err := IdentitySettings(account)
 	if err != nil {
 		return nil, fmt.Errorf("account %s: %w", account.Alias, err)
 	}
-	scratch, err := os.CreateTemp(includeDir, ".gitshift-render-*")
-	if err != nil {
-		return nil, err
-	}
-	name := scratch.Name()
-	defer os.Remove(name)
-	if _, err := fmt.Fprintf(scratch, "%s for account %q. Do not edit; changes are overwritten.\n", generatedHeader, account.Alias); err != nil {
-		scratch.Close()
-		return nil, err
-	}
-	if err := scratch.Close(); err != nil {
-		return nil, err
-	}
+	var out bytes.Buffer
+	fmt.Fprintf(&out, "%s for account %q. Do not edit; changes are overwritten.\n", generatedHeader, account.Alias)
+	section := ""
 	for _, setting := range settings {
-		if output, err := exec.Command("git", "config", "--file", name, setting.Key, setting.Value).CombinedOutput(); err != nil {
-			return nil, fmt.Errorf("render %s for %s: %w: %s", setting.Key, account.Alias, err, strings.TrimSpace(string(output)))
+		name, key, ok := strings.Cut(setting.Key, ".")
+		if !ok || strings.Contains(key, ".") {
+			return nil, fmt.Errorf("render %s for %s: unsupported key", setting.Key, account.Alias)
 		}
+		if name != section {
+			fmt.Fprintf(&out, "[%s]\n", name)
+			section = name
+		}
+		fmt.Fprintf(&out, "\t%s = %s\n", key, quoteConfigValue(setting.Value))
 	}
-	return os.ReadFile(name)
+	return out.Bytes(), nil
+}
+
+// quoteConfigValue writes value as a double-quoted gitconfig string, so
+// spaces, '#' and ';' survive and only '\\', '"' and control characters need
+// escaping.
+func quoteConfigValue(value string) string {
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`, "\t", `\t`, "\b", `\b`).Replace(value) + `"`
 }
 
 func installFile(path string, content []byte) error {

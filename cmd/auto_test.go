@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -308,5 +309,68 @@ func TestCurrentShortPrintsOnlyAlias(t *testing.T) {
 	}
 	if output.String() != "work\n" {
 		t.Fatalf("short output = %q, want %q", output.String(), "work\n")
+	}
+}
+
+func TestAutoSwitchSkipsNetworkValidation(t *testing.T) {
+	oldConfig := cfgFile
+	defer func() { cfgFile = oldConfig }()
+	root := t.TempDir()
+	t.Setenv("HOME", root)
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(root, "global.gitconfig"))
+	t.Chdir(root)
+	cfgFile = filepath.Join(root, "config.yaml")
+	manager := config.NewManagerWithPath(cfgFile)
+	if err := manager.Load(); err != nil {
+		t.Fatal(err)
+	}
+	key := filepath.Join(root, "id_work")
+	if err := os.WriteFile(key, []byte("key"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	work := models.NewAccount("work", "Work User", "work@example.com", key)
+	work.SetUsername("alice")
+	if err := manager.AddAccount(work); err != nil {
+		t.Fatal(err)
+	}
+	projects := filepath.Join(root, "projects")
+	if err := os.Mkdir(projects, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.AddAutoSwitchRule(projects, "work"); err != nil {
+		t.Fatal(err)
+	}
+
+	bin := t.TempDir()
+	logFile := filepath.Join(bin, "calls.log")
+	scripts := map[string]string{
+		"ssh": "#!/bin/sh\necho \"ssh $*\" >> \"$CALLS_LOG\"\nexit 255\n",
+		"gh":  "#!/bin/sh\necho \"gh $*\" >> \"$CALLS_LOG\"\ncase \"$1 $2\" in \"config get\") echo bob ;; esac\n",
+	}
+	for name, script := range scripts {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte(script), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("CALLS_LOG", logFile)
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	autoSwitchCmd.SetContext(context.Background())
+	if err := autoSwitchCmd.RunE(autoSwitchCmd, []string{projects}); err != nil {
+		t.Fatal(err)
+	}
+	calls, _ := os.ReadFile(logFile)
+	if strings.Contains(string(calls), "ssh ") || strings.Contains(string(calls), "auth status") {
+		t.Fatalf("auto-switch made network checks:\n%s", calls)
+	}
+	if !strings.Contains(string(calls), "gh auth switch --hostname github.com --user alice") {
+		t.Fatalf("GitHub CLI was not switched:\n%s", calls)
+	}
+	reloaded := config.NewManagerWithPath(cfgFile)
+	if err := reloaded.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if got := reloaded.GetConfig().CurrentAccount; got != "work" {
+		t.Fatalf("current account = %q, want work", got)
 	}
 }

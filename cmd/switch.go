@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -192,9 +193,9 @@ func switchAccount(cmd *cobra.Command, configManager *config.Manager, accountAli
 		}
 	}
 
-	if !skipValidation && !force {
+	if !force {
 		outputf("🧪 Testing configuration...\n")
-		if err := testConfiguration(targetAccount); err != nil {
+		if err := testConfiguration(targetAccount, !skipValidation); err != nil {
 			return rollback(fmt.Errorf("configuration validation failed: %w", err))
 		}
 		outputf("✅ Configuration test passed\n")
@@ -256,13 +257,11 @@ func captureSwitchState(target *models.Account, allowMissingGitHubState bool) (*
 		scopes = append(scopes, "--local")
 	}
 	for _, scope := range scopes {
-		for _, key := range keys {
-			values, err := readGitConfigValues(scope, key)
-			if err != nil {
-				return nil, fmt.Errorf("snapshot git config %s: %w", key, err)
-			}
-			state.gitValues = append(state.gitValues, configValueSnapshot{scope: scope, key: key, values: values})
+		snapshots, err := readGitConfigSnapshot(scope, keys)
+		if err != nil {
+			return nil, fmt.Errorf("snapshot git config: %w", err)
 		}
+		state.gitValues = append(state.gitValues, snapshots...)
 	}
 
 	if target.GetPlatform() == "github" {
@@ -272,8 +271,9 @@ func captureSwitchState(target *models.Account, allowMissingGitHubState bool) (*
 			}
 			return nil, fmt.Errorf("GitHub CLI not found")
 		}
-		cmd := exec.Command("gh", "auth", "status", "--active", "--hostname", target.GetDomain(), "--json", "hosts", "--jq", ".hosts | add | .[0].login // empty")
-		output, err := cmd.Output()
+		// gh's local config names the active user; 'gh auth status' would
+		// validate every token over the network just to read it.
+		output, err := exec.Command("gh", "config", "get", "-h", target.GetDomain(), "user").Output()
 		if err != nil {
 			if allowMissingGitHubState {
 				return state, nil
@@ -292,6 +292,36 @@ func captureSwitchState(target *models.Account, allowMissingGitHubState bool) (*
 	}
 
 	return state, nil
+}
+
+// readGitConfigSnapshot reads every key in one git process; it returns the
+// same values readGitConfigValues gives per key, in keys order.
+func readGitConfigSnapshot(scope string, keys []string) ([]configValueSnapshot, error) {
+	quoted := make([]string, len(keys))
+	for i, key := range keys {
+		quoted[i] = regexp.QuoteMeta(strings.ToLower(key)) // git matches canonical lowercase names
+	}
+	pattern := "^(" + strings.Join(quoted, "|") + ")$"
+	output, err := exec.Command("git", "config", scope, "-z", "--get-regexp", pattern).Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 1 {
+			return nil, err
+		}
+	}
+	values := map[string][]string{}
+	for _, entry := range strings.Split(strings.TrimSuffix(string(output), "\x00"), "\x00") {
+		if entry == "" {
+			continue
+		}
+		key, value, _ := strings.Cut(entry, "\n")
+		key = strings.ToLower(key)
+		values[key] = append(values[key], value)
+	}
+	snapshots := make([]configValueSnapshot, len(keys))
+	for i, key := range keys {
+		snapshots[i] = configValueSnapshot{scope: scope, key: key, values: values[strings.ToLower(key)]}
+	}
+	return snapshots, nil
 }
 
 func readGitConfigValues(scope, key string) ([]string, error) {
@@ -558,8 +588,9 @@ func switchGitHubCLI(domain, username string) error {
 	return nil
 }
 
-// testConfiguration tests the current configuration
-func testConfiguration(account *models.Account) error {
+// testConfiguration checks the written Git identity and, when testSSH is set,
+// the SSH connection.
+func testConfiguration(account *models.Account, testSSH bool) error {
 	// Test Git configuration
 	nameCmd := exec.Command("git", "config", "--global", "user.name")
 	nameOutput, err := nameCmd.Output()
@@ -584,8 +615,7 @@ func testConfiguration(account *models.Account) error {
 		return fmt.Errorf("git user.email mismatch: expected '%s', got '%s'", account.Email, gitEmail)
 	}
 
-	// Test SSH if key is configured
-	if account.SSHKeyPath != "" {
+	if testSSH && account.SSHKeyPath != "" {
 		if _, err := os.Stat(account.SSHKeyPath); err == nil {
 			sshManager := ssh.NewManager()
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

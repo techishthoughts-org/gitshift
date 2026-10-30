@@ -367,3 +367,40 @@ func TestWorktreeFollowsItsRepositoryDirectory(t *testing.T) {
 		t.Fatalf("worktree in the work directory resolved %q; expected its repository's (personal) identity", got)
 	}
 }
+
+func TestRenderIncludeFileRoundTripsThroughGit(t *testing.T) {
+	dir := t.TempDir()
+	account := models.NewAccount("odd", ` Ann "Q" O'Neil\ #; `, "ann@example.com", filepath.Join(dir, "key with space"))
+	content, err := renderIncludeFile(account)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(dir, "rendered")
+	if err := os.WriteFile(file, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	settings, err := IdentitySettings(account)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, setting := range settings {
+		got, err := exec.Command("git", "config", "--file", file, "--get", setting.Key).Output()
+		if err != nil {
+			t.Fatalf("git cannot read %s: %v\n%s", setting.Key, err, content)
+		}
+		if value := strings.TrimSuffix(string(got), "\n"); value != setting.Value {
+			t.Fatalf("%s = %q, want %q", setting.Key, value, setting.Value)
+		}
+	}
+	if !strings.HasPrefix(string(content), generatedHeader) {
+		t.Fatalf("missing generated header:\n%s", content)
+	}
+}
+
+func TestRenderIncludeFileRunsNoGitProcesses(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	account := models.NewAccount("work", "Work", "work@example.com", "")
+	if _, err := renderIncludeFile(account); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -179,3 +179,59 @@ func TestRootCommandPrintsErrorsOnce(t *testing.T) {
 		t.Fatal("root command must leave error printing to main and skip usage on errors")
 	}
 }
+
+func TestCaptureSwitchStateReadsActiveGitHubUserLocally(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(dir, "global.gitconfig"))
+	t.Chdir(dir)
+	logFile := fakeGH(t, "")
+	ghScript := filepath.Join(filepath.Dir(logFile), "gh")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$GH_LOG\"\ncase \"$1 $2\" in \"config get\") echo bob ;; esac\n"
+	if err := os.WriteFile(ghScript, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	account := models.NewAccount("work", "Work", "work@example.com", "")
+	state, err := captureSwitchState(account, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.ghDomain != "github.com" || state.ghUser != "bob" {
+		t.Fatalf("gh state = %q@%q, want bob@github.com", state.ghUser, state.ghDomain)
+	}
+	calls, _ := os.ReadFile(logFile)
+	if string(calls) != "config get -h github.com user\n" {
+		t.Fatalf("gh calls = %q", calls)
+	}
+}
+
+func TestReadGitConfigSnapshotMatchesPerKeyReads(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(dir, "global.gitconfig"))
+	for _, args := range [][]string{
+		{"user.name", "Multi Word"},
+		{"--add", "user.email", "a@example.com"},
+		{"--add", "user.email", "b@example.com"},
+		{"core.sshCommand", "ssh -i '/k' -o IdentitiesOnly=yes"},
+		{"user.signingkey", ""},
+		{"user.nameExtra", "ignored"},
+	} {
+		if err := exec.Command("git", append([]string{"config", "--global"}, args...)...).Run(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	keys := []string{"user.name", "user.email", "core.sshCommand", "user.signingkey", "commit.gpgsign"}
+	got, err := readGitConfigSnapshot("--global", keys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, key := range keys {
+		want, err := readGitConfigValues("--global", key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got[i].key != key || got[i].scope != "--global" || strings.Join(got[i].values, "|") != strings.Join(want, "|") || (got[i].values == nil) != (want == nil) {
+			t.Fatalf("%s = %#v, want %#v", key, got[i].values, want)
+		}
+	}
+}
